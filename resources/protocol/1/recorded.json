@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Recorded",
+    "description": "The body of the 200 answer of the platform to an announcement or a report. Any other answer counts as undelivered.",
+    "type": "object",
+    "required": ["recorded"],
+    "properties": {
+        "recorded": {
+            "const": true
+        }
+    }
+}

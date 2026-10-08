@@ -1,0 +1,27 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Abandon",
+    "description": "POST {endpoint}. The order to abandon a run, sent only when an operator asks. It is fenced with the run ID, and with the attempt when the run exists, and answered in the request.",
+    "type": "object",
+    "required": ["protocol", "verb", "definition", "workflowId", "runId"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "abandon"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/runId"
+        },
+        "attempt": {
+            "$ref": "definitions.json#/$defs/attempt"
+        }
+    }
+}

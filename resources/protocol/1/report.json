@@ -1,0 +1,161 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Report",
+    "description": "POST {platformUrl}/v1/reports. The outcome of a call, and the run as the store held it just before sending. Answered 200 {\"recorded\": true}.",
+    "type": "object",
+    "required": [
+        "protocol",
+        "invocationId",
+        "verb",
+        "origin",
+        "definition",
+        "workflowId",
+        "runId",
+        "outcome",
+        "code",
+        "errorClass",
+        "executedAttempt",
+        "run",
+        "claimed",
+        "snapshotRead",
+        "at"
+    ],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "invocationId": {
+            "$ref": "definitions.json#/$defs/invocationId"
+        },
+        "verb": {
+            "$ref": "definitions.json#/$defs/segmentVerb"
+        },
+        "origin": {
+            "$ref": "definitions.json#/$defs/origin"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/runId"
+        },
+        "outcome": {
+            "description": "completed, suspended: Neuron returned the run's state, after a segment when executedAttempt is set, without one when it is null (a wake before its time returns the same wait and attempt). failed: a segment ran and threw. refused: Neuron said no, or the guard before a wake did; with an executedAttempt, a segment that lost its run while it was executing (stale_attempt). rejected: the SDK said no, for good. aborted: nothing ran. observed: nothing is known about the call; only the store was read.",
+            "enum": ["completed", "suspended", "failed", "refused", "rejected", "aborted", "observed"]
+        },
+        "code": {
+            "description": "A RefusalReason value for refused; an SDK code for rejected and aborted.",
+            "type": ["string", "null"]
+        },
+        "errorClass": {
+            "description": "The exception class of a failed or aborted call; for an anonymous class, its nearest named parent. Never the message.",
+            "type": ["string", "null"],
+            "pattern": "^(?:[A-Za-z_]|[^\\x00-\\x7F])(?:[A-Za-z0-9_]|[^\\x00-\\x7F])*(?:\\\\(?:[A-Za-z_]|[^\\x00-\\x7F])(?:[A-Za-z0-9_]|[^\\x00-\\x7F])*)*$"
+        },
+        "executedAttempt": {
+            "description": "The attempt this call executed under; null when it opened no segment.",
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/attempt"},
+                {"type": "null"}
+            ]
+        },
+        "run": {
+            "description": "The run holding the workflow ID when the report was sent, or null.",
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/run"},
+                {"type": "null"}
+            ]
+        },
+        "claimed": {
+            "description": "Whether a start's run ID is in the ledger. Null for every other verb, and when the ledger was not read.",
+            "type": ["boolean", "null"]
+        },
+        "snapshotRead": {
+            "description": "False when the store could not be read; run and claimed then mean nothing.",
+            "type": "boolean"
+        },
+        "at": {
+            "$ref": "definitions.json#/$defs/instant"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {"outcome": {"const": "refused"}}
+            },
+            "then": {
+                "properties": {"code": {"$ref": "definitions.json#/$defs/reportRefusalReason"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"const": "rejected"}}
+            },
+            "then": {
+                "properties": {"code": {"$ref": "definitions.json#/$defs/rejectedCode"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"const": "aborted"}}
+            },
+            "then": {
+                "properties": {"code": {"$ref": "definitions.json#/$defs/abortedCode"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"enum": ["completed", "suspended", "failed", "observed"]}}
+            },
+            "then": {
+                "properties": {"code": {"type": "null"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"const": "failed"}}
+            },
+            "then": {
+                "properties": {"errorClass": {"type": "string"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"enum": ["completed", "suspended", "refused", "rejected", "observed"]}}
+            },
+            "then": {
+                "properties": {"errorClass": {"type": "null"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"verb": {"enum": ["wake", "answer", "signal"]}}
+            },
+            "then": {
+                "properties": {
+                    "claimed": {"type": "null"},
+                    "outcome": {"not": {"const": "rejected"}}
+                }
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"const": "failed"}}
+            },
+            "then": {
+                "properties": {"executedAttempt": {"$ref": "definitions.json#/$defs/attempt"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"outcome": {"enum": ["rejected", "aborted", "observed"]}}
+            },
+            "then": {
+                "properties": {"executedAttempt": {"type": "null"}}
+            }
+        }
+    ]
+}

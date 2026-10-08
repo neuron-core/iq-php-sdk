@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Sync answer",
+    "description": "The 200 answer to a sync. A version with no open run is retirable. A stranded version left the code while runs remain.",
+    "type": "object",
+    "required": ["protocol", "modified", "versions", "stranded"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "modified": {
+            "description": "False when the sync changed nothing.",
+            "type": "boolean"
+        },
+        "versions": {
+            "type": "array",
+            "items": {
+                "$ref": "definitions.json#/$defs/openRuns"
+            }
+        },
+        "stranded": {
+            "type": "array",
+            "items": {
+                "$ref": "definitions.json#/$defs/openRuns"
+            }
+        }
+    }
+}

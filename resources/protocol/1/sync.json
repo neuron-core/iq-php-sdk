@@ -1,0 +1,28 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Sync request",
+    "description": "POST {platformUrl}/v1/sync. The list of definitions is complete and replaces the previous one.",
+    "type": "object",
+    "required": ["protocols", "sdk", "endpoint", "definitions"],
+    "properties": {
+        "protocols": {
+            "$ref": "definitions.json#/$defs/protocols"
+        },
+        "sdk": {
+            "description": "The SDK and its version, such as \"neuron-cloud-php/1.0.0\".",
+            "type": "string",
+            "minLength": 1
+        },
+        "endpoint": {
+            "description": "The signed URL the platform calls.",
+            "type": "string",
+            "pattern": "^https://"
+        },
+        "definitions": {
+            "type": "array",
+            "items": {
+                "$ref": "definitions.json#/$defs/registration"
+            }
+        }
+    }
+}

@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Ping",
+    "description": "POST {endpoint}. The question \"does this endpoint verify my signature?\". The platform asks it before it accepts a sync.",
+    "type": "object",
+    "required": ["protocol", "verb"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "ping"
+        }
+    }
+}

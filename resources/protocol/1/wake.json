@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Wake",
+    "description": "POST {endpoint}. The order to wake a run, fenced with the run ID and the attempt the application itself reported. It is queued and answered 202.",
+    "type": "object",
+    "required": ["protocol", "verb", "invocationId", "definition", "workflowId", "runId", "attempt"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "wake"
+        },
+        "invocationId": {
+            "$ref": "definitions.json#/$defs/invocationId"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/runId"
+        },
+        "attempt": {
+            "$ref": "definitions.json#/$defs/attempt"
+        }
+    }
+}

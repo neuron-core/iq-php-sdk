@@ -1,0 +1,74 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Announcement",
+    "description": "POST {platformUrl}/v1/announcements. \"A segment of this run is starting; its lease is leaseSeconds.\" Answered 200 {\"recorded\": true}.",
+    "type": "object",
+    "required": [
+        "protocol",
+        "invocationId",
+        "verb",
+        "origin",
+        "definition",
+        "workflowId",
+        "runId",
+        "attempt",
+        "leaseSeconds",
+        "at"
+    ],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "invocationId": {
+            "$ref": "definitions.json#/$defs/invocationId"
+        },
+        "verb": {
+            "$ref": "definitions.json#/$defs/segmentVerb"
+        },
+        "origin": {
+            "$ref": "definitions.json#/$defs/origin"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/runId"
+        },
+        "attempt": {
+            "description": "The fence of a wake, an answer or a signal. Null for a start, which has none.",
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/attempt"},
+                {"type": "null"}
+            ]
+        },
+        "leaseSeconds": {
+            "description": "The lease the segment runs under.",
+            "type": "integer",
+            "minimum": 1
+        },
+        "at": {
+            "$ref": "definitions.json#/$defs/instant"
+        }
+    },
+    "allOf": [
+        {
+            "if": {
+                "properties": {"verb": {"const": "start"}}
+            },
+            "then": {
+                "properties": {"attempt": {"type": "null"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"verb": {"enum": ["wake", "answer", "signal"]}}
+            },
+            "then": {
+                "properties": {"attempt": {"$ref": "definitions.json#/$defs/attempt"}}
+            }
+        }
+    ]
+}

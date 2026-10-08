@@ -1,0 +1,34 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Answer to inspect and abandon",
+    "description": "The body of the 200 answer to an inspect or an abandon, and of the 409 answer to an abandon, which adds a code.",
+    "type": "object",
+    "required": ["run", "claimed", "snapshotRead", "at"],
+    "properties": {
+        "run": {
+            "description": "The run holding the workflow ID, or null.",
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/run"},
+                {"type": "null"}
+            ]
+        },
+        "claimed": {
+            "description": "Whether the run ID the message named is in the ledger. Null for an inspect without a run ID, and when the store could not be read.",
+            "type": ["boolean", "null"]
+        },
+        "snapshotRead": {
+            "description": "False when the store could not be read; run and claimed then mean nothing.",
+            "type": "boolean"
+        },
+        "at": {
+            "$ref": "definitions.json#/$defs/instant"
+        },
+        "code": {
+            "description": "Only in a 409 answer to an abandon: a RefusalReason value, or abandon_refused.",
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/refusalReason"},
+                {"const": "abandon_refused"}
+            ]
+        }
+    }
+}

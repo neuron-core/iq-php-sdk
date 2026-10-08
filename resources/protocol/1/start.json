@@ -1,0 +1,30 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Start",
+    "description": "POST {endpoint}. The order to start a run. It is queued and answered 202. The run ID is minted by the platform with the current version; expiresAt is the use-by time, 600 to 3600 seconds ahead.",
+    "type": "object",
+    "required": ["protocol", "verb", "invocationId", "definition", "workflowId", "runId", "expiresAt"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "start"
+        },
+        "invocationId": {
+            "$ref": "definitions.json#/$defs/invocationId"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/mintedRunId"
+        },
+        "expiresAt": {
+            "$ref": "definitions.json#/$defs/instant"
+        }
+    }
+}

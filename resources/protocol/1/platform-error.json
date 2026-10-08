@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Platform error",
+    "description": "The body of an answer the platform refuses a message with for good: a 401 or a 403 (unauthorized), a 4xx with invalid_request or unsupported_protocol, and the 422 endpoint_unverified to a sync. The code is at the top level of the body.",
+    "type": "object",
+    "required": ["code"],
+    "properties": {
+        "code": {
+            "enum": ["endpoint_unverified", "unauthorized", "invalid_request", "unsupported_protocol"]
+        }
+    }
+}

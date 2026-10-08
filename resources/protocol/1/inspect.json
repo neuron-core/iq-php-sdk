@@ -1,0 +1,24 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Inspect",
+    "description": "POST {endpoint}. The question \"which run holds this workflow ID?\". It is answered in the request. With a run ID, the answer also says whether that run ID is in the ledger.",
+    "type": "object",
+    "required": ["protocol", "verb", "definition", "workflowId"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "inspect"
+        },
+        "definition": {
+            "$ref": "definitions.json#/$defs/definition"
+        },
+        "workflowId": {
+            "$ref": "definitions.json#/$defs/workflowId"
+        },
+        "runId": {
+            "$ref": "definitions.json#/$defs/runId"
+        }
+    }
+}

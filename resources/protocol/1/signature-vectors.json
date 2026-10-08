@@ -1,0 +1,215 @@
+{
+    "description": "Test vectors for the signature of protocol 1 (Standard Webhooks). The signed text is \"{id}.{timestamp}.{body}\", signed with HMAC-SHA256 under the bytes that follow \"whsec_\" in the key, base64-decoded; the signature is \"v1,\" followed by the base64 of the digest. \"signature\" is what a signer holding \"key\" produces for \"id\", \"timestamp\" and \"body\", or null when it cannot sign: no usable key, or a timestamp that is not a number. \"valid\" is what a receiver holding \"key\" answers, at the clock \"now\", to a request that carries \"id\", \"timestamp\" and \"body\" with \"header\" as its webhook-signature. A key that is missing, empty or does not decode is no key: nothing verifies. A timestamp more than \"toleranceSeconds\" from \"now\", either way, does not verify.",
+    "toleranceSeconds": 300,
+    "vectors": [
+        {
+            "name": "the published Standard Webhooks vector",
+            "key": "whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw",
+            "id": "msg_p5jXN8AQM9LWM0D4loKWxJek",
+            "timestamp": "1614265330",
+            "body": "{\"test\": 2432232314}",
+            "signature": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=",
+            "header": "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=",
+            "now": 1614265330,
+            "valid": true
+        },
+        {
+            "name": "a wake signed by the platform",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453605,
+            "valid": true
+        },
+        {
+            "name": "two signatures separated by a space, the first from a key the application does not hold",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,BaQdlq/3GXXIqxvezJg+hWb2kFOY7NbO4FGYi6rDFls= v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": true
+        },
+        {
+            "name": "two signatures separated by a space, neither from the key the application holds",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,BaQdlq/3GXXIqxvezJg+hWb2kFOY7NbO4FGYi6rDFls= v1,lRsLionzfS1jK51z0tLxINREH8u6QpsvMWzVq1mtpgM=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a missing key",
+            "key": null,
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "an empty key",
+            "key": "",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,Y1yeSPshtSkqHIuiSfNbPqL9ONJX8biHEA8cxZEF1/8=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a key that is only the prefix",
+            "key": "whsec_",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,Y1yeSPshtSkqHIuiSfNbPqL9ONJX8biHEA8cxZEF1/8=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a key that does not base64-decode",
+            "key": "whsec_not*base64*at*all",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a key without the whsec_ prefix",
+            "key": "bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a timestamp exactly 300 seconds behind the receiver",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453903,
+            "valid": true
+        },
+        {
+            "name": "a timestamp 301 seconds behind the receiver",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453904,
+            "valid": false
+        },
+        {
+            "name": "a timestamp exactly 300 seconds ahead of the receiver",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453303,
+            "valid": true
+        },
+        {
+            "name": "a timestamp 301 seconds ahead of the receiver",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453302,
+            "valid": false
+        },
+        {
+            "name": "a timestamp that is not a number",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603s",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": null,
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "an altered body",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":2}",
+            "signature": "v1,VySj2cMKcG7+NLc2mGtsmDhq3NLiIuPylUFUVWlJ1O0=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "another webhook-id",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW3",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,p99RkbMZwqC12wIb2lsodQBOfDuIF5CUUcpWTVyjTm4=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "another timestamp inside the window",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453604",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,0BCgdwDC3mnYKovw6iv+v7QGe7qUAofI09JFXrQa1AI=",
+            "header": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "a signature without its version",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "now": 1791453603,
+            "valid": false
+        },
+        {
+            "name": "an empty signature header",
+            "key": "whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh",
+            "id": "inv_01JB7K4T9QW2",
+            "timestamp": "1791453603",
+            "body": "{\"protocol\":1,\"verb\":\"wake\",\"invocationId\":\"inv_01JB7K4T9QW2\",\"definition\":\"order-fulfilment\",\"workflowId\":\"order:123\",\"runId\":\"2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12\",\"attempt\":1}",
+            "signature": "v1,6eTXeA6YE8mlLPOkyt4i9GYDYXj72niCOuFVG9StdTQ=",
+            "header": "",
+            "now": 1791453603,
+            "valid": false
+        }
+    ]
+}

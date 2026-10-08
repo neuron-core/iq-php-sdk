@@ -1,0 +1,29 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Endpoint error",
+    "description": "The body of every endpoint answer that is not 200 or 202. A 409 carries a RefusalReason value or abandon_refused, with the fields of the answer to inspect and abandon attached. A 503 also sends Retry-After, in seconds.",
+    "type": "object",
+    "required": ["code"],
+    "properties": {
+        "code": {
+            "oneOf": [
+                {"$ref": "definitions.json#/$defs/endpointCode"},
+                {"$ref": "definitions.json#/$defs/refusalReason"}
+            ]
+        }
+    },
+    "if": {
+        "required": ["code"],
+        "properties": {
+            "code": {
+                "anyOf": [
+                    {"$ref": "definitions.json#/$defs/refusalReason"},
+                    {"const": "abandon_refused"}
+                ]
+            }
+        }
+    },
+    "then": {
+        "$ref": "inspect-answer.json"
+    }
+}

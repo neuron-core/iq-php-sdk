@@ -1,0 +1,12 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Ping answer",
+    "description": "The body of the 200 answer to a ping.",
+    "type": "object",
+    "required": ["protocols"],
+    "properties": {
+        "protocols": {
+            "$ref": "definitions.json#/$defs/protocols"
+        }
+    }
+}

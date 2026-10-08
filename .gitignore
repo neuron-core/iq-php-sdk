@@ -1,0 +1,11 @@
+.idea
+vendor
+composer.lock
+*.cache
+.store
+.php-cs-fixer.cache
+.claude
+.junie
+.codex
+.env
+phpunit.xml.local

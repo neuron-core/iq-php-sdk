@@ -1,0 +1,203 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Neuron Cloud protocol 1: shared definitions",
+    "description": "Identifier formats, codes and the run object used by the messages of protocol 1. Receivers ignore fields they do not know. Instants are Unix seconds.",
+    "$defs": {
+        "protocol": {
+            "const": 1
+        },
+        "protocols": {
+            "description": "The protocol versions the sender speaks.",
+            "type": "array",
+            "items": {
+                "type": "integer",
+                "minimum": 1
+            },
+            "contains": {
+                "const": 1
+            }
+        },
+        "definition": {
+            "description": "The name a workflow or agent class is registered under.",
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]{0,63}$"
+        },
+        "version": {
+            "description": "The version of a definition: the number at the front of the run IDs pinned to it.",
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 999999
+        },
+        "workflowId": {
+            "description": "Neuron's rule: 1 to 255 characters, no control character, no leading \"__\".",
+            "type": "string",
+            "pattern": "^(?!__)[^\\x00-\\x1F\\x7F]{1,255}$"
+        },
+        "mintedRunId": {
+            "description": "A run ID minted by the SDK or the platform: \"<version>-<unique>\".",
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,5}-[A-Za-z0-9][A-Za-z0-9_-]{0,119}$"
+        },
+        "runId": {
+            "description": "Neuron's rule. A run ID that is not \"<version>-<unique>\" belongs to a run started outside the SDK and counts as the lowest version.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "invocationId": {
+            "description": "For a platform message it equals the webhook-id header and is the same on every re-send.",
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$"
+        },
+        "instant": {
+            "description": "Unix seconds.",
+            "type": "integer",
+            "minimum": 0
+        },
+        "attempt": {
+            "description": "The counter Neuron raises each time a process takes a run over.",
+            "type": "integer",
+            "minimum": 1
+        },
+        "segmentVerb": {
+            "description": "The kind of segment.",
+            "enum": ["start", "wake", "answer", "signal"]
+        },
+        "origin": {
+            "description": "\"platform\" when the invocation arrived through the endpoint, \"application\" when the application's code created it.",
+            "enum": ["platform", "application"]
+        },
+        "refusalReason": {
+            "description": "A value of Neuron's RefusalReason that can occur under the SDK.",
+            "enum": [
+                "run_in_flight",
+                "stale_run",
+                "stale_attempt",
+                "executing",
+                "not_awaited",
+                "completed",
+                "conflict"
+            ]
+        },
+        "reportRefusalReason": {
+            "description": "The values of Neuron's RefusalReason a segment can be refused with.",
+            "enum": ["run_in_flight", "stale_run", "stale_attempt", "executing", "not_awaited", "conflict"]
+        },
+        "rejectedCode": {
+            "enum": ["expired", "invalid_start", "already_claimed"]
+        },
+        "abortedCode": {
+            "enum": ["not_executed", "unknown_definition", "unknown_version", "announce_failed", "unavailable"]
+        },
+        "endpointCode": {
+            "enum": [
+                "invalid_signature",
+                "invalid_request",
+                "unsupported_protocol",
+                "unknown_definition",
+                "unknown_version",
+                "dispatch_failed",
+                "unavailable",
+                "abandon_refused",
+                "internal_error"
+            ]
+        },
+        "wait": {
+            "description": "What a suspended run waits for. Built from typed getters, never from the request's own JSON form.",
+            "type": "object",
+            "required": ["interruptId", "type", "eventName", "wakeAt"],
+            "properties": {
+                "interruptId": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "type": {
+                    "enum": ["wait_for_event", "sleep_until"]
+                },
+                "eventName": {
+                    "type": ["string", "null"]
+                },
+                "wakeAt": {
+                    "description": "When to wake the run: the time of a timer, or the deadline of an event wait. Null when the wait has none.",
+                    "oneOf": [
+                        {"$ref": "#/$defs/instant"},
+                        {"type": "null"}
+                    ]
+                }
+            }
+        },
+        "run": {
+            "description": "The run holding a workflow ID.",
+            "type": "object",
+            "required": ["runId", "status", "attempt", "leaseExpiresAt"],
+            "properties": {
+                "runId": {
+                    "$ref": "#/$defs/runId"
+                },
+                "status": {
+                    "description": "\"completed\" only for a completion retained by code outside the SDK.",
+                    "enum": ["running", "suspended", "failed", "completed"]
+                },
+                "attempt": {
+                    "$ref": "#/$defs/attempt"
+                },
+                "leaseExpiresAt": {
+                    "oneOf": [
+                        {"$ref": "#/$defs/instant"},
+                        {"type": "null"}
+                    ]
+                },
+                "wait": {
+                    "$ref": "#/$defs/wait"
+                }
+            },
+            "if": {
+                "properties": {
+                    "status": {"const": "suspended"}
+                }
+            },
+            "then": {
+                "required": ["wait"]
+            },
+            "else": {
+                "properties": {
+                    "wait": false
+                }
+            }
+        },
+        "registration": {
+            "description": "One registered version of a definition.",
+            "type": "object",
+            "required": ["definition", "version", "leaseSeconds"],
+            "properties": {
+                "definition": {
+                    "$ref": "#/$defs/definition"
+                },
+                "version": {
+                    "$ref": "#/$defs/version"
+                },
+                "leaseSeconds": {
+                    "description": "The leaseTimeout given to register().",
+                    "type": "integer",
+                    "minimum": 60
+                }
+            }
+        },
+        "openRuns": {
+            "description": "A version of a definition and the runs still open on it.",
+            "type": "object",
+            "required": ["definition", "version", "openRuns"],
+            "properties": {
+                "definition": {
+                    "$ref": "#/$defs/definition"
+                },
+                "version": {
+                    "$ref": "#/$defs/version"
+                },
+                "openRuns": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        }
+    }
+}
