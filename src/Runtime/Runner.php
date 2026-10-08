@@ -4,15 +4,10 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Runtime;
 
-use NeuronAI\Exceptions\WorkflowRefusedException;
-use NeuronAI\Observability\ObservabilityEvent;
-use NeuronAI\Workflow\Events\Event;
-use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\CloudException;
 use NeuronCore\Cloud\Code;
@@ -145,7 +140,7 @@ final class Runner
     protected function request(Invocation $invocation, Workflow $workflow): ExecutionRequest
     {
         return match ($invocation->verb) {
-            Verb::Start => $this->startRequest(StartEvents::resolve($workflow, $invocation->event), $invocation->runId),
+            Verb::Start => StartEvents::request(StartEvents::resolve($workflow, $invocation->event), $invocation->runId),
             Verb::Answer => ExecutionRequest::resume($invocation->payload ?? [], $invocation->runId, $invocation->attempt),
             Verb::Signal => ExecutionRequest::signal(
                 (string) $invocation->signal,
@@ -156,19 +151,6 @@ final class Runner
             // A wake has no input: Neuron decides whether a timer is due or a failed or dead run must be finished.
             default => ExecutionRequest::resume(null, $invocation->runId, $invocation->attempt),
         };
-    }
-
-    /**
-     * @throws CloudException invalid_start, when Neuron cannot store the event or the run ID with a run
-     */
-    protected function startRequest(Event $event, string $runId): ExecutionRequest
-    {
-        try {
-            // recoverFailed stays false: a start only ever creates a run, so a repeated start can never become a retry.
-            return ExecutionRequest::start($event, $runId, recoverFailed: false);
-        } catch (Throwable $e) {
-            throw new CloudException('The start cannot be stored with a run: ' . $e->getMessage(), Code::InvalidStart, $e);
-        }
     }
 
     /**
@@ -219,30 +201,16 @@ final class Runner
 
     protected function execute(Invocation $invocation, Workflow $workflow, ExecutionRequest $request): Settlement
     {
-        // Neuron reports every segment it opens: no event means this call opened none. The first event is kept,
-        // because a listener of the application that throws on a later one stops it from reaching this listener.
-        $opened = null;
-        $workflow->subscribe(ObservabilityEvent::class, static function (ObservabilityEvent $event) use (&$opened): void {
-            $opened ??= $event->execution;
-        });
-
         try {
             if ($invocation->verb === Verb::Wake && $this->runsWithoutLease($workflow, $invocation)) {
                 return Settlement::refused(RefusalReason::Executing);
             }
-
-            return Settlement::ran($this->run($workflow, $request, $opened)->getStatus(), $opened?->executionAttempt);
-        } catch (WorkflowRefusedException $refused) {
-            // Inside an open segment Neuron refuses only the write of a segment that lost its run:
-            // any other refusal escaped from a node, and Neuron has failed the run for it.
-            return $opened instanceof ExecutionContext && $refused->reason !== RefusalReason::StaleAttempt
-                ? Settlement::failed($refused, $opened->executionAttempt)
-                : Settlement::refused($refused->reason, $opened?->executionAttempt);
-        } catch (Throwable $error) {
-            return $opened instanceof ExecutionContext
-                ? Settlement::failed($error, $opened->executionAttempt)
-                : Settlement::aborted(Code::NotExecuted, $error);
+        } catch (Throwable $unread) {
+            // The store could not be read for the guard: nothing ran.
+            return Settlement::aborted(Code::NotExecuted, $unread);
         }
+
+        return Execution::of($workflow, $request)->settlement;
     }
 
     /**
@@ -259,26 +227,6 @@ final class Runner
             && $snapshot->executionAttempt === $wake->attempt
             && $snapshot->status === WorkflowStatus::Running
             && $snapshot->leaseExpiresAt === null;
-    }
-
-    /**
-     * @param ExecutionContext|null $opened the segment this call opened, set by the listener while Neuron runs
-     * @throws WorkflowRefusedException
-     * @throws Throwable
-     */
-    protected function run(Workflow $workflow, ExecutionRequest $request, ?ExecutionContext &$opened): WorkflowState
-    {
-        try {
-            return $workflow->run($request);
-        } catch (WorkflowRefusedException $refused) {
-            // A conflict that escaped from a node is not one of the ignition: the run has already executed.
-            if ($refused->reason !== RefusalReason::Conflict || $opened instanceof ExecutionContext) {
-                throw $refused;
-            }
-        }
-
-        // Neuron retries a conflict itself only for a start that reserves no run ID, and the SDK always reserves one.
-        return $workflow->run($request);
     }
 
     /**

@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Tests\Concurrency;
 
-use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronCore\Cloud\Invocation;
 use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Outcome;
@@ -31,14 +31,12 @@ class OvertakenWakeTest extends CloudTestCase
     protected const RUN_ID = '1-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12';
 
     /**
-     * Row 4 of "When things go wrong" promises "refused: stale_run" to a copy of a wake whose run the first copy
-     * completed. Neuron up to 4.1.6 says so only to a copy that finds no control record: one that read the
-     * control record first and then misses the start record gets a WorkflowException, which the runner can only
-     * report as an abort. The platform sends that wake again, and the next copy is refused. Later releases refuse
-     * the overtaken copy as stale at once.
+     * Neuron reads the control record of a run and then its start record. A copy of a wake that read the first
+     * while the run was still there, and misses the second because the first copy completed the run in between,
+     * is refused as stale like any other late copy.
      */
     #[DataProvider('backends')]
-    public function test_a_copy_of_a_wake_overtaken_between_the_two_reads_neuron_makes_of_its_run_executes_nothing(string $backend): void
+    public function test_a_copy_of_a_wake_overtaken_between_the_two_reads_neuron_makes_of_its_run_is_refused_as_a_stale_run(string $backend): void
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
@@ -57,7 +55,8 @@ class OvertakenWakeTest extends CloudTestCase
             ->register('flaky', $flaky)
             ->invoke($wake);
 
-        self::assertContains("{$report->outcome->value}: {$report->code}", ['aborted: not_executed', 'refused: stale_run']);
+        self::assertSame(Outcome::Refused, $report->outcome);
+        self::assertSame(RefusalReason::StaleRun->value, $report->code);
         self::assertNull($report->executedAttempt);
         self::assertNull($report->run);
         self::assertSame(2, $bench->executions->count(FlakyNode::class), 'Once in the start that failed, once in the copy that won.');

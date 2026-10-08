@@ -184,6 +184,22 @@ class RegistryTest extends TestCase
         self::assertSame(Code::UnknownDefinition, $reason);
     }
 
+    public function test_a_new_run_starts_on_the_highest_registered_version(): void
+    {
+        $registry = self::registryOf(2, 12, 3);
+
+        self::assertSame(12, $registry->current(self::NAME)->version);
+    }
+
+    public function test_no_run_starts_for_a_name_this_process_lacks(): void
+    {
+        $registry = self::registryOf(1);
+
+        $reason = self::reasonThrownBy(static fn (): Definition => $registry->current('nightly-reconciliation'));
+
+        self::assertSame(Code::UnknownDefinition, $reason);
+    }
+
     /**
      * @return array<string, array{string}>
      */

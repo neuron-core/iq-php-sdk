@@ -75,6 +75,38 @@ class WorkflowBuilderTest extends TestCase
         self::assertNull($this->runIn($this->sdkStore));
     }
 
+    public function test_imposing_puts_a_workflow_that_was_given_another_store_back_on_the_store_of_the_sdk(): void
+    {
+        $workflow = $this->build($this->selfConfigured(...))->setPersistence($this->classStore);
+
+        $this->impose($workflow)->run(ExecutionRequest::start(runId: self::RUN_ID));
+
+        self::assertSame(self::RUN_ID, $this->inSdkStoreWhileRunning?->runId);
+        self::assertNull($this->inClassStoreWhileRunning);
+    }
+
+    public function test_imposing_puts_a_workflow_that_was_given_no_lease_back_on_the_lease_of_its_registration(): void
+    {
+        $workflow = $this->build($this->selfConfigured(...))->setLeaseTimeout(null);
+        $startedAt = time();
+
+        $this->impose($workflow)->run();
+
+        $leaseExpiresAt = (int) $this->inSdkStoreWhileRunning?->leaseExpiresAt;
+        self::assertGreaterThanOrEqual($startedAt + self::REGISTERED_LEASE, $leaseExpiresAt);
+        self::assertLessThanOrEqual(time() + self::REGISTERED_LEASE, $leaseExpiresAt);
+    }
+
+    public function test_imposing_drops_the_retention_a_workflow_was_given_for_its_completion(): void
+    {
+        $workflow = $this->build($this->selfConfigured(...))->retainCompletionUntilAcknowledged();
+
+        $this->impose($workflow)->run();
+
+        self::assertNotNull($this->inSdkStoreWhileRunning);
+        self::assertNull($this->runIn($this->sdkStore));
+    }
+
     public function test_left_to_itself_the_class_runs_on_what_it_declares(): void
     {
         $startedAt = time();
@@ -166,6 +198,16 @@ class WorkflowBuilderTest extends TestCase
         $builder = new WorkflowBuilder(fn (): PersistenceInterface => $this->sdkStore);
 
         return $builder->build($this->definition($factory), self::WORKFLOW_ID, $runId);
+    }
+
+    /**
+     * What the SDK decides, imposed again on a workflow that was adjusted after its build.
+     */
+    protected function impose(Workflow $workflow): Workflow
+    {
+        $builder = new WorkflowBuilder(fn (): PersistenceInterface => $this->sdkStore);
+
+        return $builder->impose($workflow, $this->definition(static fn (): Workflow => $workflow));
     }
 
     /**

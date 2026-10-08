@@ -31,15 +31,12 @@ class RacingWakesTest extends ProcessTestCase
     protected const COPIES = 48;
 
     /**
-     * How a copy that lost may end: it meets the run under its new attempt, or no run once the winner has
-     * completed it. The abort is a narrow window in Neuron, which OvertakenWakeTest plays on purpose: a copy that
-     * read the control record of the run and then misses its start record, because the winner completed the run
-     * in between, gets a WorkflowException where a refusal was due.
+     * A copy that lost is refused as stale: by the attempt while the winner still runs, by the run once the
+     * winner completed it.
      */
     protected const OUTCOMES_OF_A_COPY_THAT_LOST = [
         'refused: stale_attempt',
         'refused: stale_run',
-        'aborted: not_executed',
     ];
 
     public function test_a_second_copy_of_a_wake_delivered_while_the_first_is_inside_a_node_is_refused_as_stale_and_executes_nothing(): void

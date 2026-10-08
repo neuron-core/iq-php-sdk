@@ -77,6 +77,18 @@ final class Registry
     }
 
     /**
+     * The definition a new run starts on: the highest registered version.
+     *
+     * @throws CloudException unknown_definition
+     */
+    public function current(string $name): Definition
+    {
+        $versions = $this->versionsOf($name);
+
+        return $versions[max(array_keys($versions))];
+    }
+
+    /**
      * A definition to read the store with: every version of a name shares one
      * store, so the current one stands in for a version this process lacks.
      *
@@ -86,7 +98,7 @@ final class Registry
     {
         $versions = $this->versionsOf($name);
 
-        return $versions[$this->pinnedVersion($versions, $runId)] ?? $versions[max(array_keys($versions))];
+        return $versions[$this->pinnedVersion($versions, $runId)] ?? $this->current($name);
     }
 
     /**

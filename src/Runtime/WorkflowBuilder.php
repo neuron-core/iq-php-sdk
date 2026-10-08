@@ -28,7 +28,16 @@ final class WorkflowBuilder
      */
     public function build(Definition $definition, string $workflowId, ?string $runId): Workflow
     {
-        return ($definition->factory)($workflowId, $runId)->for($workflowId)
+        return $this->impose(($definition->factory)($workflowId, $runId)->for($workflowId), $definition);
+    }
+
+    /**
+     * What the SDK decides for every workflow it executes, whatever the class
+     * or a callback of the application set before.
+     */
+    public function impose(Workflow $workflow, Definition $definition): Workflow
+    {
+        return $workflow
             ->setPersistence(($this->persistence)())
             // Neuron takes the lease with each admission and does not store it with the run.
             ->setLeaseTimeout($definition->leaseTimeout)

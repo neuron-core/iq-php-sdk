@@ -94,21 +94,54 @@ class NeuronCloud
     }
 
     /**
+     * What the application's own code starts, answers and recovers: a
+     * registered workflow bound to one workflow ID. It uses the persistence
+     * and the dispatcher that are set when it is called: call setPersistence()
+     * and setDispatcher() first.
+     *
+     * @throws CloudException when the name is not registered, the workflow ID cannot be used or no persistence is set
+     */
+    public function workflow(string $name, string $workflowId): ManagedWorkflow
+    {
+        return new ManagedWorkflow(
+            $name,
+            $workflowId,
+            $this->registry,
+            new WorkflowBuilder($this->persistence()),
+            $this->dispatcher(),
+        );
+    }
+
+    /**
      * @throws CloudException
      */
     protected function runner(): Runner
     {
-        $persistence = $this->persistence ?? throw new CloudException(
-            'No persistence is set: call setPersistence() with a factory of the store your workflows use.',
-            Code::NotConfigured,
-        );
+        $persistence = $this->persistence();
 
         return new Runner(
             $this->registry,
             new WorkflowBuilder($persistence),
             new Ledger($persistence),
             new PlatformClient($this->httpClient, $this->platformUrl, $this->apiKey),
-            $this->dispatcher ?? new InPlaceDispatcher($this),
+            $this->dispatcher(),
         );
+    }
+
+    /**
+     * @return Closure(): PersistenceInterface
+     * @throws CloudException not_configured
+     */
+    protected function persistence(): Closure
+    {
+        return $this->persistence ?? throw new CloudException(
+            'No persistence is set: call setPersistence() with a factory of the store your workflows use.',
+            Code::NotConfigured,
+        );
+    }
+
+    protected function dispatcher(): DispatcherInterface
+    {
+        return $this->dispatcher ?? new InPlaceDispatcher($this);
     }
 }

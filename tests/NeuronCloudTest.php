@@ -8,7 +8,11 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowState;
+use NeuronAI\Workflow\WorkflowStatus;
+use NeuronCore\Cloud\CloudException;
 use NeuronCore\Cloud\Code;
+use NeuronCore\Cloud\ManagedWorkflow;
 use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Outcome;
 use NeuronCore\Cloud\Report;
@@ -223,6 +227,75 @@ class NeuronCloudTest extends CloudTestCase
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
+    }
+
+    public function test_workflow_before_a_persistence_is_set_is_refused_as_not_configured(): void
+    {
+        $cloud = (new NeuronCloud(TestBench::API_KEY))->register('greeting', static fn (): Workflow => new Workflow());
+
+        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $cloud->workflow('greeting', Queued::WORKFLOW_ID));
+
+        self::assertSame(Code::NotConfigured, $reason);
+    }
+
+    public function test_workflow_binds_a_registered_definition_to_the_workflow_id_it_is_given(): void
+    {
+        $bench = $this->benchWithGreeting();
+
+        $state = $bench->cloud->workflow('greeting', 'order:456')->start()->run();
+
+        self::assertSame('order:456', $state->getWorkflowId());
+        self::assertSame(1, $bench->executions->count(CompleteNode::class));
+    }
+
+    public function test_with_a_dispatcher_set_a_local_segment_reaches_the_platform_through_the_queue_only(): void
+    {
+        $bench = $this->benchWithGreeting();
+
+        $bench->cloud->workflow('greeting', Queued::WORKFLOW_ID)->start()->run();
+
+        self::assertSame([], $bench->platform->received());
+        $bench->dispatcher->assertDispatched(Verb::Announce, Queued::WORKFLOW_ID);
+        $bench->dispatcher->assertDispatched(Verb::Observe, Queued::WORKFLOW_ID);
+    }
+
+    public function test_with_no_dispatcher_a_local_segment_is_announced_and_reported_in_place(): void
+    {
+        $bench = $this->benchWithGreeting();
+
+        $state = $this->withoutDispatcher($bench)->workflow('greeting', Queued::WORKFLOW_ID)->start()->run();
+
+        self::assertSame(WorkflowStatus::Completed, $state->getStatus());
+        self::assertSame(
+            ['/v1/announcements', '/v1/reports'],
+            array_map(static fn (HttpRequest $request): string => (string) parse_url($request->uri, PHP_URL_PATH), $bench->platform->received()),
+        );
+        $bench->platform->assertAnnounced(Queued::WORKFLOW_ID, Verb::Start);
+        $bench->platform->assertReported(Queued::WORKFLOW_ID, Outcome::Completed);
+    }
+
+    public function test_with_no_dispatcher_a_local_segment_that_cannot_be_announced_fails_as_dispatch_failed_before_it_runs(): void
+    {
+        $bench = $this->benchWithGreeting();
+        $bench->platform->failNext(1);
+        $start = $this->withoutDispatcher($bench)->workflow('greeting', Queued::WORKFLOW_ID)->start();
+
+        $thrown = self::thrownBy(static fn (): WorkflowState => $start->run());
+
+        self::assertSame(Code::DispatchFailed, $thrown?->reason);
+        self::assertSame(Code::ReportUndelivered, $thrown->getPrevious() instanceof CloudException ? $thrown->getPrevious()->reason : null);
+        self::assertSame(0, $bench->executions->total());
+    }
+
+    public function test_with_no_dispatcher_a_dispatched_start_runs_in_place(): void
+    {
+        $bench = $this->benchWithGreeting();
+
+        $runId = $this->withoutDispatcher($bench)->workflow('greeting', Queued::WORKFLOW_ID)->start()->dispatch();
+
+        self::assertSame(1, $bench->executions->count(CompleteNode::class));
+        self::assertSame($runId, $bench->platform->received()[1]->body['runId'] ?? null);
+        $bench->platform->assertReported(Queued::WORKFLOW_ID, Outcome::Completed);
     }
 
     #[RequiresPhpExtension('curl')]
