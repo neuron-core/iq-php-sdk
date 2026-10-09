@@ -4,8 +4,11 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Tests;
 
+use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\RunInFlightException;
+use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\Code;
@@ -15,6 +18,7 @@ use NeuronCore\Cloud\Report;
 use NeuronCore\Cloud\Tests\Stub\CompleteNode;
 use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
+use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\NodeFailed;
 use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
@@ -22,6 +26,9 @@ use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
+
+use function array_map;
+use function iterator_to_array;
 
 class PendingSegmentTest extends LocalTestCase
 {
@@ -166,6 +173,75 @@ class PendingSegmentTest extends LocalTestCase
         self::assertSame([Verb::Announce, Verb::Observe, Verb::Announce, Verb::Observe], $this->verbsQueued());
     }
 
+    public function test_events_execute_the_segment_in_this_process_and_give_what_neuron_yields_and_returns(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->narration()->start()->events();
+
+        $words = array_map(static fn (TextChunk $chunk): string => $chunk->content, iterator_to_array($events));
+
+        self::assertSame(NarratingWorkflow::WORDS, $words);
+        self::assertSame(WorkflowStatus::Completed, $events->getReturn()->getStatus());
+    }
+
+    public function test_events_throw_the_refusal_of_a_start_that_meets_a_run_at_the_first_valid_and_not_before(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $holder = $this->workflow('order')->start()->run();
+        $events = $this->workflow('order')->start()->events();
+
+        try {
+            $events->valid();
+            self::fail('A start replaced the run that holds the workflow ID.');
+        } catch (RunInFlightException $refusal) {
+            self::assertSame($holder->getRunId(), $refusal->runId);
+        }
+    }
+
+    public function test_events_throw_stale_attempt_at_the_first_valid_for_an_answer_that_lost(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+        $thread = $this->workflow('order');
+        $thread->start()->run();
+        $lost = $thread->signal(WaitingWorkflow::EVENT)->events();
+        $thread->signal(WaitingWorkflow::EVENT)->run();
+        $executions = $bench->executions->total();
+
+        try {
+            $lost->valid();
+            self::fail('An answer that lost its run was executed.');
+        } catch (WorkflowRefusedException $refusal) {
+            self::assertSame(RefusalReason::StaleAttempt, $refusal->reason);
+        }
+
+        self::assertSame($executions, $bench->executions->total());
+    }
+
+    public function test_events_throw_the_exception_of_a_node_as_it_is(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->workflow('flaky')->start()->events();
+
+        $this->expectExceptionObject(new NodeFailed('The flaky node failed on purpose.'));
+
+        $events->valid();
+    }
+
+    public function test_events_execute_the_workflow_the_configure_callback_adjusted(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $endedUnderTheCallback = false;
+        $thread = $this->narration()->configure(static function (Workflow $workflow) use (&$endedUnderTheCallback): void {
+            $workflow->subscribe(WorkflowEnd::class, static function () use (&$endedUnderTheCallback): void {
+                $endedUnderTheCallback = true;
+            });
+        });
+
+        iterator_to_array($thread->start()->events());
+
+        self::assertTrue($endedUnderTheCallback);
+    }
+
     /**
      * @return array<string, array{string, string}> the method of the first use, and of the second
      */
@@ -176,6 +252,11 @@ class PendingSegmentTest extends LocalTestCase
             'run, then dispatch' => ['run', 'dispatch'],
             'dispatch, then run' => ['dispatch', 'run'],
             'dispatch, then dispatch' => ['dispatch', 'dispatch'],
+            'events, then events' => ['events', 'events'],
+            'events, then run' => ['events', 'run'],
+            'events, then dispatch' => ['events', 'dispatch'],
+            'run, then events' => ['run', 'events'],
+            'dispatch, then events' => ['dispatch', 'events'],
         ];
     }
 
@@ -191,5 +272,17 @@ class PendingSegmentTest extends LocalTestCase
             ->register('order', static fn (): Workflow => new WaitingWorkflow($executions))
             ->register('flaky', static fn (): Workflow => new FlakyWorkflow($executions))
             ->workflow($name, self::WORKFLOW_ID);
+    }
+
+    /**
+     * "narration" streams three words, then completes.
+     */
+    protected function narration(): ManagedWorkflow
+    {
+        $executions = $this->bench->executions;
+
+        return $this->bench->cloud
+            ->register('narration', static fn (): Workflow => new NarratingWorkflow($executions))
+            ->workflow('narration', self::WORKFLOW_ID);
     }
 }

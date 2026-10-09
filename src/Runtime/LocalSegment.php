@@ -5,12 +5,14 @@ declare(strict_types=1);
 namespace NeuronCore\Cloud\Runtime;
 
 use Closure;
+use Generator;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\UniqueIdGenerator;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
+use NeuronAI\Workflow\WorkflowState;
 use NeuronCore\Cloud\CloudException;
 use NeuronCore\Cloud\Code;
 use NeuronCore\Cloud\DispatcherInterface;
@@ -75,27 +77,32 @@ final class LocalSegment
     public function run(?Closure $configure = null): Execution
     {
         $this->useOnce();
-
-        if ($configure instanceof Closure) {
-            $configure($this->workflow);
-            // The callback adjusts how the segment streams: the store, the lease and the completion policy stay the SDK's.
-            $this->builder->impose($this->workflow, $this->definition);
-        }
-
-        $this->hand(Notices::announce(
-            $this->invocation,
-            Notices::announcement($this->invocation, $this->definition->leaseTimeout),
-        ));
+        $this->configure($configure);
+        $this->announce();
 
         $execution = Execution::of($this->workflow, $this->request);
-
-        try {
-            $this->dispatcher->dispatch(Notices::observe($this->invocation, $execution->settlement->facts($this->invocation)));
-        } catch (Throwable) {
-            // The caller still gets what Neuron answered: the platform asks when the announced lease has passed.
-        }
+        $this->observe($execution->settlement);
 
         return $execution;
+    }
+
+    /**
+     * Execute the segment in this process as a stream. The announcement is in
+     * the queue when the generator is returned. Neuron admits the segment on
+     * the first iteration, and the observe follows when the stream ends, or
+     * when its consumer stops before that.
+     *
+     * @param (Closure(Workflow): mixed)|null $configure adjusts the workflow before it executes
+     * @return Generator<int, object, mixed, WorkflowState> what Neuron's own events() yields, returns and throws
+     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ignited
+     */
+    public function events(?Closure $configure = null): Generator
+    {
+        $this->useOnce();
+        $this->configure($configure);
+        $this->announce();
+
+        return Execution::events($this->workflow, $this->request, $this->observe(...));
     }
 
     /**
@@ -127,12 +134,56 @@ final class LocalSegment
     {
         if ($this->used) {
             throw new CloudException(
-                'This segment was already run or dispatched: prepare a new one with start(), submitInputs() or signal().',
+                'This segment was already used by run(), events() or dispatch(): prepare a new one with start(), submitInputs() or signal().',
                 Code::SegmentUsed,
             );
         }
 
         $this->used = true;
+    }
+
+    /**
+     * @param (Closure(Workflow): mixed)|null $configure
+     */
+    protected function configure(?Closure $configure): void
+    {
+        if ($configure instanceof Closure) {
+            $configure($this->workflow);
+            // The callback adjusts how the segment streams: the store, the lease and the completion policy stay the SDK's.
+            $this->builder->impose($this->workflow, $this->definition);
+        }
+    }
+
+    /**
+     * @throws CloudException dispatch_failed
+     */
+    protected function announce(): void
+    {
+        $this->hand(Notices::announce(
+            $this->invocation,
+            Notices::announcement($this->invocation, $this->definition->leaseTimeout),
+        ));
+    }
+
+    /**
+     * Hand the queue the observe of the segment: a worker reads the store and
+     * reports how it ended. A queue that does not take it changes nothing for
+     * the caller.
+     *
+     * @param Settlement|null $settlement null for a stream its consumer stopped, unless Neuron had reported the segment as
+     *                                    suspended or completed: the observe then carries no outcome, and the report
+     *                                    says "observed"
+     */
+    protected function observe(?Settlement $settlement): void
+    {
+        $facts = $settlement?->facts($this->invocation)
+            ?? ['invocationId' => $this->invocation->invocationId, 'verb' => $this->invocation->verb->value];
+
+        try {
+            $this->dispatcher->dispatch(Notices::observe($this->invocation, $facts));
+        } catch (Throwable) {
+            // The caller still gets what Neuron answered: the platform asks when the announced lease has passed.
+        }
     }
 
     /**

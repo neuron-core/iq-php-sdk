@@ -39,7 +39,7 @@ use function time;
  */
 final class ManagedWorkflow
 {
-    /** @var (Closure(Workflow): mixed)|null */
+    /** What configure() was given: its parameter may name the class the factory builds, which the SDK does not know. */
     protected ?Closure $configure = null;
 
     /**
@@ -72,7 +72,8 @@ final class ManagedWorkflow
      * and recover() never apply it. The persistence, the lease and the
      * completion policy stay the SDK's, whatever it sets.
      *
-     * @param Closure(Workflow): mixed $callback adjusts the copy that run() executes
+     * @template TWorkflow of Workflow
+     * @param Closure(TWorkflow): mixed $callback adjusts the copy that run() and events() execute; it may name the class the factory builds
      */
     public function configure(Closure $callback): static
     {

@@ -43,7 +43,7 @@
             "$ref": "definitions.json#/$defs/runId"
         },
         "outcome": {
-            "description": "completed, suspended: Neuron returned the run's state, after a segment when executedAttempt is set, without one when it is null (a wake before its time returns the same wait and attempt). failed: a segment ran and threw. refused: Neuron said no, or the guard before a wake did; with an executedAttempt, a segment that lost its run while it was executing (stale_attempt). rejected: the SDK said no, for good. aborted: nothing ran. observed: nothing is known about the call; only the store was read.",
+            "description": "completed, suspended: Neuron returned the run's state, after a segment when executedAttempt is set, without one when it is null (a wake before its time returns the same wait and attempt); or Neuron reported the end of the segment so, although the call threw or the consumer of a stream stopped. failed: a segment ran and threw. refused: Neuron said no, or the guard before a wake did; with an executedAttempt, a segment that lost its run while it was executing (stale_attempt). rejected: the SDK said no, for good. aborted: nothing ran. observed: nothing is known about how the call ended; only the store was read. That is the report of a job that died, and of a stream whose consumer stopped, unless Neuron reported the end of the segment as suspended or completed.",
             "enum": ["completed", "suspended", "failed", "refused", "rejected", "aborted", "observed"]
         },
         "code": {

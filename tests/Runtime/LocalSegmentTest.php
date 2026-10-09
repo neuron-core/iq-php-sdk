@@ -12,9 +12,11 @@ use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\Code;
 use NeuronCore\Cloud\DispatcherInterface;
+use NeuronCore\Cloud\Invocation;
 use NeuronCore\Cloud\Outcome;
 use NeuronCore\Cloud\Report;
 use NeuronCore\Cloud\Runtime\Definition;
@@ -27,7 +29,9 @@ use NeuronCore\Cloud\Tests\Stub\CompleteNode;
 use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\DeliverNode;
 use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
+use NeuronCore\Cloud\Tests\Stub\InPlace\WatchedQueue;
 use NeuronCore\Cloud\Tests\Stub\Local\PickyQueue;
+use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\NodeFailed;
 use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
 use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
@@ -40,6 +44,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
 use function base64_decode;
+use function iterator_to_array;
 use function time;
 use function unserialize;
 
@@ -441,6 +446,154 @@ class LocalSegmentTest extends LocalTestCase
         self::assertSame(self::PAYMENT, $execution->state()->get('payment'));
     }
 
+    public function test_a_streamed_segment_is_announced_before_its_generator_is_returned_and_ignites_nothing_yet(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+
+        $this->startOf($this->narration())->events();
+
+        self::assertSame([Verb::Announce], $this->verbsQueued());
+        self::assertSame(0, $bench->executions->total());
+        self::assertNull(($bench->persistence)()->get(self::WORKFLOW_ID, '__control'));
+    }
+
+    public function test_a_streamed_segment_hands_the_queue_its_observe_when_the_stream_ends_and_not_before(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->startOf($this->narration())->events();
+        $events->current();
+        $queuedMidStream = $this->verbsQueued();
+
+        iterator_to_array($events);
+
+        self::assertSame([Verb::Announce], $queuedMidStream);
+        [$announce, $observe] = $this->queue->dispatched();
+        self::assertSame(
+            [
+                'invocationId' => $announce->body['invocationId'],
+                'verb' => 'start',
+                'outcome' => 'completed',
+                'code' => null,
+                'errorClass' => null,
+                'executedAttempt' => 1,
+            ],
+            $observe->body,
+        );
+        self::assertSame([Verb::Announce, Verb::Observe], $this->verbsQueued());
+    }
+
+    public function test_a_streamed_segment_makes_no_call_to_the_platform(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+
+        iterator_to_array($this->startOf($this->narration())->events());
+
+        self::assertSame([], $bench->platform->received());
+    }
+
+    public function test_a_queue_that_does_not_take_the_announcement_fails_the_stream_before_a_generator_exists(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+        $segment = $this->startOf($this->narration(), queue: new UnreachableQueue());
+
+        $thrown = self::thrownBy($segment->events(...));
+
+        self::assertSame(Code::DispatchFailed, $thrown?->reason);
+        self::assertSame(0, $bench->executions->total());
+        self::assertNull(($bench->persistence)()->get(self::WORKFLOW_ID, '__control'));
+    }
+
+    public function test_the_callback_adjusts_the_workflow_of_a_stream_before_its_generator_is_returned(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $endedUnderTheCallback = false;
+        $calls = 0;
+
+        $events = $this->startOf($this->narration())->events(static function (Workflow $workflow) use (&$endedUnderTheCallback, &$calls): void {
+            $calls++;
+            $workflow->subscribe(WorkflowEnd::class, static function () use (&$endedUnderTheCallback): void {
+                $endedUnderTheCallback = true;
+            });
+        });
+        $callsBeforeTheFirstIteration = $calls;
+        iterator_to_array($events);
+
+        self::assertSame([1, 1], [$callsBeforeTheFirstIteration, $calls]);
+        self::assertTrue($endedUnderTheCallback);
+    }
+
+    public function test_a_stream_whose_consumer_stops_early_hands_an_observe_with_no_outcome_once_neuron_has_failed_the_run(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+        $queue = new WatchedQueue($bench->executions);
+        $heldAtTheObserve = null;
+        $queue->beforeTaking(static function (Invocation $message) use ($bench, &$heldAtTheObserve): void {
+            if ($message->verb === Verb::Observe) {
+                $heldAtTheObserve = (new WorkflowEngine(($bench->persistence)()))->inspect(self::WORKFLOW_ID)?->status;
+            }
+        });
+        $events = $this->startOf($this->narration(), queue: $queue)->events();
+        $events->current();
+
+        unset($events);
+
+        [$announce, $observe] = $queue->taken();
+        self::assertCount(2, $queue->taken());
+        self::assertSame(Verb::Observe, $observe->verb);
+        self::assertSame(['invocationId' => $announce->body['invocationId'], 'verb' => 'start'], $observe->body);
+        self::assertSame(WorkflowStatus::Failed, $heldAtTheObserve);
+    }
+
+    public function test_the_observe_of_a_stream_whose_consumer_stopped_early_is_reported_as_observed_with_the_run_the_store_shows(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->startOf($this->narration())->events();
+        $events->current();
+        unset($events);
+
+        [, $report] = $this->queue->runAll($bench->cloud);
+
+        self::assertInstanceOf(Report::class, $report);
+        self::assertSame(
+            [Verb::Start, Outcome::Observed, null, null, null, false],
+            [$report->verb, $report->outcome, $report->code, $report->errorClass, $report->executedAttempt, $report->claimed],
+        );
+        self::assertSame([self::RUN_ID, 'failed', 1], [$report->run['runId'], $report->run['status'], $report->run['attempt']]);
+    }
+
+    public function test_a_queue_that_does_not_take_the_observe_does_not_hide_the_state_of_a_stream(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->startOf($this->narration(), queue: new PickyQueue($this->queue, Verb::Observe))->events();
+
+        iterator_to_array($events);
+
+        self::assertSame(WorkflowStatus::Completed, $events->getReturn()->getStatus());
+        self::assertSame([Verb::Announce], $this->verbsQueued());
+    }
+
+    public function test_a_queue_that_does_not_take_the_observe_does_not_hide_the_exception_of_a_node_from_the_consumer_of_a_stream(): void
+    {
+        $this->benchOn(TestBench::IN_MEMORY);
+        $events = $this->startOf($this->flaky(), queue: new PickyQueue($this->queue, Verb::Observe))->events();
+
+        $this->expectException(NodeFailed::class);
+
+        $events->valid();
+    }
+
+    public function test_a_start_streamed_in_place_is_not_entered_in_the_ledger(): void
+    {
+        $bench = $this->benchOn(TestBench::IN_MEMORY);
+        iterator_to_array($this->startOf($this->order())->events());
+
+        [, $report] = $this->queue->runAll($bench->cloud);
+
+        self::assertFalse((new Ledger($bench->persistence))->has(self::WORKFLOW_ID, self::RUN_ID));
+        self::assertInstanceOf(Report::class, $report);
+        self::assertSame([Outcome::Suspended, false], [$report->outcome, $report->claimed]);
+    }
+
     #[DataProvider('twoUsesOfOneSegment')]
     public function test_a_second_use_of_a_segment_is_refused_as_segment_used(string $first, string $second): void
     {
@@ -463,6 +616,11 @@ class LocalSegmentTest extends LocalTestCase
             'run, then dispatch' => ['run', 'dispatch'],
             'dispatch, then run' => ['dispatch', 'run'],
             'dispatch, then dispatch' => ['dispatch', 'dispatch'],
+            'events, then events' => ['events', 'events'],
+            'events, then run' => ['events', 'run'],
+            'events, then dispatch' => ['events', 'dispatch'],
+            'run, then events' => ['run', 'events'],
+            'dispatch, then events' => ['dispatch', 'events'],
         ];
     }
 
@@ -504,6 +662,16 @@ class LocalSegmentTest extends LocalTestCase
         $executions = $this->bench->executions;
 
         return $this->define('greeting', static fn (): Workflow => new CompletingWorkflow($executions));
+    }
+
+    /**
+     * Streams three words, then completes.
+     */
+    protected function narration(): Definition
+    {
+        $executions = $this->bench->executions;
+
+        return $this->define('narration', static fn (): Workflow => new NarratingWorkflow($executions));
     }
 
     /**
