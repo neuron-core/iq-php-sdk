@@ -43,11 +43,11 @@
             "$ref": "definitions.json#/$defs/runId"
         },
         "outcome": {
-            "description": "completed, suspended: Neuron returned the run's state, after a segment when executedAttempt is set, without one when it is null (a wake before its time returns the same wait and attempt); or Neuron reported the end of the segment so, although the call threw or the consumer of a stream stopped. failed: a segment ran and threw. refused: Neuron said no, or the guard before a wake did; with an executedAttempt, a segment that lost its run while it was executing (stale_attempt). rejected: the SDK said no, for good. aborted: nothing ran. observed: nothing is known about how the call ended; only the store was read. That is the report of a job that died, and of a stream whose consumer stopped, unless Neuron reported the end of the segment as suspended or completed.",
+            "description": "completed, suspended: Neuron returned the run's state, after a segment when executedAttempt is set, without one when it is null (a wake before its time returns the same wait and attempt); or Neuron reported the end of the segment so, although the call threw or the consumer of a stream stopped. failed: a segment ran and threw. refused: Neuron said no, or the guard before a wake did; with an executedAttempt, a segment that lost its run while it was executing (stale_attempt). rejected: the SDK said no, for good: to a start, or to a wake that names another definition than the one that started its run (wrong_definition). aborted: nothing ran. observed: nothing is known about how the call ended; only the store was read. That is the report of a job that died, and of a stream whose consumer stopped, unless Neuron reported the end of the segment as suspended or completed.",
             "enum": ["completed", "suspended", "failed", "refused", "rejected", "aborted", "observed"]
         },
         "code": {
-            "description": "A RefusalReason value for refused; an SDK code for rejected and aborted.",
+            "description": "A RefusalReason value for refused; an SDK code for rejected and aborted. A rejected wake carries wrong_definition and no other code, and a start never carries it.",
             "type": ["string", "null"]
         },
         "errorClass": {
@@ -135,10 +135,26 @@
                 "properties": {"verb": {"enum": ["wake", "answer", "signal"]}}
             },
             "then": {
-                "properties": {
-                    "claimed": {"type": "null"},
-                    "outcome": {"not": {"const": "rejected"}}
-                }
+                "properties": {"claimed": {"type": "null"}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"verb": {"enum": ["answer", "signal"]}}
+            },
+            "then": {
+                "properties": {"outcome": {"not": {"const": "rejected"}}}
+            }
+        },
+        {
+            "if": {
+                "properties": {"verb": {"const": "wake"}, "outcome": {"const": "rejected"}}
+            },
+            "then": {
+                "properties": {"code": {"const": "wrong_definition"}}
+            },
+            "else": {
+                "properties": {"code": {"not": {"const": "wrong_definition"}}}
             }
         },
         {

@@ -119,7 +119,7 @@ final class Runner
 
         return $starting
             ? $this->claimAndExecute($invocation, $workflow, $request)
-            : $this->execute($invocation, $workflow, $request);
+            : $this->execute($invocation, $definition, $workflow, $request);
     }
 
     /**
@@ -140,7 +140,11 @@ final class Runner
     protected function request(Invocation $invocation, Workflow $workflow): ExecutionRequest
     {
         return match ($invocation->verb) {
-            Verb::Start => StartEvents::request(StartEvents::resolve($workflow, $invocation->event), $invocation->runId),
+            Verb::Start => StartEvents::request(
+                StartEvents::resolve($workflow, $invocation->event),
+                $invocation->runId,
+                $invocation->definition,
+            ),
             Verb::Answer => ExecutionRequest::resume($invocation->payload ?? [], $invocation->runId, $invocation->attempt),
             Verb::Signal => ExecutionRequest::signal(
                 (string) $invocation->signal,
@@ -195,38 +199,52 @@ final class Runner
         return match ($claim) {
             Claim::Expired => Settlement::rejected(Code::Expired),
             Claim::AlreadyThere => Settlement::rejected(Code::AlreadyClaimed)->withClaim(),
-            Claim::Written => $this->execute($start, $workflow, $request)->withClaim(),
+            Claim::Written => Execution::of($workflow, $request)->settlement->withClaim(),
         };
     }
 
-    protected function execute(Invocation $invocation, Workflow $workflow, ExecutionRequest $request): Settlement
+    /**
+     * A wake, an answer or a signal: only a wake reads the run before Neuron is asked.
+     */
+    protected function execute(Invocation $invocation, Definition $definition, Workflow $workflow, ExecutionRequest $request): Settlement
     {
         try {
-            if ($invocation->verb === Verb::Wake && $this->runsWithoutLease($workflow, $invocation)) {
-                return Settlement::refused(RefusalReason::Executing);
-            }
+            $refusal = $invocation->verb === Verb::Wake ? $this->refusalOfWake($invocation, $definition, $workflow) : null;
         } catch (Throwable $unread) {
             // The store could not be read for the guard: nothing ran.
             return Settlement::aborted(Code::NotExecuted, $unread);
         }
 
-        return Execution::of($workflow, $request)->settlement;
+        return $refusal ?? Execution::of($workflow, $request)->settlement;
     }
 
     /**
-     * A run that is running with no lease was started outside the SDK, and a
-     * wake would take it over while its process may be alive.
+     * The guard before a wake, on one read of the store. A run another definition started would be continued
+     * by the nodes of this one. A run that is running with no lease was started outside the SDK, and a wake
+     * would take it over while its process may be alive.
+     *
+     * @return Settlement|null why the wake does not execute; null when it may
+     * @throws Throwable when the store cannot be read
      */
-    protected function runsWithoutLease(Workflow $workflow, Invocation $wake): bool
+    protected function refusalOfWake(Invocation $wake, Definition $definition, Workflow $workflow): ?Settlement
     {
-        $snapshot = $workflow->inspect();
+        $run = $workflow->inspect();
 
-        // A wake whose fence is no longer current is left to Neuron, which refuses it as stale.
-        return $snapshot instanceof WorkflowRunSnapshot
-            && $snapshot->runId === $wake->runId
-            && $snapshot->executionAttempt === $wake->attempt
-            && $snapshot->status === WorkflowStatus::Running
-            && $snapshot->leaseExpiresAt === null;
+        // Neuron is not asked about a run this read did not show: one that took the workflow ID afterwards
+        // would be continued with its tag unread.
+        if (!$run instanceof WorkflowRunSnapshot || $run->runId !== $wake->runId) {
+            return Settlement::refused(RefusalReason::StaleRun);
+        }
+
+        // The tag belongs to the run, whatever its attempt: a wake of another definition is final.
+        if (!$definition->mayActOn($run)) {
+            return Settlement::rejected(Code::WrongDefinition);
+        }
+
+        // A wake whose attempt is no longer current is left to Neuron, which refuses it as stale.
+        return $run->executionAttempt === $wake->attempt && $run->status === WorkflowStatus::Running && $run->leaseExpiresAt === null
+            ? Settlement::refused(RefusalReason::Executing)
+            : null;
     }
 
     /**

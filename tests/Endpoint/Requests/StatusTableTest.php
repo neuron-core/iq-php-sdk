@@ -16,6 +16,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
 use NeuronCore\Cloud\Tests\Stub\Requests\FailingQueue;
 use NeuronCore\Cloud\Tests\Stub\Requests\UnencodableRunWorkflow;
+use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
 use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
@@ -69,6 +70,16 @@ class StatusTableTest extends RequestTestCase
             ],
             '400 invalid_request for an unknown verb' => [
                 static fn (self $table): HttpResponse => $table->deliver(['verb' => 'retire'] + $table->start()),
+                400,
+                'invalid_request',
+            ],
+            '400 invalid_request for an inspect that names another definition than the one that started the run' => [
+                static fn (self $table): HttpResponse => $table->deliver($table->underAnotherDefinition($table->inspect(self::RUN_ID))),
+                400,
+                'invalid_request',
+            ],
+            '400 invalid_request for an abandon that names another definition than the one that started the run' => [
+                static fn (self $table): HttpResponse => $table->deliver($table->underAnotherDefinition($table->abandon(self::RUN_ID, attempt: 1))),
                 400,
                 'invalid_request',
             ],
@@ -167,6 +178,22 @@ class StatusTableTest extends RequestTestCase
     {
         $this->deliver($this->start());
         $this->work();
+    }
+
+    /**
+     * The order waits for a payment, and the platform asks about it under "nightly-reconciliation", which this
+     * deployment registers too.
+     *
+     * @param array<string, mixed> $message
+     * @return array<string, mixed>
+     */
+    protected function underAnotherDefinition(array $message): array
+    {
+        $executions = $this->bench->executions;
+        $this->cloud->register('nightly-reconciliation', static fn (): Workflow => new WaitingWorkflow($executions));
+        $this->orderWaitingForPayment();
+
+        return ['definition' => 'nightly-reconciliation'] + $message;
     }
 
     /**

@@ -21,10 +21,12 @@ enum Code: string
     case AbandonRefused = 'abandon_refused';
     case InternalError = 'internal_error';
 
-    // Reports: rejected
+    // Reports: rejected. A wake carries wrong_definition only and a start never does; submitInputs(), signal()
+    // and recover() throw it too
     case Expired = 'expired';
     case InvalidStart = 'invalid_start';
     case AlreadyClaimed = 'already_claimed';
+    case WrongDefinition = 'wrong_definition';
 
     // Reports: aborted, with unknown_definition, unknown_version and unavailable above
     case NotExecuted = 'not_executed';

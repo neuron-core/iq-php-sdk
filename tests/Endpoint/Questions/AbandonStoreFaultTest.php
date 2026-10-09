@@ -232,19 +232,19 @@ class AbandonStoreFaultTest extends QuestionsTestCase
 
         return self::onEachBackend([
             'no run: the ledger cannot be read' => [
-                self::NO_RUN, $failed, 1, "get({$ledger}: starts)", false, false, self::DISCARDED,
+                self::NO_RUN, $failed, 2, "get({$ledger}: starts)", false, false, self::DISCARDED,
             ],
             'no run: the ledger cannot be written' => [
-                self::NO_RUN, $failed, 2, "initializeIfAbsent({$ledger}: starts)", false, false, self::DISCARDED,
+                self::NO_RUN, $failed, 3, "initializeIfAbsent({$ledger}: starts)", false, false, self::DISCARDED,
             ],
             'no run: the ledger is written and the answer is lost' => [
                 self::NO_RUN, $lostTheAnswer, 1, "initializeIfAbsent({$ledger}: starts)", true, false, self::ENTRY_WAS_THERE,
             ],
             'a run: the ledger cannot be read' => [
-                self::A_RUN, $failed, 1, "get({$ledger}: starts)", false, true, self::DISCARDED,
+                self::A_RUN, $failed, 3, "get({$ledger}: starts)", false, true, self::DISCARDED,
             ],
             'a run: the ledger cannot be written' => [
-                self::A_RUN, $failed, 2, "initializeIfAbsent({$ledger}: starts)", false, true, self::DISCARDED,
+                self::A_RUN, $failed, 4, "initializeIfAbsent({$ledger}: starts)", false, true, self::DISCARDED,
             ],
             'a run: the ledger is written and the answer is lost' => [
                 self::A_RUN, $lostTheAnswer, 1, "initializeIfAbsent({$ledger}: starts)", true, true, self::DISCARDED,
@@ -271,14 +271,14 @@ class AbandonStoreFaultTest extends QuestionsTestCase
         $failed = FaultMode::BeforeOperation;
 
         return self::onEachBackend([
-            'no run: the run cannot be looked for once the ledger is written' => [
-                self::NO_RUN, $failed, 3, "get({$run}: __control)", true, false, self::ENTRY_WAS_THERE,
+            'no run: the run cannot be looked for before the ledger is written' => [
+                self::NO_RUN, $failed, 1, "get({$run}: __control)", true, false, self::ENTRY_WAS_THERE,
             ],
             'a run: the run cannot be read' => [
-                self::A_RUN, $failed, 3, "get({$run}: __control)", true, false, self::ENTRY_WAS_THERE,
+                self::A_RUN, $failed, 1, "get({$run}: __control)", true, false, self::ENTRY_WAS_THERE,
             ],
             'a run: the start record of the run cannot be read' => [
-                self::A_RUN, $failed, 4, "get({$run}: __ignition)", true, false, self::ENTRY_WAS_THERE,
+                self::A_RUN, $failed, 2, "get({$run}: __ignition)", true, false, self::ENTRY_WAS_THERE,
             ],
         ]);
     }

@@ -118,6 +118,11 @@ class SchemaTest extends TestCase
                 . ' "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12",'
                 . ' "outcome": "refused", "code": "stale_attempt", "errorClass": null, "executedAttempt": null, "run": ' . self::RUN . ','
                 . ' "claimed": null, "snapshotRead": true, "at": 1791453604}'],
+            'the report of a wake that names another definition than the one that started the run' => ['report', self::changed(self::REPORT, [
+                'outcome' => 'rejected',
+                'code' => 'wrong_definition',
+                'executedAttempt' => null,
+            ])],
             'the report of a start that was aborted' => ['report', '{"protocol": 1, "invocationId": "inv_01JB2M", "verb": "start", "origin": "platform",'
                 . ' "definition": "nightly-reconciliation", "workflowId": "reconciliation:2026-10-07", "runId": "1-01JB2M8Q3W",'
                 . ' "outcome": "aborted", "code": "not_executed", "errorClass": "PDOException", "executedAttempt": null, "run": null,'
@@ -188,7 +193,33 @@ class SchemaTest extends TestCase
                 . ' "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12",'
                 . ' "outcome": "completed", "code": null, "errorClass": null, "executedAttempt": 2, "run": null,'
                 . ' "claimed": true, "snapshotRead": true, "at": 1791453604}'],
-            'a report of a wake that was rejected' => ['report', self::changed(self::REPORT, ['outcome' => 'rejected', 'code' => 'expired', 'executedAttempt' => null])],
+            'a report of a wake rejected with a code of a start' => ['report', self::changed(self::REPORT, [
+                'outcome' => 'rejected',
+                'code' => 'expired',
+                'executedAttempt' => null,
+            ])],
+            'a report of a start rejected as wrong_definition' => ['report', self::changed(self::START_REPORT, [
+                'outcome' => 'rejected',
+                'code' => 'wrong_definition',
+                'executedAttempt' => null,
+            ])],
+            'a report of an answer that was rejected' => ['report', self::changed(self::REPORT, [
+                'verb' => 'answer',
+                'outcome' => 'rejected',
+                'code' => 'expired',
+                'executedAttempt' => null,
+            ])],
+            'a report of a signal that was rejected' => ['report', self::changed(self::REPORT, [
+                'verb' => 'signal',
+                'outcome' => 'rejected',
+                'code' => 'expired',
+                'executedAttempt' => null,
+            ])],
+            'a report of a wake aborted as wrong_definition' => ['report', self::changed(self::REPORT, [
+                'outcome' => 'aborted',
+                'code' => 'wrong_definition',
+                'executedAttempt' => null,
+            ])],
             'a failed report that executed under no attempt' => ['report', self::changed(self::START_REPORT, [
                 'outcome' => 'failed',
                 'errorClass' => 'PDOException',

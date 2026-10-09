@@ -62,15 +62,15 @@ final class StartEvents
 
     /**
      * The request that ignites a run with a checked event, under a run ID the
-     * SDK reserved.
+     * SDK reserved. The run carries the name of its definition as its tag.
      *
      * @throws CloudException invalid_start, when Neuron cannot store the event or the run ID with a run
      */
-    public static function request(Event $event, string $runId): ExecutionRequest
+    public static function request(Event $event, string $runId, string $definition): ExecutionRequest
     {
         try {
             // recoverFailed stays false: a start only ever creates a run, so a repeated start can never become a retry.
-            return ExecutionRequest::start($event, $runId, recoverFailed: false);
+            return ExecutionRequest::start($event, $runId, recoverFailed: false, tag: $definition);
         } catch (Throwable $e) {
             throw new CloudException('The start cannot be stored with a run: ' . $e->getMessage(), Code::InvalidStart, $e);
         }

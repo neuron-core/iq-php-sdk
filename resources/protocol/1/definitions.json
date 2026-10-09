@@ -83,7 +83,8 @@
             "enum": ["run_in_flight", "stale_run", "stale_attempt", "executing", "not_awaited", "conflict"]
         },
         "rejectedCode": {
-            "enum": ["expired", "invalid_start", "already_claimed"]
+            "description": "wrong_definition is the only code of a rejected wake, and no start carries it.",
+            "enum": ["expired", "invalid_start", "already_claimed", "wrong_definition"]
         },
         "abortedCode": {
             "enum": ["not_executed", "unknown_definition", "unknown_version", "announce_failed", "unavailable"]

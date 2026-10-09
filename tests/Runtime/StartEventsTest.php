@@ -448,7 +448,7 @@ class StartEventsTest extends CloudTestCase
     {
         $event = new OrderPlaced('order:carried');
 
-        $request = StartEvents::request($event, Queued::RUN_ID);
+        $request = StartEvents::request($event, Queued::RUN_ID, 'order-fulfilment');
 
         self::assertTrue($request->starting);
         self::assertSame(Queued::RUN_ID, $request->runId);
@@ -456,9 +456,18 @@ class StartEventsTest extends CloudTestCase
         self::assertEquals($event, $request->event());
     }
 
+    public function test_the_request_of_a_start_carries_the_name_of_its_definition_as_the_tag_of_the_run(): void
+    {
+        $request = StartEvents::request(new OrderPlaced('order:carried'), Queued::RUN_ID, 'order-fulfilment');
+
+        self::assertSame('order-fulfilment', $request->tag);
+    }
+
     public function test_an_event_neuron_cannot_store_with_a_run_is_an_invalid_start(): void
     {
-        $reason = self::reasonThrownBy(static fn (): ExecutionRequest => StartEvents::request(new UnstorableStart(), Queued::RUN_ID));
+        $reason = self::reasonThrownBy(
+            static fn (): ExecutionRequest => StartEvents::request(new UnstorableStart(), Queued::RUN_ID, 'order-fulfilment'),
+        );
 
         self::assertSame(Code::InvalidStart, $reason);
     }

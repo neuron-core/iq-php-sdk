@@ -73,9 +73,10 @@ class AbandonInterleavingTest extends QuestionsTestCase
     }
 
     #[DataProvider('backends')]
-    public function test_an_abandon_overtaken_by_the_worker_that_claims_and_suspends_its_start_discards_the_run_that_worker_left(string $backend): void
-    {
-        $bench = $this->ordersOn($backend);
+    public function test_an_abandon_overtaken_by_the_worker_that_claims_and_suspends_its_start_is_answered_409_stale_run_with_the_run_that_worker_left(
+        string $backend,
+    ): void {
+        $this->ordersOn($backend);
         $this->deliver($this->start());
         $this->letInJustBefore(self::writeOfTheLedger(...), function (): void {
             $this->settled = $this->work();
@@ -85,7 +86,28 @@ class AbandonInterleavingTest extends QuestionsTestCase
 
         [$report] = $this->settled;
         self::assertInstanceOf(Report::class, $report);
-        self::assertSame(Outcome::Suspended, $report->outcome, 'The start ran before the abandon reached the ledger.');
+        self::assertSame(Outcome::Suspended, $report->outcome, 'The start ran after the abandon had looked for a run, and before it reached the ledger.');
+        $left = $this->storedRun();
+        self::assertSame(self::RUN_ID, $left['runId'] ?? null);
+        self::assertSame(
+            [409, ['code' => 'stale_run', 'run' => $left, 'claimed' => true, 'snapshotRead' => true]],
+            self::answered($answer),
+        );
+    }
+
+    #[DataProvider('backends')]
+    public function test_an_abandon_overtaken_by_the_worker_of_its_start_discards_the_run_when_it_is_sent_again_with_the_attempt_shown(
+        string $backend,
+    ): void {
+        $bench = $this->ordersOn($backend);
+        $this->deliver($this->start());
+        $this->letInJustBefore(self::writeOfTheLedger(...), function (): void {
+            $this->work();
+        });
+        $overtaken = $this->deliver($this->abandon(self::RUN_ID));
+
+        $answer = $this->deliver($this->abandon(self::RUN_ID, self::fieldsOf($overtaken)['run']['attempt']));
+
         self::assertSame(self::DISCARDED, self::answered($answer));
         self::assertNull($this->storedRun());
         self::assertSame(1, $bench->executions->count(AwaitPaymentNode::class));

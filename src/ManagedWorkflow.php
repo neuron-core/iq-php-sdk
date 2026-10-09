@@ -97,7 +97,7 @@ final class ManagedWorkflow
         $definition = $this->registry->current($this->name);
         $runId = UniqueIdGenerator::generateId($definition->version . '-');
         $workflow = $this->builder->build($definition, $this->workflowId, $runId);
-        $request = StartEvents::request(StartEvents::from($workflow, $input, $stream), $runId);
+        $request = StartEvents::request(StartEvents::from($workflow, $input, $stream), $runId, $definition->name);
 
         return new PendingSegment(
             new LocalSegment(Verb::Start, $definition, $this->workflowId, $workflow, $request, $this->dispatcher, $this->builder),
@@ -114,7 +114,8 @@ final class ManagedWorkflow
      * @throws InputTranslationException when no run is suspended on a wait, or the translator refuses the payload
      * @throws WorkflowRefusedException not_awaited, when the wait rejects the answer
      * @throws WorkflowException when Neuron could not hold the answer: it is not JSON-compatible
-     * @throws CloudException unknown_version, when this process lacks the version the run is pinned to
+     * @throws CloudException wrong_definition, when another definition started the run that holds the workflow ID;
+     *                        unknown_version, when this process lacks the version the run is pinned to
      */
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingSegment
     {
@@ -137,7 +138,8 @@ final class ManagedWorkflow
      * @throws InputTranslationException when no run is suspended on a wait
      * @throws WorkflowRefusedException not_awaited, when the run waits for something else, or the wait rejects the payload
      * @throws WorkflowException when Neuron could not hold the payload: it is not JSON-compatible
-     * @throws CloudException unknown_version, when this process lacks the version the run is pinned to
+     * @throws CloudException wrong_definition, when another definition started the run that holds the workflow ID;
+     *                        unknown_version, when this process lacks the version the run is pinned to
      */
     public function signal(string $event, array $payload = []): PendingSegment
     {
@@ -164,6 +166,7 @@ final class ManagedWorkflow
      *
      * @return WorkflowState|null null when there was nothing to do, or when another process got to the run first
      * @throws CloudException dispatch_failed, when the queue did not take the announcement: nothing ran;
+     *                        wrong_definition, when another definition started the run that holds the workflow ID;
      *                        unknown_version, when this process lacks the version the run is pinned to
      * @throws Throwable what Neuron throws: the exception of a node that fails again
      */
@@ -184,10 +187,23 @@ final class ManagedWorkflow
 
     /**
      * The run holding the workflow ID, as the store shows it now.
+     *
+     * @throws CloudException wrong_definition, when another definition started that run
      */
     protected function snapshot(): ?WorkflowRunSnapshot
     {
-        return $this->builder->build($this->registry->current($this->name), $this->workflowId, null)->inspect();
+        $definition = $this->registry->current($this->name);
+        $run = $this->builder->build($definition, $this->workflowId, null)->inspect();
+
+        if (!$definition->mayActOn($run)) {
+            throw new CloudException(
+                "The run that holds workflow ID '{$this->workflowId}' was started by '{$run?->tag}', not by '{$this->name}': "
+                . 'only the definition that started a run can answer or recover it.',
+                Code::WrongDefinition,
+            );
+        }
+
+        return $run;
     }
 
     /**

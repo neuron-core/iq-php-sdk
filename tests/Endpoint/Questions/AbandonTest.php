@@ -361,6 +361,22 @@ class AbandonTest extends QuestionsTestCase
     }
 
     #[DataProvider('backends')]
+    public function test_a_run_whose_start_event_class_no_longer_loads_is_discarded_also_by_an_abandon_that_names_another_definition(
+        string $backend,
+    ): void {
+        $bench = $this->ordersOn($backend);
+        $executions = $bench->executions;
+        $bench->cloud->register('nightly-reconciliation', static fn (): Workflow => new CompletingWorkflow($executions));
+        $this->deliver($this->start());
+        $this->work();
+        $this->removeTheClassOfTheStartEvent();
+
+        $answer = $this->deliver(['definition' => 'nightly-reconciliation'] + $this->abandon(self::RUN_ID, attempt: 1));
+
+        self::assertSame(self::DISCARDED, self::answered($answer), 'The tag is kept with the start event: it cannot be read either.');
+    }
+
+    #[DataProvider('backends')]
     public function test_a_refused_abandon_of_a_run_that_cannot_be_read_in_full_says_that_no_snapshot_was_read(string $backend): void
     {
         $this->ordersOn($backend);
@@ -391,6 +407,21 @@ class AbandonTest extends QuestionsTestCase
         self::assertSame([503, ['code' => 'unavailable']], [$answer->statusCode, self::fieldsOf($answer)]);
         self::assertGreaterThan(0, (int) $answer->header('Retry-After'));
         self::assertStringNotContainsString(ReleasedWithAnErrorWorkflow::FAILURE, $answer->body);
+    }
+
+    #[DataProvider('backends')]
+    public function test_a_workflow_whose_release_throws_is_answered_503_unavailable_also_when_the_abandon_names_another_definition(
+        string $backend,
+    ): void {
+        $bench = $this->ordersOn($backend);
+        $bench->cloud->register('nightly-reconciliation', static fn (): Workflow => new ReleasedWithAnErrorWorkflow());
+        $this->deliver($this->start());
+        $this->work();
+
+        $answer = $this->deliver(['definition' => 'nightly-reconciliation'] + $this->abandon(self::RUN_ID, attempt: 1));
+
+        self::assertSame([503, ['code' => 'unavailable']], [$answer->statusCode, self::fieldsOf($answer)]);
+        self::assertSame(self::RUN_ID, $this->storedRun()['runId'] ?? null, 'The run is left as it was.');
     }
 
     #[DataProvider('backends')]

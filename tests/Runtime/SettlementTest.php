@@ -213,7 +213,7 @@ class SettlementTest extends TestCase
      */
     public static function rejectedCodes(): array
     {
-        return self::rows('expired', 'invalid_start', 'already_claimed');
+        return self::rows('expired', 'invalid_start', 'already_claimed', 'wrong_definition');
     }
 
     /**

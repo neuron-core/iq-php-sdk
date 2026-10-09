@@ -16,6 +16,7 @@ use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\Code;
@@ -127,6 +128,15 @@ class ManagedWorkflowTest extends LocalTestCase
         $thread = $this->benchWith('greeting')->cloud->workflow('greeting', self::WORKFLOW_ID);
 
         self::assertNotSame($thread->start()->dispatch(), $thread->start()->dispatch());
+    }
+
+    public function test_a_start_gives_its_run_the_name_of_its_definition_as_its_tag(): void
+    {
+        $bench = $this->benchWith('order');
+
+        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
+
+        self::assertSame('order', (new WorkflowEngine(($bench->persistence)()))->inspect(self::WORKFLOW_ID)?->tag);
     }
 
     public function test_the_factory_receives_the_workflow_id_and_the_minted_run_id(): void
@@ -423,6 +433,23 @@ class ManagedWorkflowTest extends LocalTestCase
         self::assertSame(Code::UnknownVersion, $reason);
     }
 
+    #[DataProvider('continuationsRunInPlace')]
+    public function test_a_continuation_of_a_run_another_definition_started_is_refused_as_wrong_definition(string $verb): void
+    {
+        $bench = $this->benchWith('order');
+        $executions = $bench->executions;
+        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
+        $billing = $bench->cloud
+            ->register('billing', static fn (): Workflow => new WaitingWorkflow($executions))
+            ->workflow('billing', self::WORKFLOW_ID);
+
+        $reason = self::reasonThrownBy(
+            static fn (): PendingSegment => $verb === 'signal' ? $billing->signal(WaitingWorkflow::EVENT, self::PAYMENT) : $billing->submitInputs(self::PAYMENT),
+        );
+
+        self::assertSame(Code::WrongDefinition, $reason);
+    }
+
     public function test_an_answer_for_a_run_started_outside_the_sdk_executes_on_the_lowest_version(): void
     {
         $bench = $this->benchWith('order');
@@ -507,6 +534,21 @@ class ManagedWorkflowTest extends LocalTestCase
         self::assertInstanceOf(WorkflowState::class, $state);
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
         self::assertSame(2, $bench->executions->count(FlakyNode::class));
+    }
+
+    public function test_recover_refuses_a_failed_run_another_definition_started_as_wrong_definition_and_executes_nothing(): void
+    {
+        $bench = $this->benchWith('flaky');
+        $executions = $bench->executions;
+        $this->failAStart($bench->cloud->workflow('flaky', self::WORKFLOW_ID));
+        $greeting = $bench->cloud
+            ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions))
+            ->workflow('greeting', self::WORKFLOW_ID);
+
+        $reason = self::reasonThrownBy(static fn (): ?WorkflowState => $greeting->recover());
+
+        self::assertSame(Code::WrongDefinition, $reason);
+        self::assertSame([1, 0], [$executions->count(FlakyNode::class), $executions->count(CompleteNode::class)]);
     }
 
     public function test_recover_runs_a_wake_fenced_with_the_attempt_it_read_between_an_announcement_and_an_observe(): void

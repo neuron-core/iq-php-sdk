@@ -173,19 +173,25 @@ final class Endpoint
         $workflowId = $message->workflowId;
 
         try {
-            $run = $this->runHeldBy($this->builder->build($definition, $workflowId, null));
+            $holder = $this->builder->build($definition, $workflowId, null)->inspect();
+
+            if (!$definition->mayActOn($holder)) {
+                return $this->refuse(400, Code::InvalidRequest);
+            }
+
             $claimed = $message->runId === null ? null : $this->ledger->has($workflowId, $message->runId);
         } catch (Throwable) {
             // An answer whose snapshot was not read shows nothing: the platform asks again.
             return $this->respond(200, $this->snapshot(null, null, snapshotRead: false));
         }
 
-        return $this->respond(200, $this->snapshot($run, $claimed));
+        return $this->respond(200, $this->snapshot($this->shown($holder), $claimed));
     }
 
     /**
-     * The run ID is entered in the ledger first, so that a start still waiting in the queue never runs. A run
-     * that holds the workflow ID is then left to the workflow's own abandon(), which keeps the guard of an
+     * The run that holds the workflow ID is looked at first: for one another definition started, nothing is
+     * written. The run ID is then entered in the ledger, so that a start still waiting in the queue never runs,
+     * and a run that holds the workflow ID is left to the workflow's own abandon(), which keeps the guard of an
      * agent in force. With no run there, an entry this call wrote means the start will never run; one it
      * found there cannot say why, and the platform inspects.
      */
@@ -195,12 +201,21 @@ final class Endpoint
         $runId = $message->runId;
 
         try {
-            $entered = $this->ledger->claim($workflowId, $runId, time() + PlatformMessage::LONGEST_START_LIFETIME) === Claim::Written;
             $workflow = $this->builder->build($definition, $workflowId, null);
-            $refusal = $this->refusalOfAbandon($workflow, $runId, $message->attempt, $entered);
+            $holder = $this->holderOf($workflow);
+
+            if ($holder instanceof WorkflowRunSnapshot && !$definition->mayActOn($holder)) {
+                // Released inside the try, for the reason given below.
+                unset($workflow);
+
+                return $this->refuse(400, Code::InvalidRequest);
+            }
+
+            $entered = $this->ledger->claim($workflowId, $runId, time() + PlatformMessage::LONGEST_START_LIFETIME) === Claim::Written;
+            $refusal = $this->refusalOfAbandon($workflow, $runId, $message->attempt, $entered, $holder);
 
             try {
-                $run = $this->runHeldBy($workflow);
+                $run = $this->shown($workflow->inspect());
 
                 if ($run === null && $entered) {
                     // The run that held the workflow ID left while the abandon was dealt with: as when none was found.
@@ -223,26 +238,39 @@ final class Endpoint
     }
 
     /**
+     * The first look at the run an abandon names, before anything is written.
+     *
+     * @return WorkflowRunSnapshot|Throwable|null the run holding the workflow ID; null when none does; what the
+     *                                            store threw when the records of a run cannot be read in full
+     */
+    protected function holderOf(Workflow $workflow): WorkflowRunSnapshot|Throwable|null
+    {
+        try {
+            return $workflow->inspect();
+        } catch (Throwable $unread) {
+            // A run whose records cannot be read in full still holds the workflow ID, and its tag cannot be
+            // read. Neuron's abandon() needs only its control record, and says itself when there is none.
+            return $unread;
+        }
+    }
+
+    /**
      * @param bool $entered whether this abandon wrote the run ID in the ledger
+     * @param WorkflowRunSnapshot|Throwable|null $holder what the first look showed
      * @return string|null why the run stays: a RefusalReason value, or abandon_refused; null when it was abandoned,
      *                     and when no run holds the workflow ID and the start of the run ID can never run
      * @throws Throwable when the store cannot be read or written
      */
-    protected function refusalOfAbandon(Workflow $workflow, string $runId, ?int $attempt, bool $entered): ?string
-    {
+    protected function refusalOfAbandon(
+        Workflow $workflow,
+        string $runId,
+        ?int $attempt,
+        bool $entered,
+        WorkflowRunSnapshot|Throwable|null $holder,
+    ): ?string {
         $withoutRun = $entered ? null : RefusalReason::StaleRun->value;
 
-        try {
-            $isHeld = $workflow->inspect() instanceof WorkflowRunSnapshot;
-            $wasRead = true;
-        } catch (Throwable) {
-            // A run whose records cannot be read in full still holds the workflow ID. Neuron's abandon() needs
-            // only its control record, and says itself when there is none.
-            $isHeld = true;
-            $wasRead = false;
-        }
-
-        if (!$isHeld) {
+        if ($holder === null) {
             return $withoutRun;
         }
 
@@ -252,7 +280,7 @@ final class Endpoint
             return null;
         } catch (StaleWorkflowRunException $stale) {
             // Neuron found no run at all where the first look could not tell.
-            return !$wasRead && $stale->actualRunId === null ? $withoutRun : $stale->reason->value;
+            return $holder instanceof Throwable && $stale->actualRunId === null ? $withoutRun : $stale->reason->value;
         } catch (WorkflowRefusedException $refused) {
             return $refused->reason->value;
         } catch (AgentException) {
@@ -262,14 +290,11 @@ final class Endpoint
     }
 
     /**
-     * @return array<string, mixed>|null the run holding the workflow ID now, as the platform may see it
-     * @throws Throwable when the store cannot be read
+     * @return array<string, mixed>|null the run holding the workflow ID, as the platform may see it
      */
-    protected function runHeldBy(Workflow $workflow): ?array
+    protected function shown(?WorkflowRunSnapshot $holder): ?array
     {
-        $snapshot = $workflow->inspect();
-
-        return $snapshot instanceof WorkflowRunSnapshot ? RunProjection::of($snapshot) : null;
+        return $holder instanceof WorkflowRunSnapshot ? RunProjection::of($holder) : null;
     }
 
     /**

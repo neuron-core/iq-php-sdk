@@ -73,7 +73,7 @@ class ReportTest extends TestCase
             'invalid_signature', 'invalid_request', 'unsupported_protocol', 'unknown_definition', 'unknown_version',
             'dispatch_failed', 'unavailable', 'abandon_refused', 'internal_error',
             // Reports: rejected, then aborted
-            'expired', 'invalid_start', 'already_claimed', 'not_executed', 'announce_failed',
+            'expired', 'invalid_start', 'already_claimed', 'wrong_definition', 'not_executed', 'announce_failed',
             // Answers of the platform
             'endpoint_unverified', 'unauthorized',
             // Thrown locally only
@@ -102,6 +102,7 @@ class ReportTest extends TestCase
             'a start that failed' => [self::report(Verb::Start, Outcome::Failed, null, NodeFailed::class, 1, $failedRun, true)],
             'an answer Neuron refused' => [self::report(Verb::Answer, Outcome::Refused, RefusalReason::StaleAttempt->value, run: self::SUSPENDED_RUN)],
             'a start the SDK rejected' => [self::report(Verb::Start, Outcome::Rejected, Code::AlreadyClaimed->value, claimed: true)],
+            'a wake the SDK rejected' => [self::report(Verb::Wake, Outcome::Rejected, Code::WrongDefinition->value, run: $failedRun)],
             'a signal that was aborted' => [self::report(Verb::Signal, Outcome::Aborted, Code::UnknownDefinition->value, snapshotRead: false)],
             'a start whose job died' => [self::report(Verb::Start, Outcome::Observed, run: $failedRun, claimed: true)],
         ];
