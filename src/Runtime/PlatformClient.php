@@ -15,10 +15,15 @@ use NeuronCore\Cloud\Code;
 use NeuronCore\Cloud\Report;
 use Throwable;
 
+use function array_is_list;
+use function is_array;
+use function is_bool;
+use function is_int;
 use function rtrim;
 
 /**
- * Posts the SDK's announcements and reports to the platform, one try each.
+ * Posts the SDK's announcements and reports to the platform, and publishes
+ * a sync, one try each.
  *
  * @internal
  */
@@ -28,10 +33,17 @@ final class PlatformClient
 
     protected const REPORTS = '/v1/reports';
 
+    protected const SYNC = '/v1/sync';
+
     protected const TIMEOUT_SECONDS = 3.0;
+
+    protected const SYNC_TIMEOUT_SECONDS = 15.0;
 
     /** A 4xx answer that carries one of these will never be accepted, however often it is sent. */
     protected const FINAL_CODES = [Code::InvalidRequest, Code::UnsupportedProtocol];
+
+    /** A sync is also refused for good when the platform could not ping the endpoint it names. */
+    protected const FINAL_SYNC_CODES = [...self::FINAL_CODES, Code::EndpointUnverified];
 
     public function __construct(
         protected HttpClientInterface $httpClient,
@@ -58,19 +70,77 @@ final class PlatformClient
     }
 
     /**
+     * Publish the complete list of definitions and the endpoint of this deployment.
+     *
+     * @param array<string, mixed> $manifest
+     * @return array<string, mixed> the answer: whether anything changed, and the runs still open on each version
+     * @throws CloudException the reason the platform refused the sync for good; report_undelivered, when it gave
+     *                        no usable answer
+     */
+    public function sync(array $manifest): array
+    {
+        $answer = $this->send(self::SYNC, $manifest, self::SYNC_TIMEOUT_SECONDS);
+
+        $fields = $this->fieldsOf($answer);
+        if ($answer->statusCode === 200 && $this->isSyncAnswer($fields)) {
+            return $fields;
+        }
+
+        $reason = $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_SYNC_CODES);
+        // Only a refusal says that the list the platform holds was left as it was.
+        $advice = $answer->isSuccessful()
+            ? ' That is not the answer to a sync: it may have published the list. Run the sync again.'
+            : '';
+
+        throw new CloudException(
+            "The platform did not confirm the sync: it answered {$answer->statusCode} to " . self::SYNC
+            . " ({$reason->value}).{$advice}",
+            $reason,
+        );
+    }
+
+    /**
+     * A list the answer leaves out counts as empty.
+     *
+     * @param array<string, mixed> $fields
+     */
+    protected function isSyncAnswer(array $fields): bool
+    {
+        return is_bool($fields['modified'] ?? null)
+            && $this->listsOpenRuns($fields['versions'] ?? [])
+            && $this->listsOpenRuns($fields['stranded'] ?? []);
+    }
+
+    /**
+     * Whether a list of a sync answer holds what the protocol says: versions of definitions, each with its open runs.
+     */
+    protected function listsOpenRuns(mixed $versions): bool
+    {
+        if (!is_array($versions) || !array_is_list($versions)) {
+            return false;
+        }
+
+        foreach ($versions as $entry) {
+            $isWellFormed = is_array($entry)
+                && Format::isDefinition($entry['definition'] ?? null)
+                && is_int($entry['version'] ?? null) && $entry['version'] >= 1
+                && is_int($entry['openRuns'] ?? null) && $entry['openRuns'] >= 0;
+
+            if (!$isWellFormed) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * @param array<string, mixed> $body
      * @throws CloudException
      */
     protected function post(string $path, array $body): void
     {
-        try {
-            $answer = $this->httpClient->request($this->request($path, $body));
-        } catch (HttpException $e) {
-            // Neuron's clients throw an answer of 400 and above, and attach it.
-            $answer = $e->response ?? throw $this->undelivered($path, $e);
-        } catch (Throwable $e) {
-            throw $this->undelivered($path, $e);
-        }
+        $answer = $this->send($path, $body, self::TIMEOUT_SECONDS);
 
         $fields = $this->fieldsOf($answer);
         if ($answer->statusCode === 200 && ($fields['recorded'] ?? null) === true) {
@@ -79,21 +149,38 @@ final class PlatformClient
 
         throw new CloudException(
             "The platform answered {$answer->statusCode} to {$path} and recorded nothing.",
-            $this->reason($answer->statusCode, $fields['code'] ?? null),
+            $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
     }
 
     /**
      * @param array<string, mixed> $body
+     * @return HttpResponse the answer of the platform, whatever its status
+     * @throws CloudException report_undelivered, when the platform gave no answer
      */
-    protected function request(string $path, array $body): HttpRequest
+    protected function send(string $path, array $body, float $timeout): HttpResponse
+    {
+        try {
+            return $this->httpClient->request($this->request($path, $body, $timeout));
+        } catch (HttpException $e) {
+            // Neuron's clients throw an answer of 400 and above, and attach it.
+            return $e->response ?? throw $this->undelivered($path, $e);
+        } catch (Throwable $e) {
+            throw $this->undelivered($path, $e);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $body
+     */
+    protected function request(string $path, array $body, float $timeout): HttpRequest
     {
         return new HttpRequest(
             HttpMethod::POST,
             rtrim($this->platformUrl, '/') . $path,
             ['Authorization' => 'Bearer ' . $this->apiKey, 'User-Agent' => Protocol::SDK],
             $body,
-            self::TIMEOUT_SECONDS,
+            $timeout,
         );
     }
 
@@ -110,16 +197,18 @@ final class PlatformClient
     }
 
     /**
-     * A 401 or a 403, and a 4xx that carries invalid_request or
-     * unsupported_protocol, are final. Any other answer counts as undelivered.
+     * A 401 or a 403, and a 4xx that carries one of the final codes of the
+     * message, are final. Any other answer counts as undelivered.
+     *
+     * @param Code[] $finalCodes
      */
-    protected function reason(int $status, mixed $code): Code
+    protected function reason(int $status, mixed $code, array $finalCodes): Code
     {
         if ($status === 401 || $status === 403) {
             return Code::Unauthorized;
         }
 
-        foreach (self::FINAL_CODES as $final) {
+        foreach ($finalCodes as $final) {
             if ($status >= 400 && $status < 500 && $code === $final->value) {
                 return $final;
             }

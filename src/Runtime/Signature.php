@@ -25,7 +25,7 @@ final class Signature
     protected const KEY_PREFIX = 'whsec_';
 
     /** Seconds a timestamp may differ from the receiver's clock, either way. */
-    protected const TOLERANCE = 300;
+    public const TOLERANCE = 300;
 
     /**
      * @param string|null $signingKey "whsec_" followed by the base64 of the key bytes

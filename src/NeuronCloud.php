@@ -7,14 +7,18 @@ namespace NeuronCore\Cloud;
 use Closure;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
+use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronCore\Cloud\Runtime\Definition;
+use NeuronCore\Cloud\Runtime\Endpoint;
 use NeuronCore\Cloud\Runtime\InPlaceDispatcher;
 use NeuronCore\Cloud\Runtime\Ledger;
 use NeuronCore\Cloud\Runtime\PlatformClient;
 use NeuronCore\Cloud\Runtime\Registry;
 use NeuronCore\Cloud\Runtime\Runner;
+use NeuronCore\Cloud\Runtime\Signature;
+use NeuronCore\Cloud\Runtime\Sync;
 use NeuronCore\Cloud\Runtime\WorkflowBuilder;
 
 use const CURLOPT_FOLLOWLOCATION;
@@ -83,6 +87,36 @@ class NeuronCloud
     }
 
     /**
+     * App Sync, the last step of a deploy: publish every registered definition
+     * and version, and the URL of the endpoint. The list is complete and
+     * replaces the one the platform holds.
+     *
+     * @throws CloudException not_configured, when no persistence is set; unsuitable_persistence, for an in-memory or
+     *                        file store; invalid_request, when no definition is registered, for an endpoint URL that
+     *                        is not https and for a registered lease under 60 seconds: in all of these nothing was
+     *                        sent. endpoint_unverified, when the platform could not ping the endpoint; unauthorized,
+     *                        invalid_request or unsupported_protocol, when it refused the sync for good;
+     *                        report_undelivered, when it gave no usable answer: the sync may have been applied
+     */
+    public function sync(string $endpointUrl): SyncResult
+    {
+        return (new Sync($this->registry, $this->persistence(), $this->platform()))->publish($endpointUrl);
+    }
+
+    /**
+     * The endpoint: answer one request of the platform. A start and a wake are
+     * handed to the dispatcher; an inspect, an abandon and a ping are answered
+     * here. It never throws.
+     *
+     * @param array<array-key, mixed> $headers name => value, as getallheaders() gives them, or name => list of
+     *                                         values, as a framework does; names in any case
+     */
+    public function handle(string $method, array $headers, string $body): HttpResponse
+    {
+        return $this->endpoint()->handle($method, $headers, $body);
+    }
+
+    /**
      * The body of a queue job: execute one segment and report it, or post one
      * of the SDK's own notices to the platform.
      *
@@ -123,9 +157,28 @@ class NeuronCloud
             $this->registry,
             new WorkflowBuilder($persistence),
             new Ledger($persistence),
-            new PlatformClient($this->httpClient, $this->platformUrl, $this->apiKey),
+            $this->platform(),
             $this->dispatcher(),
         );
+    }
+
+    protected function endpoint(): Endpoint
+    {
+        // The store is asked for when a message needs it, not before: a ping and every refusal are answered without one.
+        $persistence = fn (): PersistenceInterface => ($this->persistence())();
+
+        return new Endpoint(
+            new Signature($this->signingKey),
+            $this->registry,
+            new WorkflowBuilder($persistence),
+            new Ledger($persistence),
+            $this->dispatcher(),
+        );
+    }
+
+    protected function platform(): PlatformClient
+    {
+        return new PlatformClient($this->httpClient, $this->platformUrl, $this->apiKey);
     }
 
     /**

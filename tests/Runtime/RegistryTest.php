@@ -12,6 +12,7 @@ use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function str_repeat;
 
 class RegistryTest extends TestCase
@@ -198,6 +199,24 @@ class RegistryTest extends TestCase
         $reason = self::reasonThrownBy(static fn (): Definition => $registry->current('nightly-reconciliation'));
 
         self::assertSame(Code::UnknownDefinition, $reason);
+    }
+
+    public function test_every_registered_version_of_every_name_is_listed(): void
+    {
+        $registry = self::registryOf(2, 1);
+        $registry->register(self::definition(3, 'nightly-reconciliation', leaseTimeout: 90));
+
+        $listed = array_map(
+            static fn (Definition $definition): array => [$definition->name, $definition->version, $definition->leaseTimeout],
+            $registry->all(),
+        );
+
+        self::assertSame([[self::NAME, 2, 600], [self::NAME, 1, 600], ['nightly-reconciliation', 3, 90]], $listed);
+    }
+
+    public function test_a_registry_with_no_definition_lists_nothing(): void
+    {
+        self::assertSame([], (new Registry())->all());
     }
 
     /**

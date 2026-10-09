@@ -22,6 +22,7 @@ use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\Runtime\Definition;
+use NeuronCore\Cloud\Runtime\Format;
 use NeuronCore\Cloud\Runtime\LocalSegment;
 use NeuronCore\Cloud\Runtime\Registry;
 use NeuronCore\Cloud\Runtime\Settlement;
@@ -30,7 +31,6 @@ use NeuronCore\Cloud\Runtime\WorkflowBuilder;
 use Throwable;
 
 use function in_array;
-use function preg_match;
 use function time;
 
 /**
@@ -39,9 +39,6 @@ use function time;
  */
 final class ManagedWorkflow
 {
-    /** The workflow IDs the protocol carries, which is Neuron's own rule. */
-    protected const WORKFLOW_ID = '/^(?!__)[^\x00-\x1F\x7F]{1,255}$/uD';
-
     /** @var (Closure(Workflow): mixed)|null */
     protected ?Closure $configure = null;
 
@@ -61,7 +58,7 @@ final class ManagedWorkflow
         // A name that was never registered fails here, not at the first call.
         $registry->current($name);
 
-        if (preg_match(self::WORKFLOW_ID, $workflowId) !== 1) {
+        if (!Format::isWorkflowId($workflowId)) {
             throw new CloudException(
                 "The workflow ID given for '{$name}' cannot be used: use 1 to 255 characters, with no control character "
                 . "and no leading '__'.",

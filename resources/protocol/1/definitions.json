@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Neuron Cloud protocol 1: shared definitions",
-    "description": "Identifier formats, codes and the run object used by the messages of protocol 1. Receivers ignore fields they do not know. Instants are Unix seconds.",
+    "description": "Identifier formats, codes and the run object used by the messages of protocol 1. Receivers ignore fields they do not know. Instants are Unix seconds. An integer is written without a fraction or an exponent: JSON Schema cannot say so, and 1.0 is refused.",
     "$defs": {
         "protocol": {
             "const": 1

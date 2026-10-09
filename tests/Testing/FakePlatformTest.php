@@ -8,15 +8,24 @@ use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronCore\Cloud\Outcome;
+use NeuronCore\Cloud\Runtime\Signature;
 use NeuronCore\Cloud\Testing\FakePlatform;
+use NeuronCore\Cloud\Tests\Stub\Endpoint\RecordingCloud;
+use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function array_map;
 use function base64_decode;
+use function count;
+use function json_decode;
 use function strlen;
 use function substr;
+use function time;
+
+use const JSON_THROW_ON_ERROR;
 
 class FakePlatformTest extends TestCase
 {
@@ -33,7 +42,7 @@ class FakePlatformTest extends TestCase
 
     public function test_an_unknown_path_is_answered_404_and_thrown_as_the_clients_of_neuron_do(): void
     {
-        $answer = self::answerOf(new FakePlatform(), self::post('/v1/sync'));
+        $answer = self::answerOf(new FakePlatform(), self::post('/v1/runs'));
 
         self::assertSame(404, $answer->statusCode);
     }
@@ -265,6 +274,220 @@ class FakePlatformTest extends TestCase
         (new FakePlatform())->stream(self::announcement());
     }
 
+    public function test_a_sync_is_answered_with_every_published_version_and_no_open_run(): void
+    {
+        $answer = (new FakePlatform())->request(self::sync([2, 1]));
+
+        self::assertSame(200, $answer->statusCode);
+        self::assertSame(
+            [
+                'protocol' => 1,
+                'modified' => true,
+                'versions' => [
+                    ['definition' => 'order-fulfilment', 'version' => 2, 'openRuns' => 0],
+                    ['definition' => 'order-fulfilment', 'version' => 1, 'openRuns' => 0],
+                ],
+                'stranded' => [],
+            ],
+            $answer->json(),
+        );
+        ProtocolSchema::assertValid('sync-answer', $answer->json());
+    }
+
+    public function test_the_same_sync_again_changes_nothing(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::sync([1]));
+
+        self::assertFalse($platform->request(self::sync([1]))->json()['modified']);
+    }
+
+    public function test_a_sync_of_another_list_replaces_the_one_before(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::sync([1]));
+
+        self::assertTrue($platform->request(self::sync([2, 1]))->json()['modified']);
+        self::assertTrue($platform->request(self::sync([1]))->json()['modified']);
+    }
+
+    public function test_a_sync_fail_next_refused_published_nothing(): void
+    {
+        $platform = (new FakePlatform())->failNext(1, 422);
+        self::answerOf($platform, self::sync([1]));
+
+        self::assertTrue($platform->request(self::sync([1]))->json()['modified']);
+    }
+
+    public function test_assert_synced_passes_once_a_sync_was_accepted(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::sync([1]));
+
+        $platform->assertSynced();
+    }
+
+    public function test_assert_synced_fails_when_nothing_was_published(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('The platform accepted no sync.');
+
+        (new FakePlatform())->assertSynced();
+    }
+
+    public function test_assert_synced_does_not_count_a_sync_the_platform_refused(): void
+    {
+        $platform = (new FakePlatform())->failNext(1, 422);
+        self::answerOf($platform, self::sync([1]));
+
+        $this->expectException(AssertionFailedError::class);
+
+        $platform->assertSynced();
+    }
+
+    public function test_deliver_posts_the_message_to_the_endpoint_as_json_and_returns_its_answer(): void
+    {
+        $cloud = new RecordingCloud(new HttpResponse(200, '{"protocols":[1]}'));
+
+        $answer = (new FakePlatform())->deliver($cloud, ['protocol' => 1, 'verb' => 'ping']);
+
+        self::assertSame('{"protocols":[1]}', $answer->body);
+        self::assertSame('POST', $cloud->handled()[0]['method']);
+        self::assertSame(['protocol' => 1, 'verb' => 'ping'], self::bodyOf($cloud));
+    }
+
+    public function test_deliver_says_protocol_1_for_a_message_that_names_none(): void
+    {
+        $cloud = new RecordingCloud();
+
+        (new FakePlatform())->deliver($cloud, ['verb' => 'ping']);
+
+        self::assertSame(1, self::bodyOf($cloud)['protocol']);
+    }
+
+    public function test_deliver_keeps_the_protocol_a_message_names(): void
+    {
+        $cloud = new RecordingCloud();
+
+        (new FakePlatform())->deliver($cloud, ['protocol' => 2, 'verb' => 'ping']);
+
+        self::assertSame(2, self::bodyOf($cloud)['protocol']);
+    }
+
+    public function test_deliver_signs_the_body_with_the_signing_key_as_standard_webhooks_does(): void
+    {
+        $cloud = new RecordingCloud();
+        $platform = new FakePlatform();
+        $before = time();
+
+        $platform->deliver($cloud, ['verb' => 'ping']);
+
+        ['headers' => $headers, 'body' => $body] = $cloud->handled()[0];
+        self::assertGreaterThanOrEqual($before, (int) $headers['webhook-timestamp']);
+        self::assertTrue((new Signature($platform->signingKey))->verify(
+            $headers['webhook-id'],
+            $headers['webhook-timestamp'],
+            $headers['webhook-signature'],
+            $body,
+            time(),
+        ));
+    }
+
+    public function test_deliver_sends_the_invocation_id_of_a_message_as_its_webhook_id(): void
+    {
+        $cloud = new RecordingCloud();
+
+        (new FakePlatform())->deliver($cloud, ['verb' => 'wake', 'invocationId' => 'inv_01JB7K4T9QW2']);
+
+        self::assertSame('inv_01JB7K4T9QW2', $cloud->handled()[0]['headers']['webhook-id']);
+    }
+
+    public function test_deliver_gives_a_message_without_an_invocation_id_a_webhook_id_of_its_own(): void
+    {
+        $cloud = new RecordingCloud();
+        $platform = new FakePlatform();
+
+        $platform->deliver($cloud, ['verb' => 'ping']);
+        $platform->deliver($cloud, ['verb' => 'ping']);
+
+        [$first, $second] = $cloud->handled();
+        self::assertNotSame('', $first['headers']['webhook-id']);
+        self::assertNotSame($first['headers']['webhook-id'], $second['headers']['webhook-id']);
+    }
+
+    public function test_deliver_signs_at_the_timestamp_it_is_given(): void
+    {
+        $cloud = new RecordingCloud();
+        $platform = new FakePlatform();
+
+        $platform->deliver($cloud, ['verb' => 'ping'], 1791453603);
+
+        ['headers' => $headers, 'body' => $body] = $cloud->handled()[0];
+        self::assertSame('1791453603', $headers['webhook-timestamp']);
+        self::assertTrue((new Signature($platform->signingKey))->verify(
+            $headers['webhook-id'],
+            '1791453603',
+            $headers['webhook-signature'],
+            $body,
+            1791453603,
+        ));
+    }
+
+    public function test_wake_sends_a_wake_fenced_with_the_run_of_the_last_report_recorded_for_the_workflow_id(): void
+    {
+        $cloud = new RecordingCloud();
+        $platform = new FakePlatform();
+        $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 1]));
+        $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 2]));
+        $platform->request(self::reportOf('order:124', ['runId' => '2-7c1e7d3a', 'attempt' => 5]));
+
+        $platform->wake($cloud, self::WORKFLOW_ID);
+
+        $wake = self::bodyOf($cloud);
+        self::assertSame(
+            ['wake', 'order-fulfilment', self::WORKFLOW_ID, '2-0192f3a8', 2],
+            [$wake['verb'], $wake['definition'], $wake['workflowId'], $wake['runId'], $wake['attempt']],
+        );
+        self::assertSame($wake['invocationId'], $cloud->handled()[0]['headers']['webhook-id']);
+        ProtocolSchema::assertValid('wake', $wake);
+    }
+
+    public function test_wake_does_not_fence_from_a_report_the_platform_did_not_record(): void
+    {
+        $cloud = new RecordingCloud();
+        $platform = new FakePlatform();
+        $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 1]));
+        $platform->failNext();
+        self::answerOf($platform, self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 2]));
+
+        $platform->wake($cloud, self::WORKFLOW_ID);
+
+        self::assertSame(1, self::bodyOf($cloud)['attempt']);
+    }
+
+    public function test_wake_fails_when_the_last_report_shows_no_run(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 1]));
+        $platform->request(self::reportOf(self::WORKFLOW_ID, null));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage("The platform recorded no report that shows a run to wake for workflow ID 'order:123'");
+
+        $platform->wake(new RecordingCloud(), self::WORKFLOW_ID);
+    }
+
+    public function test_wake_fails_when_nothing_was_reported_for_the_workflow_id(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::reportOf('order:124', ['runId' => '2-7c1e7d3a', 'attempt' => 5]));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage("The platform recorded no report that shows a run to wake for workflow ID 'order:123'");
+
+        $platform->wake(new RecordingCloud(), self::WORKFLOW_ID);
+    }
+
     /**
      * @return array<string, array{string}>
      */
@@ -286,6 +509,7 @@ class FakePlatformTest extends TestCase
             'a 401' => [401, 'unauthorized'],
             'a 403' => [403, 'unauthorized'],
             'a 404' => [404, null],
+            'a 422' => [422, 'endpoint_unverified'],
             'a 429' => [429, null],
             'a 500' => [500, null],
             'a 503' => [503, null],
@@ -323,6 +547,48 @@ class FakePlatformTest extends TestCase
     protected static function report(string $outcome = 'completed', ?string $code = null): HttpRequest
     {
         return self::post('/v1/reports', ['workflowId' => self::WORKFLOW_ID, 'outcome' => $outcome, 'code' => $code]);
+    }
+
+    /**
+     * A report as the SDK posts it after a segment, with the run the store showed.
+     *
+     * @param array<string, mixed>|null $run null: no run holds the workflow ID
+     */
+    protected static function reportOf(string $workflowId, ?array $run): HttpRequest
+    {
+        return self::post('/v1/reports', [
+            'definition' => 'order-fulfilment',
+            'workflowId' => $workflowId,
+            'outcome' => $run === null ? 'completed' : 'suspended',
+            'code' => null,
+            'run' => $run,
+        ]);
+    }
+
+    /**
+     * @param int[] $versions the registered versions of "order-fulfilment"
+     */
+    protected static function sync(array $versions): HttpRequest
+    {
+        return self::post('/v1/sync', [
+            'protocols' => [1],
+            'sdk' => 'neuron-cloud-php/1.0.0',
+            'endpoint' => 'https://shop.example.com/neuron-cloud.php',
+            'definitions' => array_map(
+                static fn (int $version): array => ['definition' => 'order-fulfilment', 'version' => $version, 'leaseSeconds' => 600],
+                $versions,
+            ),
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed> the body of the last request the endpoint was handed
+     */
+    protected static function bodyOf(RecordingCloud $cloud): array
+    {
+        $handled = $cloud->handled();
+
+        return json_decode($handled[count($handled) - 1]['body'], true, flags: JSON_THROW_ON_ERROR);
     }
 
     /**

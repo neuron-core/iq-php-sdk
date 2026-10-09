@@ -32,6 +32,15 @@ class PlatformClientTest extends TestCase
 
     protected const RECORDED = '{"recorded":true}';
 
+    protected const SYNCED = '{"protocol":1,"modified":false,"versions":[],"stranded":[]}';
+
+    protected const MANIFEST = [
+        'protocols' => [1],
+        'sdk' => 'neuron-cloud-php/1.0.0',
+        'endpoint' => 'https://shop.example.com/neuron-cloud.php',
+        'definitions' => [['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600]],
+    ];
+
     protected const ANNOUNCEMENT = [
         'protocol' => 1,
         'invocationId' => 'inv_01JB7K4T9QW2',
@@ -176,6 +185,89 @@ class PlatformClientTest extends TestCase
         self::assertCount(1, $http->received());
     }
 
+    #[DataProvider('platformUrls')]
+    public function test_a_sync_is_posted_to_the_sync_path_of_the_platform_url(string $platformUrl, string $expected): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, self::SYNCED));
+
+        (new PlatformClient($http, $platformUrl, self::API_KEY))->sync(self::MANIFEST);
+
+        self::assertSame(HttpMethod::POST, self::sent($http)->method);
+        self::assertSame($expected . '/v1/sync', self::sent($http)->uri);
+        self::assertSame(self::MANIFEST, self::sent($http)->body);
+    }
+
+    public function test_a_sync_carries_the_api_key_and_is_given_fifteen_seconds(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, self::SYNCED));
+
+        self::client($http)->sync(self::MANIFEST);
+
+        self::assertSame('Bearer ' . self::API_KEY, self::sent($http)->headers['Authorization']);
+        self::assertSame(15.0, self::sent($http)->timeout);
+    }
+
+    public function test_a_sync_returns_the_answer_of_the_platform(): void
+    {
+        $answer = self::client(new ScriptedHttpClient(new HttpResponse(200, self::SYNCED)))->sync(self::MANIFEST);
+
+        self::assertSame(['protocol' => 1, 'modified' => false, 'versions' => [], 'stranded' => []], $answer);
+    }
+
+    #[DataProvider('refusedSyncs')]
+    public function test_a_sync_the_platform_refuses_is_thrown_with_the_matching_code(HttpResponse $answer, Code $reason): void
+    {
+        self::assertSame($reason, self::syncRefusalBy(new ScriptedHttpClient($answer)));
+        self::assertSame($reason, self::syncRefusalBy(new ScriptedHttpClient($answer, throwsStatusErrors: false)));
+    }
+
+    public function test_a_sync_that_gets_no_answer_counts_as_undelivered(): void
+    {
+        $unreachable = HttpException::networkError(HttpRequest::post(self::PLATFORM_URL), 'Connection refused');
+
+        self::assertSame(Code::ReportUndelivered, self::syncRefusalBy(new ScriptedHttpClient($unreachable)));
+    }
+
+    #[DataProvider('answersThatAreNoSyncAnswer')]
+    public function test_a_200_that_is_not_the_answer_to_a_sync_counts_as_undelivered(string $body): void
+    {
+        self::assertSame(Code::ReportUndelivered, self::syncRefusalBy(new ScriptedHttpClient(new HttpResponse(200, $body))));
+    }
+
+    /**
+     * @return array<string, array{HttpResponse, Code}>
+     */
+    public static function refusedSyncs(): array
+    {
+        return [
+            'a 422 endpoint_unverified' => [new HttpResponse(422, '{"code":"endpoint_unverified"}'), Code::EndpointUnverified],
+            'a 401' => [new HttpResponse(401, '{"code":"unauthorized"}'), Code::Unauthorized],
+            'a 403' => [new HttpResponse(403, ''), Code::Unauthorized],
+            'a 400 invalid_request' => [new HttpResponse(400, '{"code":"invalid_request"}'), Code::InvalidRequest],
+            'a 400 unsupported_protocol' => [new HttpResponse(400, '{"code":"unsupported_protocol"}'), Code::UnsupportedProtocol],
+            'a 422 with no code' => [new HttpResponse(422, '{}'), Code::ReportUndelivered],
+            'a 500 that carries endpoint_unverified' => [new HttpResponse(500, '{"code":"endpoint_unverified"}'), Code::ReportUndelivered],
+            'a 503' => [new HttpResponse(503, ''), Code::ReportUndelivered],
+        ];
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function answersThatAreNoSyncAnswer(): array
+    {
+        return [
+            'an empty body' => [''],
+            'the page of a proxy' => ['<html><body>OK</body></html>'],
+            'an empty object' => ['{}'],
+            'the answer to an announcement' => [self::RECORDED],
+            'a modified that is no boolean' => ['{"protocol":1,"modified":"true","versions":[],"stranded":[]}'],
+            'versions that are no list' => ['{"protocol":1,"modified":true,"versions":{"order-fulfilment":1},"stranded":[]}'],
+            'a version that is no integer' => ['{"protocol":1,"modified":true,"versions":[{"definition":"order-fulfilment","version":"1","openRuns":0}],"stranded":[]}'],
+            'a stranded version without its open runs' => ['{"protocol":1,"modified":true,"versions":[],"stranded":[{"definition":"trial","version":3}]}'],
+        ];
+    }
+
     /**
      * @return array<string, array{string, string}> a platform URL as it is configured, and the address the paths are added to
      */
@@ -286,6 +378,16 @@ class PlatformClientTest extends TestCase
     {
         return self::thrownBy(static function () use ($http): void {
             self::client($http)->announce(self::ANNOUNCEMENT);
+        });
+    }
+
+    /**
+     * The reason a sync through that client was refused with, or null when the platform accepted it.
+     */
+    protected static function syncRefusalBy(ScriptedHttpClient $http): ?Code
+    {
+        return self::reasonThrownBy(static function () use ($http): void {
+            self::client($http)->sync(self::MANIFEST);
         });
     }
 

@@ -74,6 +74,33 @@ class RunProjectionTest extends TestCase
         );
     }
 
+    public function test_a_deadline_set_before_1970_is_shown_as_the_instant_0(): void
+    {
+        $wait = (new WaitForEventRequest('payment.received', new DateTimeImmutable('1969-07-20 20:17:00 UTC')))->withId(1);
+
+        $run = RunProjection::of(self::snapshot(WorkflowStatus::Suspended, $wait));
+
+        self::assertSame(0, $run['wait']['wakeAt']);
+    }
+
+    public function test_a_timer_set_before_1970_is_shown_as_the_instant_0(): void
+    {
+        $timer = (new SleepUntilRequest(new DateTimeImmutable('1969-07-20 20:17:00 UTC')))->withId(2);
+
+        $run = RunProjection::of(self::snapshot(WorkflowStatus::Suspended, $timer));
+
+        self::assertSame(0, $run['wait']['wakeAt']);
+    }
+
+    public function test_an_event_name_that_is_not_utf8_is_shown_with_its_invalid_bytes_replaced(): void
+    {
+        $wait = (new WaitForEventRequest("payment\xFFreceived"))->withId(1);
+
+        $run = RunProjection::of(self::snapshot(WorkflowStatus::Suspended, $wait));
+
+        self::assertSame("payment\u{FFFD}received", $run['wait']['eventName']);
+    }
+
     public function test_a_run_waiting_for_an_approval_shows_an_event_wait_named_approval(): void
     {
         $run = RunProjection::of(self::snapshot(WorkflowStatus::Suspended, self::approval()->withId(3)));

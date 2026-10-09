@@ -10,6 +10,7 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Testing\FakeDispatcher;
+use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointSchema;
 use PDO;
 
 use function is_array;
@@ -108,14 +109,23 @@ final class TestBench
     }
 
     /**
-     * Every body the SDK sent must match the JSON Schema of its message.
+     * Every body the SDK sent, every message its endpoint took and every
+     * answer the endpoint gave must match the JSON Schema of its message.
      */
     public function assertProtocolRespected(): void
     {
         foreach ($this->platform->received() as $request) {
-            $message = parse_url($request->uri, PHP_URL_PATH) === '/v1/reports' ? 'report' : 'announcement';
+            $message = match (parse_url($request->uri, PHP_URL_PATH)) {
+                '/v1/reports' => 'report',
+                '/v1/sync' => 'sync',
+                default => 'announcement',
+            };
 
             ProtocolSchema::assertValid($message, is_array($request->body) ? $request->body : []);
+        }
+
+        foreach ($this->platform->delivered() as ['message' => $message, 'answer' => $answer]) {
+            EndpointSchema::assertRespected($message, $answer);
         }
     }
 

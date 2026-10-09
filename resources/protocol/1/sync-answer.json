@@ -1,7 +1,7 @@
 {
     "$schema": "https://json-schema.org/draft/2020-12/schema",
     "title": "Sync answer",
-    "description": "The 200 answer to a sync. A version with no open run is retirable. A stranded version left the code while runs remain.",
+    "description": "The 200 answer to a sync. An older version with no open run is retirable; the highest registered one never is. A stranded version left the code while runs remain.",
     "type": "object",
     "required": ["protocol", "modified", "versions", "stranded"],
     "properties": {

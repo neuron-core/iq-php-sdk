@@ -10,7 +10,6 @@ use NeuronCore\Cloud\Code;
 use function array_keys;
 use function max;
 use function min;
-use function preg_match;
 
 /**
  * The definitions this process can build, by name and version.
@@ -19,11 +18,6 @@ use function preg_match;
  */
 final class Registry
 {
-    protected const NAME = '/^[a-z0-9][a-z0-9._-]{0,63}$/D';
-
-    /** A run ID minted by the SDK or the platform carries its version at the front. */
-    protected const MINTED_RUN_ID = '/^([1-9][0-9]{0,5})-[A-Za-z0-9][A-Za-z0-9_-]{0,119}$/D';
-
     protected const HIGHEST_VERSION = 999999;
 
     /** @var array<string, array<int, Definition>> */
@@ -34,7 +28,7 @@ final class Registry
      */
     public function register(Definition $definition): void
     {
-        if (preg_match(self::NAME, $definition->name) !== 1) {
+        if (!Format::isDefinition($definition->name)) {
             throw new CloudException(
                 "'{$definition->name}' cannot name a definition: use at most 64 lowercase letters, digits, dots, "
                 . 'underscores or hyphens, starting with a letter or a digit.',
@@ -102,6 +96,24 @@ final class Registry
     }
 
     /**
+     * Every registered version of every definition: the list a sync publishes.
+     *
+     * @return Definition[]
+     */
+    public function all(): array
+    {
+        $all = [];
+
+        foreach ($this->definitions as $versions) {
+            foreach ($versions as $definition) {
+                $all[] = $definition;
+            }
+        }
+
+        return $all;
+    }
+
+    /**
      * @return non-empty-array<int, Definition>
      * @throws CloudException unknown_definition
      */
@@ -122,6 +134,6 @@ final class Registry
      */
     protected function pinnedVersion(array $versions, string $runId): int
     {
-        return preg_match(self::MINTED_RUN_ID, $runId, $matches) === 1 ? (int) $matches[1] : min(array_keys($versions));
+        return Format::mintedVersion($runId) ?? min(array_keys($versions));
     }
 }

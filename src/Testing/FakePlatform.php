@@ -9,20 +9,27 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\HttpClient\StreamInterface;
+use NeuronAI\UniqueIdGenerator;
 use NeuronCore\Cloud\Code;
+use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Outcome;
+use NeuronCore\Cloud\Runtime\Protocol;
+use NeuronCore\Cloud\Runtime\Signature;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\Assert;
 
 use function array_fill;
 use function array_filter;
+use function array_map;
 use function array_shift;
 use function base64_encode;
-use function in_array;
+use function end;
 use function is_array;
+use function is_string;
 use function json_encode;
 use function parse_url;
 use function random_bytes;
+use function time;
 
 use const JSON_THROW_ON_ERROR;
 use const PHP_URL_PATH;
@@ -30,12 +37,15 @@ use const PHP_URL_PATH;
 /**
  * Neuron Cloud as the SDK sees it over HTTP: it records what it is told and
  * answers as the platform would. Give it to NeuronCloud as its HTTP client.
+ * It also plays the platform's side of the endpoint, with deliver() and wake().
  */
 class FakePlatform implements HttpClientInterface
 {
     protected const ANNOUNCEMENTS = '/v1/announcements';
 
     protected const REPORTS = '/v1/reports';
+
+    protected const SYNC = '/v1/sync';
 
     public readonly string $signingKey;
 
@@ -58,6 +68,54 @@ class FakePlatform implements HttpClientInterface
         $this->failures = [...$this->failures, ...array_fill(0, $times, $status)];
 
         return $this;
+    }
+
+    /**
+     * Send the endpoint one message, signed as the platform signs it.
+     *
+     * @param array<string, mixed> $message the body; "protocol" is 1 unless the message says otherwise
+     * @param int|null $timestamp when the message was signed; null: now
+     */
+    public function deliver(NeuronCloud $cloud, array $message, ?int $timestamp = null): HttpResponse
+    {
+        $body = json_encode($message + ['protocol' => Protocol::VERSION], JSON_THROW_ON_ERROR);
+        $timestamp ??= time();
+        // The invocation ID of a start or a wake is its webhook-id; a question and an abandon carry none.
+        $id = is_string($message['invocationId'] ?? null) ? $message['invocationId'] : UniqueIdGenerator::generateId('msg_');
+
+        return $cloud->handle('POST', [
+            'webhook-id' => $id,
+            'webhook-timestamp' => (string) $timestamp,
+            'webhook-signature' => (string) (new Signature($this->signingKey))->sign($id, $timestamp, $body),
+        ], $body);
+    }
+
+    /**
+     * Send the endpoint a wake of the run that holds a workflow ID, fenced
+     * with the run ID and the attempt of the last report recorded for it.
+     */
+    public function wake(NeuronCloud $cloud, string $workflowId): HttpResponse
+    {
+        $reports = array_filter(
+            $this->recorded(self::REPORTS),
+            static fn (array $report): bool => $report['workflowId'] === $workflowId,
+        );
+        $last = end($reports) ?: [];
+        $run = $last['run'] ?? null;
+
+        Assert::assertIsArray(
+            $run,
+            "The platform recorded no report that shows a run to wake for workflow ID '{$workflowId}': the last one shows none, or there is none.",
+        );
+
+        return $this->deliver($cloud, [
+            'verb' => Verb::Wake->value,
+            'invocationId' => UniqueIdGenerator::generateId('inv_'),
+            'definition' => $last['definition'],
+            'workflowId' => $workflowId,
+            'runId' => $run['runId'],
+            'attempt' => $run['attempt'],
+        ]);
     }
 
     public function request(HttpRequest $request): HttpResponse
@@ -85,9 +143,36 @@ class FakePlatform implements HttpClientInterface
             return $this->refusal($failure);
         }
 
-        return in_array($this->path($request), [self::ANNOUNCEMENTS, self::REPORTS], true)
-            ? new HttpResponse(200, '{"recorded":true}')
-            : $this->refusal(404);
+        return match ($this->path($request)) {
+            self::ANNOUNCEMENTS, self::REPORTS => new HttpResponse(200, '{"recorded":true}'),
+            self::SYNC => $this->syncAnswer($request),
+            default => $this->refusal(404),
+        };
+    }
+
+    /**
+     * The answer to a sync. The fake counts no runs: none is ever open on a
+     * published version, and none is stranded.
+     */
+    protected function syncAnswer(HttpRequest $request): HttpResponse
+    {
+        $manifest = is_array($request->body) ? $request->body : [];
+        $syncs = $this->recorded(self::SYNC);
+
+        return new HttpResponse(200, json_encode([
+            'protocol' => Protocol::VERSION,
+            // The list replaces the previous one: nothing changed when it is the same.
+            'modified' => $manifest !== end($syncs),
+            'versions' => array_map(
+                static fn (array $registration): array => [
+                    'definition' => $registration['definition'],
+                    'version' => $registration['version'],
+                    'openRuns' => 0,
+                ],
+                $manifest['definitions'] ?? [],
+            ),
+            'stranded' => [],
+        ], JSON_THROW_ON_ERROR));
     }
 
     protected function refusal(int $status): HttpResponse
@@ -95,6 +180,8 @@ class FakePlatform implements HttpClientInterface
         $code = match ($status) {
             400 => Code::InvalidRequest,
             401, 403 => Code::Unauthorized,
+            // What the platform answers a sync when the ping of its endpoint fails.
+            422 => Code::EndpointUnverified,
             default => null,
         };
 
@@ -124,6 +211,14 @@ class FakePlatform implements HttpClientInterface
     // ----------------------------------------------------------------
     // PHPUnit Assertions
     // ----------------------------------------------------------------
+
+    /**
+     * Assert the platform accepted a sync.
+     */
+    public function assertSynced(): void
+    {
+        Assert::assertNotEmpty($this->recorded(self::SYNC), 'The platform accepted no sync.');
+    }
 
     /**
      * Assert the platform recorded the announcement of a segment.
