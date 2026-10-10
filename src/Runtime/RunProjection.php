@@ -18,9 +18,10 @@ use function max;
 use const JSON_INVALID_UTF8_SUBSTITUTE;
 
 /**
- * The part of a run the platform may see: identifiers, a status, a lease
- * deadline and what the run waits for. It reads typed getters only, because
- * the JSON form of an approval request carries its message and tool inputs.
+ * The part of a run the platform may see: identifiers, the definition that
+ * started it, a status, a lease deadline and what the run waits for. It reads
+ * typed getters only, because the JSON form of an approval request carries
+ * its message and tool inputs.
  *
  * @internal
  */
@@ -33,6 +34,8 @@ final class RunProjection
     {
         $run = [
             'runId' => $snapshot->runId,
+            // A tag of another shape is a label of code outside the SDK, which must not cross.
+            'definition' => Format::isDefinition($snapshot->tag) ? $snapshot->tag : null,
             'status' => $snapshot->status->value,
             'attempt' => $snapshot->executionAttempt,
             'leaseExpiresAt' => $snapshot->leaseExpiresAt,

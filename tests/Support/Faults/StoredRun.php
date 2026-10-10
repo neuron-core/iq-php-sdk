@@ -14,6 +14,7 @@ use NeuronAI\Workflow\WorkflowStatus;
 
 use function is_array;
 use function ksort;
+use function preg_match;
 
 /**
  * The run a store holds for a workflow ID, read with Neuron's engine alone
@@ -21,6 +22,9 @@ use function ksort;
  */
 final class StoredRun
 {
+    /** The form of a definition name, as appendix A of the design gives it. */
+    protected const DEFINITION = '/^[a-z0-9][a-z0-9._-]{0,63}$/D';
+
     /**
      * @return array<string, mixed>|null null when no run holds the workflow ID
      */
@@ -34,6 +38,7 @@ final class StoredRun
 
         $run = [
             'runId' => $snapshot->runId,
+            'definition' => preg_match(self::DEFINITION, (string) $snapshot->tag) === 1 ? $snapshot->tag : null,
             'status' => $snapshot->status->value,
             'attempt' => $snapshot->executionAttempt,
             'leaseExpiresAt' => $snapshot->leaseExpiresAt,

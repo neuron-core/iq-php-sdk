@@ -29,12 +29,13 @@ class ReportTest extends TestCase
     protected const REPORT_OF_THE_PROTOCOL = '{"protocol": 1, "invocationId": "inv_01JB7K4T9QW2", "verb": "wake", "origin": "platform",'
         . ' "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12",'
         . ' "outcome": "suspended", "code": null, "errorClass": null, "executedAttempt": 2,'
-        . ' "run": {"runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12", "status": "suspended", "attempt": 2, "leaseExpiresAt": null,'
-        . ' "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}},'
+        . ' "run": {"runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12", "definition": "order-fulfilment", "status": "suspended", "attempt": 2,'
+        . ' "leaseExpiresAt": null, "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}},'
         . ' "claimed": null, "snapshotRead": true, "at": 1791453604}';
 
     protected const SUSPENDED_RUN = [
         'runId' => self::RUN_ID,
+        'definition' => 'order-fulfilment',
         'status' => 'suspended',
         'attempt' => 2,
         'leaseExpiresAt' => null,
@@ -94,7 +95,7 @@ class ReportTest extends TestCase
      */
     public static function reports(): array
     {
-        $failedRun = ['runId' => self::RUN_ID, 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null];
+        $failedRun = ['runId' => self::RUN_ID, 'definition' => 'order-fulfilment', 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null];
 
         return [
             'a start that completed' => [self::report(Verb::Start, Outcome::Completed, executedAttempt: 1, claimed: true)],

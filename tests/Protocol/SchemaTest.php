@@ -19,8 +19,11 @@ use const JSON_THROW_ON_ERROR;
  */
 class SchemaTest extends TestCase
 {
-    protected const RUN = '{"runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12", "status": "suspended", "attempt": 2, "leaseExpiresAt": null,'
-        . ' "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}}';
+    protected const RUN = '{"runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12", "definition": "order-fulfilment", "status": "suspended", "attempt": 2,'
+        . ' "leaseExpiresAt": null, "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}}';
+
+    /** A run that carries no tag, or a label of code outside the SDK that is not a definition name. */
+    protected const RUN_OF_NO_DEFINITION = '{"runId": "nightly-import", "definition": null, "status": "running", "attempt": 1, "leaseExpiresAt": null}';
 
     protected const REPORT = '{"protocol": 1, "invocationId": "inv_01JB7K4T9QW2", "verb": "wake", "origin": "platform",'
         . ' "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12",'
@@ -137,6 +140,14 @@ class SchemaTest extends TestCase
             'an abandon of a start nothing was heard of' => ['abandon', '{"protocol": 1, "verb": "abandon", "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e"}'],
             'a ping' => ['ping', '{"protocol": 1, "verb": "ping"}'],
             'the answer to an inspect that found a run' => ['inspect-answer', '{"run": ' . self::RUN . ', "claimed": true, "snapshotRead": true, "at": 1791453604}'],
+            'the answer to an inspect that found a run no definition started' => ['inspect-answer', '{"run": ' . self::RUN_OF_NO_DEFINITION . ', "claimed": null, "snapshotRead": true, "at": 1791453604}'],
+            'the report of a start refused by a run no definition started' => ['report', self::changed(self::START_REPORT, [
+                'outcome' => 'refused',
+                'code' => 'run_in_flight',
+                'executedAttempt' => null,
+                'run' => json_decode(self::RUN_OF_NO_DEFINITION, true, flags: JSON_THROW_ON_ERROR),
+                'claimed' => true,
+            ])],
             'the answer to an inspect that found none' => ['inspect-answer', '{"run": null, "claimed": false, "snapshotRead": true, "at": 1791453604}'],
             'the answer to an inspect when the store cannot be read' => ['inspect-answer', '{"run": null, "claimed": null, "snapshotRead": false, "at": 1791453604}'],
             'the 409 answer to an abandon' => ['inspect-answer', '{"code": "abandon_refused", "run": ' . self::RUN . ', "claimed": true, "snapshotRead": true, "at": 1791453604}'],
@@ -246,13 +257,20 @@ class SchemaTest extends TestCase
                 'outcome' => 'failed',
                 'errorClass' => "RuntimeException@anonymous\0/var/www/src/Charge.php:21$0",
             ])],
-            'a run that is not suspended with a wait' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "status": "failed", "attempt": 2, "leaseExpiresAt": null,'
-                . ' "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}},'
+            'a run that is not suspended with a wait' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "definition": "order-fulfilment", "status": "failed", "attempt": 2,'
+                . ' "leaseExpiresAt": null, "wait": {"interruptId": 2, "type": "sleep_until", "eventName": null, "wakeAt": 1791457200}},'
                 . ' "claimed": true, "snapshotRead": true, "at": 1791453604}'],
-            'a suspended run without its wait' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "status": "suspended", "attempt": 2, "leaseExpiresAt": null},'
+            'a suspended run without its wait' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "definition": "order-fulfilment", "status": "suspended", "attempt": 2,'
+                . ' "leaseExpiresAt": null}, "claimed": true, "snapshotRead": true, "at": 1791453604}'],
+            'a run with a status Neuron does not have' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "definition": "order-fulfilment", "status": "paused", "attempt": 2,'
+                . ' "leaseExpiresAt": null}, "claimed": true, "snapshotRead": true, "at": 1791453604}'],
+            'a run without its definition' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "status": "failed", "attempt": 2, "leaseExpiresAt": null},'
                 . ' "claimed": true, "snapshotRead": true, "at": 1791453604}'],
-            'a run with a status Neuron does not have' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "status": "paused", "attempt": 2, "leaseExpiresAt": null},'
-                . ' "claimed": true, "snapshotRead": true, "at": 1791453604}'],
+            'a run whose definition is not a definition name' => ['inspect-answer', '{"run": {"runId": "2-0192f3a8-7c1e", "definition": "Order Fulfilment", "status": "failed", "attempt": 2,'
+                . ' "leaseExpiresAt": null}, "claimed": true, "snapshotRead": true, "at": 1791453604}'],
+            'a report whose run names no definition' => ['report', self::changed(self::REPORT, [
+                'run' => ['runId' => '2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12', 'status' => 'failed', 'attempt' => 2, 'leaseExpiresAt' => null],
+            ])],
             'a ping answer that does not speak protocol 1' => ['ping-answer', '{"protocols": []}'],
             'an error body with a code the endpoint never answers' => ['error', '{"code": "report_undelivered"}'],
             'an error body without a code' => ['error', '{"message": "no"}'],

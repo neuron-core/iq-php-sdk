@@ -397,6 +397,7 @@ class AbandonedStreamTest extends StreamedTestCase
     {
         return [
             'runId' => $stage->announce()->runId,
+            'definition' => Stage::DEFINITION,
             'status' => 'failed',
             'attempt' => $stage->kind->attempt(),
             'leaseExpiresAt' => null,

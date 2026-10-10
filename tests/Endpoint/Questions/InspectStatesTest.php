@@ -45,7 +45,7 @@ class InspectStatesTest extends QuestionsTestCase
 
         $run = self::fieldsOf($answer)['run'];
         self::assertSame(
-            ['runId' => self::RUN_ID, 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => $run['leaseExpiresAt']],
+            ['runId' => self::RUN_ID, 'definition' => self::DEFINITION, 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => $run['leaseExpiresAt']],
             $run,
         );
         self::assertGreaterThanOrEqual($before + 600, $run['leaseExpiresAt']);
@@ -61,7 +61,7 @@ class InspectStatesTest extends QuestionsTestCase
 
         $shown = self::fieldsOf($answer);
         self::assertSame(
-            ['runId' => self::RUN_ID, 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => $shown['run']['leaseExpiresAt']],
+            ['runId' => self::RUN_ID, 'definition' => self::DEFINITION, 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => $shown['run']['leaseExpiresAt']],
             $shown['run'],
         );
         self::assertLessThanOrEqual($shown['at'], $shown['run']['leaseExpiresAt'], 'By the clock of the endpoint itself.');
@@ -76,7 +76,7 @@ class InspectStatesTest extends QuestionsTestCase
 
         $run = self::fieldsOf($answer)['run'];
         self::assertSame(
-            ['runId' => $run['runId'], 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => null],
+            ['runId' => $run['runId'], 'definition' => null, 'status' => 'running', 'attempt' => 1, 'leaseExpiresAt' => null],
             $run,
         );
     }
@@ -91,6 +91,7 @@ class InspectStatesTest extends QuestionsTestCase
         self::assertSame(
             [
                 'runId' => self::RUN_ID,
+                'definition' => self::DEFINITION,
                 'status' => 'suspended',
                 'attempt' => 1,
                 'leaseExpiresAt' => null,
@@ -124,6 +125,7 @@ class InspectStatesTest extends QuestionsTestCase
         self::assertSame(
             [
                 'runId' => self::RUN_ID,
+                'definition' => self::DEFINITION,
                 'status' => 'suspended',
                 'attempt' => 1,
                 'leaseExpiresAt' => null,
@@ -168,6 +170,7 @@ class InspectStatesTest extends QuestionsTestCase
         self::assertSame(
             [
                 'runId' => $run['runId'],
+                'definition' => self::AGENT,
                 'status' => 'suspended',
                 'attempt' => 1,
                 'leaseExpiresAt' => null,
@@ -185,7 +188,7 @@ class InspectStatesTest extends QuestionsTestCase
         $answer = $this->whileHeldBy(Holder::Failed, fn (): HttpResponse => $this->deliver($this->inspect()));
 
         self::assertSame(
-            ['runId' => self::RUN_ID, 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null],
+            ['runId' => self::RUN_ID, 'definition' => self::DEFINITION, 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null],
             self::fieldsOf($answer)['run'],
         );
     }
@@ -199,7 +202,7 @@ class InspectStatesTest extends QuestionsTestCase
 
         $run = self::fieldsOf($answer)['run'];
         self::assertSame(
-            ['runId' => $run['runId'], 'status' => 'completed', 'attempt' => 1, 'leaseExpiresAt' => null],
+            ['runId' => $run['runId'], 'definition' => null, 'status' => 'completed', 'attempt' => 1, 'leaseExpiresAt' => null],
             $run,
         );
     }

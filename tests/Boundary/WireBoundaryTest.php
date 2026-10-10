@@ -74,7 +74,7 @@ class WireBoundaryTest extends CloudTestCase
         ],
     ];
 
-    protected const RUN_FIELDS = ['runId', 'status', 'attempt', 'leaseExpiresAt', 'wait'];
+    protected const RUN_FIELDS = ['runId', 'definition', 'status', 'attempt', 'leaseExpiresAt', 'wait'];
 
     protected const WAIT_FIELDS = ['interruptId', 'type', 'eventName', 'wakeAt'];
 

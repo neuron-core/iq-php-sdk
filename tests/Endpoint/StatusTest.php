@@ -94,6 +94,7 @@ class StatusTest extends EndpointTestCase
         self::assertSame(
             [
                 'runId' => self::RUN_ID,
+                'definition' => self::DEFINITION,
                 'status' => 'suspended',
                 'attempt' => 1,
                 'leaseExpiresAt' => null,

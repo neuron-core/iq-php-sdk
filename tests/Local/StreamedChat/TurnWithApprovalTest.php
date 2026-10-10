@@ -20,6 +20,7 @@ use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
 use NeuronCore\Cloud\Tests\Stub\StreamedChat\SupportAgent;
 use NeuronCore\Cloud\Tests\Support\ExecutionLog;
 use NeuronCore\Cloud\Tests\Support\StreamedChat\Broadcast;
+use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatEndpoint;
 use NeuronCore\Cloud\Tests\Support\StreamedChat\Confidential;
 use NeuronCore\Cloud\Tests\Support\StreamedChat\StreamedChatTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
@@ -277,6 +278,7 @@ class TurnWithApprovalTest extends StreamedChatTestCase
         [$report] = $this->posted(self::REPORTS);
         self::assertSame([
             'runId' => $stored?->runId,
+            'definition' => ChatEndpoint::DEFINITION,
             'status' => $stored?->status->value,
             'attempt' => $stored?->executionAttempt,
             'leaseExpiresAt' => $stored?->leaseExpiresAt,

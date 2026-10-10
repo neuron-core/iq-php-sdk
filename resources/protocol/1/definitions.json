@@ -129,10 +129,17 @@
         "run": {
             "description": "The run holding a workflow ID.",
             "type": "object",
-            "required": ["runId", "status", "attempt", "leaseExpiresAt"],
+            "required": ["runId", "definition", "status", "attempt", "leaseExpiresAt"],
             "properties": {
                 "runId": {
                     "$ref": "#/$defs/runId"
+                },
+                "definition": {
+                    "description": "The definition that started the run: its tag, when the tag has the form of a definition name. Null for a run with no tag, and for one that code outside the SDK started with a label of another form.",
+                    "oneOf": [
+                        {"$ref": "#/$defs/definition"},
+                        {"type": "null"}
+                    ]
                 },
                 "status": {
                     "description": "\"completed\" only for a completion retained by code outside the SDK.",

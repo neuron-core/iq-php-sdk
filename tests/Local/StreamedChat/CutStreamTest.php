@@ -10,6 +10,7 @@ use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
+use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatEndpoint;
 use NeuronCore\Cloud\Tests\Support\StreamedChat\StreamedChatTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -111,7 +112,7 @@ class CutStreamTest extends StreamedChatTestCase
         [$report] = $this->posted(self::REPORTS);
         self::assertSame(['observed', null, null], [$report['outcome'], $report['errorClass'], $report['executedAttempt']]);
         self::assertSame(
-            ['runId' => $this->held()?->runId, 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null],
+            ['runId' => $this->held()?->runId, 'definition' => ChatEndpoint::DEFINITION, 'status' => 'failed', 'attempt' => 1, 'leaseExpiresAt' => null],
             $report['run'],
         );
     }
