@@ -47,12 +47,14 @@ final class PendingSegment
      * on the first iteration: call valid() first, and a refusal is thrown
      * before anything is sent to the browser. A consumer that stops before
      * the end makes Neuron fail a run it was still executing. The queue is
-     * handed the observe when the stream ends or its consumer stops. For a
-     * consumer that stopped it says how the segment ended only when Neuron
-     * had reported it as suspended or completed: otherwise the platform is
-     * told what the store shows. A generator that is never iterated, or a
-     * connection PHP aborts, hands none: the platform asks when the
-     * announced lease has passed.
+     * handed the observe when the stream ends or its consumer stops, and for
+     * a segment that failed when Neuron gives the first frame that follows
+     * the failure: a consumer may stop on an error frame. For a consumer that
+     * stopped it says how the segment ended only when Neuron had reported it
+     * as suspended, completed or failed: otherwise the platform is told what
+     * the store shows. A generator that is never iterated, or a connection
+     * PHP aborts, hands none: the platform asks when the announced lease has
+     * passed.
      *
      * @return Generator<int, object, mixed, WorkflowState> it throws what Neuron throws: a refusal, or the exception of a node
      * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ran

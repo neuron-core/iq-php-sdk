@@ -114,6 +114,41 @@ class NeuronCloudTest extends CloudTestCase
         self::assertSame(0, $executions->count(FlakyNode::class));
     }
 
+    public function test_the_registered_definitions_are_listed_with_the_lease_of_each_version(): void
+    {
+        $factory = static fn (): Workflow => new Workflow();
+        $cloud = (new NeuronCloud(TestBench::API_KEY))
+            ->register('order-fulfilment', $factory, leaseTimeout: 120)
+            ->register('support-agent', $factory, version: 1, leaseTimeout: 60)
+            ->register('support-agent', $factory, version: 2);
+
+        self::assertSame(['order-fulfilment' => [1 => 120], 'support-agent' => [1 => 60, 2 => 600]], $cloud->definitions());
+    }
+
+    public function test_no_definition_is_listed_before_one_is_registered(): void
+    {
+        self::assertSame([], (new NeuronCloud(TestBench::API_KEY))->definitions());
+    }
+
+    public function test_a_version_registered_again_is_listed_once_with_the_lease_it_was_given_last(): void
+    {
+        $factory = static fn (): Workflow => new Workflow();
+        $cloud = (new NeuronCloud(TestBench::API_KEY))
+            ->register('order-fulfilment', $factory, leaseTimeout: 120)
+            ->register('order-fulfilment', $factory, leaseTimeout: 900);
+
+        self::assertSame(['order-fulfilment' => [1 => 900]], $cloud->definitions());
+    }
+
+    public function test_a_registration_the_sdk_refuses_is_not_listed(): void
+    {
+        $cloud = new NeuronCloud(TestBench::API_KEY);
+
+        self::reasonThrownBy(static fn (): NeuronCloud => $cloud->register('Order Fulfilment', static fn (): Workflow => new Workflow()));
+
+        self::assertSame([], $cloud->definitions());
+    }
+
     public function test_register_refuses_a_name_the_protocol_cannot_carry(): void
     {
         $cloud = new NeuronCloud(TestBench::API_KEY);

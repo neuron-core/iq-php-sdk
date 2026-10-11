@@ -19,6 +19,7 @@ final class FaultCase
      * @param bool $committed whether the store did what that operation asked for before it failed
      * @param Sighting[] $sightings every report the platform received, in order
      * @param array<string, int> $executions how many times each node body ran, by node class
+     * @param string|null $lastExecuted the class of the node whose body ran last; null when none ran
      * @param int $ignitions how many times a run was created for the workflow ID
      * @param bool $ended whether Neuron removed the records of the run, as its completion does
      * @param array<string, mixed>|null $left the run the store holds at the end
@@ -30,6 +31,7 @@ final class FaultCase
         public readonly bool $committed,
         public readonly array $sightings,
         public readonly array $executions,
+        public readonly ?string $lastExecuted,
         public readonly int $ignitions,
         public readonly bool $ended,
         public readonly ?array $left,
@@ -52,5 +54,17 @@ final class FaultCase
         }
 
         return false;
+    }
+
+    /**
+     * Whether the fault kept the end of the run from being settled. Neuron
+     * writes no record of its own for the step that ends a run, from 4.1.11
+     * on: removing the records of the run is the commit of that step. A
+     * removal the store did not perform therefore leaves the node that ended
+     * the run with its work to do again.
+     */
+    public function leftTheEndUnsettled(): bool
+    {
+        return $this->struck?->method === 'deleteIfUnchanged' && !$this->committed;
     }
 }

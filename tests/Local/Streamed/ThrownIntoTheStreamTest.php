@@ -29,8 +29,10 @@ use function substr;
  * an event the wire cannot carry. While the segment is executing, Neuron
  * fails the run for it, lets the stream adapter close its protocol, and
  * throws it back. The SDK observes the segment as failed with the class of
- * that exception. LastFrameTest has the exception thrown into one of the
- * last frames of a segment that had already suspended or completed.
+ * that exception, and hands the observe over when Neuron gives the first
+ * error frame, or throws back when it has none to give. LastFrameTest has
+ * the exception thrown into one of the last frames of a segment that had
+ * already suspended or completed.
  */
 class ThrownIntoTheStreamTest extends StreamedTestCase
 {
@@ -102,7 +104,7 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
     }
 
     #[DataProvider('kinds')]
-    public function test_the_observe_is_handed_over_when_the_exception_comes_back_and_not_while_the_error_frames_are_given(
+    public function test_the_observe_is_handed_over_once_when_the_first_error_frame_is_given_and_not_when_the_exception_comes_back(
         string $backend,
         Kind $kind,
     ): void {
@@ -110,6 +112,7 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
         $stage->thread->configure(self::adapted());
         $events = $stage->stream();
         $events->current();
+        $queuedBefore = $stage->verbsQueued();
 
         $events->throw(new JsonException('The wire cannot carry this event.'));
         $queuedAtTheFirstErrorFrame = $stage->verbsQueued();
@@ -117,7 +120,10 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
         $queuedAtTheLastErrorFrame = $stage->verbsQueued();
         self::caught($events->next(...));
 
-        self::assertSame([[Verb::Announce], [Verb::Announce]], [$queuedAtTheFirstErrorFrame, $queuedAtTheLastErrorFrame]);
+        self::assertSame(
+            [[Verb::Announce], [Verb::Announce, Verb::Observe], [Verb::Announce, Verb::Observe]],
+            [$queuedBefore, $queuedAtTheFirstErrorFrame, $queuedAtTheLastErrorFrame],
+        );
         self::assertSame([Verb::Announce, Verb::Observe], $stage->verbsQueued());
     }
 
@@ -163,7 +169,7 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
     }
 
     #[DataProvider('kinds')]
-    public function test_releasing_a_stream_an_exception_was_thrown_into_before_it_came_back_hands_the_queue_one_observe_that_carries_no_outcome(
+    public function test_releasing_a_stream_an_exception_was_thrown_into_before_it_came_back_leaves_the_one_observe_that_says_failed_with_its_class(
         string $backend,
         Kind $kind,
     ): void {
@@ -176,19 +182,22 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
         unset($events);
 
         self::assertSame([Verb::Announce, Verb::Observe], $stage->verbsQueued());
-        self::assertSame(
-            ['invocationId' => $stage->announce()->body['invocationId'] ?? null, 'verb' => $kind->verb()->value],
-            $stage->observe()->body,
-        );
+        self::assertSame([
+            'invocationId' => $stage->announce()->body['invocationId'] ?? null,
+            'verb' => $kind->verb()->value,
+            'outcome' => Outcome::Failed->value,
+            'code' => null,
+            'errorClass' => JsonException::class,
+            'executedAttempt' => $kind->attempt(),
+        ], $stage->observe()->body);
     }
 
     /**
-     * The exception that was thrown in failed the run, but the consumer did
-     * not wait for Neuron to throw it back: the SDK says nothing of how the
-     * segment ended, and the platform hears what the store shows.
+     * The consumer did not wait for Neuron to throw the exception back, and the SDK did not wait for the
+     * consumer: Neuron had said that the segment failed, and with what.
      */
     #[DataProvider('kinds')]
-    public function test_the_report_of_a_stream_released_on_the_error_frame_of_an_exception_thrown_in_says_observed_and_shows_the_failed_run(
+    public function test_the_report_of_a_stream_released_on_the_error_frame_of_an_exception_thrown_in_says_failed_and_shows_the_failed_run(
         string $backend,
         Kind $kind,
     ): void {
@@ -202,7 +211,7 @@ class ThrownIntoTheStreamTest extends StreamedTestCase
         [, $report] = $stage->drain();
 
         self::assertInstanceOf(Report::class, $report);
-        self::assertSame([Outcome::Observed, null, null], [$report->outcome, $report->errorClass, $report->executedAttempt]);
+        self::assertSame([Outcome::Failed, JsonException::class, $kind->attempt()], [$report->outcome, $report->errorClass, $report->executedAttempt]);
         self::assertSame(['failed', $kind->attempt()], [$report->run['status'] ?? null, $report->run['attempt'] ?? null]);
     }
 

@@ -67,6 +67,24 @@ class NeuronCloud
     }
 
     /**
+     * What is registered in this process: every definition, with the lease of
+     * each of its versions. It is the list a sync publishes.
+     *
+     * @return array<string, array<int, int>> name => [version => lease in seconds]; a name made of digits alone is
+     *                                        an integer key, as in any PHP array
+     */
+    public function definitions(): array
+    {
+        $definitions = [];
+
+        foreach ($this->registry->all() as $definition) {
+            $definitions[$definition->name][$definition->version] = $definition->leaseTimeout;
+        }
+
+        return $definitions;
+    }
+
+    /**
      * @param Closure(): PersistenceInterface $factory called for every workflow the SDK builds
      */
     public function setPersistence(Closure $factory): static
@@ -120,7 +138,8 @@ class NeuronCloud
      * The body of a queue job: execute one segment and report it, or post one
      * of the SDK's own notices to the platform.
      *
-     * @throws CloudException when the message was not dealt with: the reason tells the worker what to do
+     * @throws CloudException when the message was not dealt with: the reason tells the worker what to do. For an
+     *                        observe the platform did not record, the exception carries the report that was built
      */
     public function invoke(Invocation $invocation): Report
     {

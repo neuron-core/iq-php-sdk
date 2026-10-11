@@ -23,7 +23,8 @@ final class Settlement
      * @param string|null $code a RefusalReason value for refused; an SDK code for rejected and aborted
      * @param int|null $executedAttempt the attempt of the segment this call opened; null when it opened none
      * @param bool|null $claimed true when a start's run ID is known to be in the ledger; null when the ledger was not read
-     * @param Throwable|null $cause what aborted the call, for the exception invoke() throws; only its class is reported
+     * @param Throwable|null $cause what a failed or aborted call threw, for the report and the exception of
+     *                              invoke() in this process; the platform is sent only its class
      */
     protected function __construct(
         public readonly Outcome $outcome,
@@ -48,7 +49,7 @@ final class Settlement
      */
     public static function failed(Throwable $error, int $executedAttempt): self
     {
-        return new self(Outcome::Failed, errorClass: self::classOf($error), executedAttempt: $executedAttempt);
+        return new self(Outcome::Failed, errorClass: self::classOf($error), executedAttempt: $executedAttempt, cause: $error);
     }
 
     public static function refused(RefusalReason $reason, ?int $executedAttempt = null): self
@@ -77,6 +78,14 @@ final class Settlement
     public function withClaim(): self
     {
         return new self($this->outcome, $this->code, $this->errorClass, $this->executedAttempt, true, $this->cause);
+    }
+
+    /**
+     * The same ending without what was thrown, for a record that outlives the call.
+     */
+    public function withoutCause(): self
+    {
+        return new self($this->outcome, $this->code, $this->errorClass, $this->executedAttempt, $this->claimed);
     }
 
     /**

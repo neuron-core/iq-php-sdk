@@ -261,7 +261,7 @@ final class Runner
             $snapshotRead = false;
         }
 
-        return $this->buildReport($invocation, $settlement->facts($invocation), $run, $settlement->claimed, $snapshotRead);
+        return $this->buildReport($invocation, $settlement->facts($invocation), $run, $settlement->claimed, $snapshotRead, $settlement->cause);
     }
 
     /**
@@ -341,7 +341,8 @@ final class Runner
      * that cannot be read does not hold the report back: the report says so,
      * and the platform asks by itself.
      *
-     * @throws CloudException report_undelivered, or the reason the platform refused the report for good
+     * @throws CloudException report_undelivered, or the reason the platform refused the report for good; either
+     *                        way with the report, because what the store shows does not wait for the platform
      */
     protected function observe(Invocation $invocation): Report
     {
@@ -359,7 +360,12 @@ final class Runner
         }
 
         $report = $this->buildReport($invocation, $facts, $run, $claimed, $snapshotRead);
-        $this->platform->report($report);
+
+        try {
+            $this->platform->report($report);
+        } catch (CloudException $unrecorded) {
+            throw new CloudException($unrecorded->getMessage(), $unrecorded->reason, $unrecorded->getPrevious(), $report);
+        }
 
         return $report;
     }
@@ -368,6 +374,7 @@ final class Runner
      * @param Invocation $about the segment, or a notice that speaks for it
      * @param array<string, mixed> $facts the segment's invocation ID and verb, and how it ended when that is known
      * @param array<string, mixed>|null $run
+     * @param Throwable|null $exception what the call threw, when this process executed it
      */
     protected function buildReport(
         Invocation $about,
@@ -375,6 +382,7 @@ final class Runner
         ?array $run = null,
         ?bool $claimed = null,
         bool $snapshotRead = false,
+        ?Throwable $exception = null,
     ): Report {
         return new Report(
             $facts['invocationId'],
@@ -391,6 +399,7 @@ final class Runner
             $claimed,
             $snapshotRead,
             time(),
+            $exception,
         );
     }
 }

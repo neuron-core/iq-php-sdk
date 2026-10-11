@@ -237,6 +237,16 @@ class AnnouncementTest extends RunnerTestCase
         self::assertSame(Code::ReportUndelivered, $this->thrownBy($announce)->reason);
     }
 
+    #[DataProvider('backends')]
+    public function test_the_exception_of_an_announcement_the_platform_did_not_record_carries_no_report(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $announce = $this->queuedAnnouncement($bench);
+        $bench->platform->failNext(1, 503);
+
+        self::assertNull($this->thrownBy($announce)->report, 'An announcement says that a segment starts: no report exists yet.');
+    }
+
     /**
      * "order" waits for an event that only a signal or an answer delivers.
      */

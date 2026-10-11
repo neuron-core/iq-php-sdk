@@ -143,15 +143,7 @@ abstract class RunnerTestCase extends CloudTestCase
      */
     protected function observeOf(Invocation $segment): Invocation
     {
-        return Invocation::fromArray([
-            'invocationId' => 'obs_' . $segment->invocationId,
-            'verb' => Verb::Observe->value,
-            'origin' => $segment->origin,
-            'definition' => $segment->definition,
-            'workflowId' => $segment->workflowId,
-            'runId' => $segment->runId,
-            'body' => ['invocationId' => $segment->invocationId, 'verb' => $segment->verb->value],
-        ]);
+        return Invocation::observeOf($segment);
     }
 
     /**

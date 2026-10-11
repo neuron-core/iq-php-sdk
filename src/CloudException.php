@@ -12,8 +12,16 @@ use Throwable;
  */
 class CloudException extends NeuronException
 {
-    public function __construct(string $message, public readonly Code $reason, ?Throwable $previous = null)
-    {
+    /**
+     * @param Report|null $report for an observe the platform did not record: the report that was built, which
+     *                            says what the store showed
+     */
+    public function __construct(
+        string $message,
+        public readonly Code $reason,
+        ?Throwable $previous = null,
+        public readonly ?Report $report = null,
+    ) {
         parent::__construct($message, 0, $previous);
     }
 }

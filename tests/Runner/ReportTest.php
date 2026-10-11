@@ -12,12 +12,18 @@ use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
 use NeuronCore\Cloud\Tests\Stub\NodeFailed;
 use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
 use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\Cloud\Tests\Stub\Runner\WatchedWorkflow;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
 use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function count;
+use function gc_disable;
+use function gc_enable;
+use function gc_enabled;
+use function ini_set;
 use function json_encode;
 
 use const JSON_THROW_ON_ERROR;
@@ -61,6 +67,120 @@ class ReportTest extends RunnerTestCase
         $sent = json_encode([$this->announcementsSent(), $this->reportsSent()], JSON_THROW_ON_ERROR);
         self::assertStringContainsString(json_encode(NodeFailed::class, JSON_THROW_ON_ERROR), $sent);
         self::assertStringNotContainsString(self::NODE_FAILURE_MESSAGE, $sent);
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_report_of_a_failed_segment_holds_the_exception_the_node_threw(string $backend): void
+    {
+        $bench = $this->benchWithFlaky($backend);
+
+        $report = $bench->cloud->invoke($this->start('flaky'));
+
+        self::assertInstanceOf(NodeFailed::class, $report->exception);
+        self::assertSame(self::NODE_FAILURE_MESSAGE, $report->exception->getMessage());
+        self::assertSame($report->errorClass, $report->exception::class);
+        self::assertArrayNotHasKey('exception', $this->reportsSent()[0], 'The platform is sent the class and nothing else.');
+    }
+
+    /**
+     * An exception keeps the arguments of every frame of its trace unless PHP is told to leave them out, and the
+     * workflow that executed is one of them: it lives as long as the report that holds the exception, and no longer.
+     */
+    #[DataProvider('backends')]
+    public function test_the_workflow_of_a_failed_segment_is_released_with_its_report_although_php_keeps_the_arguments_of_a_trace(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $executions = $bench->executions;
+        WatchedWorkflow::$instances = [];
+        $bench->cloud->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
+        $setting = ini_set('zend.exception_ignore_args', '0');
+        $collecting = gc_enabled();
+        gc_disable();
+
+        try {
+            $report = $bench->cloud->invoke($this->start('watched'));
+            $thrown = $report->exception;
+            $heldByTheReport = WatchedWorkflow::alive();
+            unset($report, $thrown);
+            $leftBehind = WatchedWorkflow::alive();
+        } finally {
+            if ($collecting) {
+                gc_enable();
+            }
+
+            if ($setting !== false) {
+                ini_set('zend.exception_ignore_args', $setting);
+            }
+        }
+
+        self::assertGreaterThan(2, count(WatchedWorkflow::$instances), 'The runner builds a workflow for the segment and another for the snapshot, each a copy of what the factory made.');
+        self::assertSame(1, $heldByTheReport, 'Only the workflow whose node threw is held, by the trace of what it threw.');
+        self::assertSame(0, $leftBehind, 'A workflow the runner built outlives the report of its segment.');
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_workflow_of_a_failed_segment_is_released_with_the_call_where_php_leaves_the_arguments_out_of_a_trace(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $executions = $bench->executions;
+        WatchedWorkflow::$instances = [];
+        $bench->cloud->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
+        $setting = ini_set('zend.exception_ignore_args', '1');
+        $collecting = gc_enabled();
+        gc_disable();
+
+        try {
+            $report = $bench->cloud->invoke($this->start('watched'));
+            $heldByTheReport = WatchedWorkflow::alive();
+        } finally {
+            if ($collecting) {
+                gc_enable();
+            }
+
+            if ($setting !== false) {
+                ini_set('zend.exception_ignore_args', $setting);
+            }
+        }
+
+        self::assertInstanceOf(NodeFailed::class, $report->exception);
+        self::assertSame(0, $heldByTheReport, 'The report of a failed segment keeps a workflow alive although its exception holds no argument.');
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_report_an_observe_posts_for_a_failed_segment_holds_the_class_and_no_exception(string $backend): void
+    {
+        $bench = $this->benchWithFlaky($backend);
+        // The report is lost: the failure waits in the queue, and a worker that did not execute the segment reports it.
+        $bench->platform->failNext(2);
+        $bench->cloud->invoke($this->start('flaky'));
+
+        $delivered = $this->queue->runAll($bench->cloud);
+
+        self::assertInstanceOf(Report::class, $delivered[1]);
+        self::assertSame([Outcome::Failed, NodeFailed::class], [$delivered[1]->outcome, $delivered[1]->errorClass]);
+        self::assertNull($delivered[1]->exception);
+    }
+
+    #[DataProvider('backends')]
+    public function test_a_report_of_a_call_that_neither_failed_nor_was_aborted_holds_no_exception(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $executions = $bench->executions;
+        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+
+        $completed = $bench->cloud->invoke($this->start('greeting'));
+        $rejected = $bench->cloud->invoke($this->start('greeting'));
+        $suspended = $bench->cloud->invoke($this->start('order', fields: ['invocationId' => 'inv_second', 'runId' => '1-0192f3a8-0000-7000-8000-000000000002']));
+        $refused = $bench->cloud->invoke($this->start('order', fields: ['invocationId' => 'inv_third', 'runId' => '1-0192f3a8-0000-7000-8000-000000000003']));
+
+        self::assertSame(
+            [Outcome::Completed, Outcome::Rejected, Outcome::Suspended, Outcome::Refused],
+            [$completed->outcome, $rejected->outcome, $suspended->outcome, $refused->outcome],
+        );
+        self::assertSame(
+            [null, null, null, null],
+            [$completed->exception, $rejected->exception, $suspended->exception, $refused->exception],
+        );
     }
 
     #[DataProvider('backends')]

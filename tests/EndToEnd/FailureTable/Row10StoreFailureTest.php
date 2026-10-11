@@ -68,8 +68,8 @@ class Row10StoreFailureTest extends FailureTableTestCase
         $runId = $this->theOrderWaitsForItsPayment(self::ORDER);
         $this->theOrderIsPaid(self::ORDER, $runId);
 
-        // The fourth write of the wake of the timer removes the records of the completed run: its answer is lost.
-        $this->shop->faults->plan(FaultyStore::WRITTEN, Faults::PASS, Faults::PASS, Faults::PASS, Faults::FAIL);
+        // The last write of the wake of the timer removes the records of the completed run: its answer is lost.
+        $this->shop->faults->plan(FaultyStore::REMOVED, Faults::FAIL);
         $failed = $this->awaitReport(self::ORDER, 'failed');
         $ended = $this->awaitClosed($runId, 'ended_unknown');
 

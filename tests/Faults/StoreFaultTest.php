@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronCore\Cloud\Tests\Faults;
 
 use Closure;
+use Composer\InstalledVersions;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronCore\Cloud\Outcome;
 use NeuronCore\Cloud\Runtime\Origin;
@@ -27,7 +28,9 @@ use function array_unique;
 use function count;
 use function is_array;
 use function json_encode;
+use function preg_match;
 use function str_ends_with;
+use function version_compare;
 
 use const JSON_THROW_ON_ERROR;
 
@@ -69,10 +72,13 @@ class StoreFaultTest extends TestCase
         $twice = [];
 
         foreach ($sweep->cases() as $case) {
+            // The node that ended a clean run is the one whose step has no record of its own.
+            $endedBy = self::theEndOfARunCommitsItsLastStep() && $case->leftTheEndUnsettled() ? $sweep->clean->lastExecuted : null;
+
             foreach ($case->executions as $node => $ran) {
                 $clean = $sweep->clean->executions[$node] ?? 0;
 
-                if ($ran > $clean + (int) $case->leftUncommitted($node)) {
+                if ($ran > $clean + (int) ($case->leftUncommitted($node) || $node === $endedBy)) {
                     $twice[] = "{$case->label}: {$node} ran {$ran} times, {$clean} in a clean run";
                 }
             }
@@ -241,6 +247,18 @@ class StoreFaultTest extends TestCase
                 }
             }
         }
+    }
+
+    /**
+     * Neuron wrote a record for every step up to 4.1.10. From 4.1.11 on the step that ends a run has none:
+     * settling the run commits it. A version that is no release, as a branch installed from source, is taken
+     * for the current one.
+     */
+    protected static function theEndOfARunCommitsItsLastStep(): bool
+    {
+        $installed = (string) InstalledVersions::getVersion('neuron-core/neuron-ai');
+
+        return preg_match('/^\d+\.\d+\.\d+/', $installed) !== 1 || version_compare($installed, '4.1.11', '>=');
     }
 
     /**

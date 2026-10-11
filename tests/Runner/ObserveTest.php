@@ -4,9 +4,15 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Tests\Runner;
 
+use NeuronAI\Exceptions\HttpException;
+use NeuronAI\HttpClient\HttpRequest;
+use NeuronAI\Workflow\Workflow;
+use NeuronCore\Cloud\CloudException;
 use NeuronCore\Cloud\Code;
+use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Outcome;
 use NeuronCore\Cloud\Report;
+use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
 use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
@@ -171,6 +177,87 @@ class ObserveTest extends RunnerTestCase
         $bench->platform->failNext(1, 503);
 
         self::assertSame(Code::ReportUndelivered, $this->thrownBy($this->observeOf($this->start('greeting')))->reason);
+    }
+
+    #[DataProvider('answersThatRecordNothing')]
+    public function test_the_exception_of_an_observe_the_platform_did_not_record_carries_the_report_that_was_built(string $backend, int $status, Code $reason): void
+    {
+        $bench = $this->benchOn($backend);
+        $started = $this->orderSuspended($bench);
+        $bench->platform->failNext(1, $status);
+
+        $thrown = $this->thrownBy($this->observeOf($this->start('order')));
+
+        self::assertSame($reason, $thrown->reason);
+        self::assertInstanceOf(Report::class, $thrown->report, 'What the store shows does not wait for the platform.');
+        self::assertSame([Outcome::Observed, 'inv_start', Verb::Start], [$thrown->report->outcome, $thrown->report->invocationId, $thrown->report->verb]);
+        self::assertSame([$started->run, true, true], [$thrown->report->run, $thrown->report->claimed, $thrown->report->snapshotRead]);
+        self::assertSame($this->reportsSent()[1], $thrown->report->toArray(), 'It is the report the platform was sent.');
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_report_of_an_observe_the_platform_did_not_record_says_how_the_segment_ended_when_the_observe_carries_it(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        // The platform is down for the whole segment and stays down for the first try of each notice.
+        $bench->platform->failNext(4);
+        $bench->cloud->invoke($this->start('greeting'));
+
+        $thrown = $this->queue->runAll($bench->cloud)[1];
+
+        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertSame(Code::ReportUndelivered, $thrown->reason);
+        self::assertSame([Outcome::Completed, 1], [$thrown->report?->outcome, $thrown->report?->executedAttempt]);
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_exception_of_an_observe_the_platform_never_answered_still_says_what_the_client_threw(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $unreachable = HttpException::networkError(HttpRequest::post(TestBench::PLATFORM_URL), 'Connection refused');
+        $cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new ScriptedHttpClient($unreachable)))
+            ->setPersistence($bench->persistence)
+            ->register('greeting', static fn (): Workflow => new Workflow());
+
+        try {
+            $cloud->invoke($this->observeOf($this->start('greeting')));
+        } catch (CloudException $thrown) {
+            self::assertSame(Code::ReportUndelivered, $thrown->reason);
+            self::assertSame('The platform gave no answer to ' . self::REPORTS . '.', $thrown->getMessage());
+            self::assertSame($unreachable, $thrown->getPrevious(), 'What kept the report from the platform is lost with the report.');
+            self::assertSame(Outcome::Observed, $thrown->report?->outcome);
+
+            return;
+        }
+
+        self::fail('invoke() returned a report the platform never received.');
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_exception_of_an_observe_the_platform_answered_with_an_error_keeps_the_sentence_of_that_answer(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $bench->platform->failNext(1, 503);
+
+        $thrown = $this->thrownBy($this->observeOf($this->start('greeting')));
+
+        self::assertSame('The platform answered 503 to ' . self::REPORTS . ' and recorded nothing.', $thrown->getMessage());
+    }
+
+    /**
+     * @return array<string, array{string, int, Code}> every backend, with an answer of the platform that records nothing
+     */
+    public static function answersThatRecordNothing(): array
+    {
+        $cases = [];
+
+        foreach (self::backends() as $name => [$backend]) {
+            $cases["{$name}, the platform is away"] = [$backend, 503, Code::ReportUndelivered];
+            $cases["{$name}, the platform refuses the API key"] = [$backend, 401, Code::Unauthorized];
+            $cases["{$name}, the platform refuses the report for good"] = [$backend, 400, Code::InvalidRequest];
+        }
+
+        return $cases;
     }
 
     /**

@@ -89,8 +89,9 @@ final class LocalSegment
     /**
      * Execute the segment in this process as a stream. The announcement is in
      * the queue when the generator is returned. Neuron admits the segment on
-     * the first iteration, and the observe follows when the stream ends, or
-     * when its consumer stops before that.
+     * the first iteration, and the observe follows when the stream ends, when
+     * its consumer stops before that, or when Neuron gives the first frame of
+     * a segment that failed.
      *
      * @param (Closure(Workflow): mixed)|null $configure adjusts the workflow before it executes
      * @return Generator<int, object, mixed, WorkflowState> what Neuron's own events() yields, returns and throws
@@ -171,16 +172,17 @@ final class LocalSegment
      * the caller.
      *
      * @param Settlement|null $settlement null for a stream its consumer stopped, unless Neuron had reported the segment as
-     *                                    suspended or completed: the observe then carries no outcome, and the report
-     *                                    says "observed"
+     *                                    suspended, completed or failed: the observe then carries no outcome, and the
+     *                                    report says "observed"
      */
     protected function observe(?Settlement $settlement): void
     {
-        $facts = $settlement?->facts($this->invocation)
-            ?? ['invocationId' => $this->invocation->invocationId, 'verb' => $this->invocation->verb->value];
+        $observe = $settlement instanceof Settlement
+            ? Notices::observe($this->invocation, $settlement->facts($this->invocation))
+            : Invocation::observeOf($this->invocation);
 
         try {
-            $this->dispatcher->dispatch(Notices::observe($this->invocation, $facts));
+            $this->dispatcher->dispatch($observe);
         } catch (Throwable) {
             // The caller still gets what Neuron answered: the platform asks when the announced lease has passed.
         }

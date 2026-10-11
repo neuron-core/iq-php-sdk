@@ -168,6 +168,30 @@ class DefinitionTest extends RunnerTestCase
     }
 
     #[DataProvider('backends')]
+    public function test_the_report_of_a_platform_start_whose_factory_throws_holds_what_the_factory_threw(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+        $bench->cloud->register('unbuildable', $this->failingFactory());
+
+        $report = $bench->cloud->invoke($this->start('unbuildable'));
+
+        self::assertInstanceOf(FactoryFailed::class, $report->exception);
+        self::assertSame('The container could not build the workflow.', $report->exception->getMessage());
+        self::assertArrayNotHasKey('exception', $this->reportsSent()[0]);
+    }
+
+    #[DataProvider('backends')]
+    public function test_the_report_of_an_abort_that_nothing_threw_holds_no_exception(string $backend): void
+    {
+        $bench = $this->benchOn($backend);
+
+        $report = $bench->cloud->invoke($this->start('unregistered'));
+
+        self::assertSame([Outcome::Aborted, Code::UnknownDefinition->value], [$report->outcome, $report->code]);
+        self::assertNull($report->exception);
+    }
+
+    #[DataProvider('backends')]
     public function test_an_application_start_whose_factory_throws_is_reported_then_thrown_as_not_executed(string $backend): void
     {
         $bench = $this->benchOn($backend);

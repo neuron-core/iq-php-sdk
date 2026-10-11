@@ -13,6 +13,9 @@ use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
+use NeuronAI\Workflow\Observability\WorkflowError;
+use NeuronAI\Workflow\Observability\WorkflowNodeStart;
+use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\RefusalReason;
@@ -36,6 +39,7 @@ use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
 use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
 use NeuronCore\Cloud\Tests\Stub\Units\EndForwardingNode;
 use NeuronCore\Cloud\Tests\Stub\Units\FramingAdapter;
+use NeuronCore\Cloud\Tests\Stub\Units\NarratingWorkflowSeenAs;
 use NeuronCore\Cloud\Tests\Stub\Units\RunOverridingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\Units\UnframableAdapter;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
@@ -44,14 +48,18 @@ use NeuronCore\Cloud\Tests\Support\ExecutionLog;
 use NeuronCore\Cloud\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
+use Psr\EventDispatcher\EventDispatcherInterface;
 use RuntimeException;
 use WeakReference;
 
+use function array_map;
 use function count;
+use function gc_collect_cycles;
 use function iterator_to_array;
 use function gc_disable;
 use function gc_enable;
 use function gc_enabled;
+use function ini_set;
 use function sys_get_temp_dir;
 use function tempnam;
 use function unlink;
@@ -319,16 +327,228 @@ class ExecutionTest extends CloudTestCase
         self::assertSame([WorkflowStatus::Failed], $this->heldWhenSettled);
     }
 
-    public function test_a_caller_that_stops_on_the_error_frame_of_a_node_that_threw_is_told_nothing_of_how_the_call_ended(): void
+    public function test_a_segment_that_fails_is_told_as_failed_when_neuron_gives_its_first_error_frame(): void
     {
         $events = $this->eventsOf($this->flaky()->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter()));
+        $toldAtTheFirstFrame = $this->toldAt($events, 'start');
+
         $events->next();
+
         self::assertEquals(new ProtocolEvent('error'), $events->current());
+        self::assertSame([], $toldAtTheFirstFrame);
+        self::assertCount(1, $this->settled);
+        self::assertSame(
+            [Outcome::Failed, NodeFailed::class, 1, null],
+            [$this->settled[0]?->outcome, $this->settled[0]?->errorClass, $this->settled[0]?->executedAttempt, $this->settled[0]?->cause],
+        );
+        self::assertSame([WorkflowStatus::Failed], $this->heldWhenSettled);
+    }
+
+    public function test_a_caller_that_stops_on_an_error_frame_is_told_nothing_more(): void
+    {
+        $events = $this->eventsOf($this->flaky()->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter()));
+        $this->toldAt($events, 'error');
 
         unset($events);
 
-        self::assertSame([null], $this->settled);
+        self::assertCount(1, $this->settled);
+        self::assertSame(Outcome::Failed, $this->settled[0]?->outcome);
+    }
+
+    public function test_a_caller_that_reads_the_error_frames_to_the_exception_is_told_nothing_more(): void
+    {
+        $events = $this->eventsOf($this->flaky()->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter()));
+        $this->toldAt($events, 'error');
+
+        try {
+            $events->next();
+            self::fail('The exception of the node was not thrown.');
+        } catch (NodeFailed) {
+            self::assertCount(1, $this->settled);
+        }
+    }
+
+    /**
+     * An exception keeps the arguments of every frame of its trace unless PHP is told to leave them out. Neuron
+     * holds the one of the node while it gives the error frames, so a stream that was given to the function that
+     * reads it is held by that exception: PHP does not destroy it when that function lets it go.
+     */
+    #[DataProvider('traceSettings')]
+    public function test_a_failure_is_told_before_the_caller_can_stop_on_an_error_frame_whatever_a_trace_keeps(string $ignoreArguments): void
+    {
+        $setting = ini_set('zend.exception_ignore_args', $ignoreArguments);
+        $collecting = gc_enabled();
+        gc_disable();
+
+        try {
+            $this->toldAt($this->eventsOf($this->flaky()->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter())), 'error');
+            $told = $this->settled;
+        } finally {
+            if ($collecting) {
+                gc_enable();
+            }
+
+            if ($setting !== false) {
+                ini_set('zend.exception_ignore_args', $setting);
+            }
+        }
+
+        self::assertCount(1, $told);
+        self::assertSame([Outcome::Failed, NodeFailed::class], [$told[0]?->outcome, $told[0]?->errorClass]);
+    }
+
+    /**
+     * Neuron reports a listener that threw with the event it reports a failed segment with, and goes on.
+     */
+    public function test_a_listener_of_the_application_that_throws_while_the_segment_goes_on_is_not_taken_for_its_failure(): void
+    {
+        $reported = 0;
+        $workflow = $this->narrating()
+            ->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter())
+            ->subscribe(WorkflowStart::class, static fn () => throw new RuntimeException('The audit log is unreachable.'))
+            ->subscribe(WorkflowError::class, static function () use (&$reported): void {
+                $reported++;
+            });
+        $events = $this->eventsOf($workflow);
+
+        $toldAtTheFirstItem = $this->toldAt($events, 'item');
+
+        while ($events->valid()) {
+            $events->next();
+        }
+
+        self::assertSame(1, $reported);
+        self::assertSame([], $toldAtTheFirstItem);
+        self::assertCount(1, $this->settled);
+        self::assertSame(Outcome::Completed, $this->settled[0]?->outcome);
+    }
+
+    /**
+     * @return array<string, array{int, string, Outcome|null}> the attempts and the run ID suffix by which the run the store
+     *                                                         shows as failed differs from the segment, and what the stream
+     *                                                         tells for it while the segment goes on
+     */
+    public static function failedRunsTheStoreShows(): array
+    {
+        return [
+            'the run of this segment, at its attempt' => [0, '', Outcome::Failed],
+            'the run of this segment, at the attempt of a process that took it over' => [1, '', null],
+            'another run of the workflow ID, at the same attempt' => [0, '-replaced', null],
+        ];
+    }
+
+    /**
+     * A segment that goes on after a listener threw may have lost its run meanwhile, to a process that failed
+     * it in its turn: that failure is not this segment's.
+     */
+    #[DataProvider('failedRunsTheStoreShows')]
+    public function test_only_a_failed_run_that_is_the_segment_at_its_attempt_is_taken_for_the_failure_of_the_segment(
+        int $attemptsLater,
+        string $runIdSuffix,
+        ?Outcome $told,
+    ): void {
+        $narrating = new NarratingWorkflowSeenAs($this->bench()->executions);
+        $narrating->seenAs = static fn (WorkflowRunSnapshot $held): WorkflowRunSnapshot => new WorkflowRunSnapshot(
+            $held->runId . $runIdSuffix,
+            WorkflowStatus::Failed,
+            $held->executionAttempt + $attemptsLater,
+            null,
+            $held->workflowId,
+            $held->startEvent,
+        );
+        $events = $this->eventsOf(
+            $this->bound($narrating)
+                ->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter())
+                ->subscribe(WorkflowStart::class, static fn () => throw new RuntimeException('The audit log is unreachable.')),
+        );
+
+        $toldAtTheFirstItem = $this->toldAt($events, 'item');
+
+        self::assertSame($told instanceof Outcome ? [$told] : [], array_map(static fn (?Settlement $ended): ?Outcome => $ended?->outcome, $toldAtTheFirstItem));
+    }
+
+    /**
+     * As with the end of a segment: the SDK hears of the failure from Neuron, after the listeners of the
+     * application. One of them that throws on that event keeps it from the SDK.
+     */
+    public function test_a_caller_that_stops_on_an_error_frame_is_told_nothing_when_a_listener_of_the_application_hid_the_failure(): void
+    {
+        $events = $this->eventsOf(
+            $this->flaky()
+                ->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter())
+                ->subscribe(WorkflowError::class, static fn () => throw new RuntimeException('The audit log is unreachable.')),
+        );
+        $toldAtTheErrorFrame = $this->toldAt($events, 'error');
+
+        unset($events);
+        // Where PHP keeps the arguments of a trace, the exception Neuron holds keeps the stream until then.
+        gc_collect_cycles();
+
+        self::assertSame([[], [null]], [$toldAtTheErrorFrame, $this->settled]);
         self::assertSame([WorkflowStatus::Failed], $this->heldWhenSettled);
+    }
+
+    public function test_a_store_that_does_not_answer_when_the_segment_fails_leaves_the_failure_to_the_end_of_the_stream(): void
+    {
+        $failed = false;
+        $store = new InterceptedPersistence(($this->bench()->persistence)(), static function (string $operation) use (&$failed): void {
+            if ($operation === 'get' && $failed) {
+                throw new StoreUnavailable('The store went away.');
+            }
+
+            // The node throws in the first step: the next write is the one that marks the run failed.
+            $failed = $failed || $operation === 'writeIfUnchanged';
+        });
+        // Counted and not kept: the event holds the exception, which may hold the stream.
+        $failuresForwarded = 0;
+        $application = new class ($failuresForwarded) implements EventDispatcherInterface {
+            public function __construct(protected int &$failures)
+            {
+            }
+
+            public function dispatch(object $event): object
+            {
+                $this->failures += (int) ($event instanceof WorkflowError);
+
+                return $event;
+            }
+        };
+        $events = $this->eventsOf(
+            $this->flaky()->setPersistence($store)->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter())->setEventDispatcher($application),
+        );
+
+        $toldAtTheErrorFrame = $this->toldAt($events, 'error');
+        unset($events);
+        gc_collect_cycles();
+
+        self::assertTrue($failed);
+        self::assertSame([[], [null]], [$toldAtTheErrorFrame, $this->settled]);
+        self::assertSame(1, $failuresForwarded, 'The failure did not reach the dispatcher of the application.');
+    }
+
+    /**
+     * A listener that throws on the event of a node is reported under that node: the SDK does not ask the store
+     * whether the segment failed, as it does for an error the workflow itself reports.
+     */
+    public function test_the_store_is_not_read_for_a_listener_that_throws_on_the_event_of_a_node(): void
+    {
+        $reads = ['a quiet segment' => 0, 'a segment under a listener that throws at each node' => 0];
+
+        foreach ($reads as $segment => $none) {
+            $store = new InterceptedPersistence(new InMemoryPersistence(), static function (string $operation) use (&$reads, $segment): void {
+                $reads[$segment] += (int) ($operation === 'get');
+            });
+            $workflow = $this->narrating()->setPersistence($store);
+
+            if ($segment !== 'a quiet segment') {
+                $workflow->subscribe(WorkflowNodeStart::class, static fn () => throw new RuntimeException('The audit log is unreachable.'));
+            }
+
+            iterator_to_array($this->eventsOf($workflow), false);
+        }
+
+        self::assertSame([Outcome::Completed, Outcome::Completed], [$this->settled[0]?->outcome, $this->settled[1]?->outcome]);
+        self::assertSame($reads['a quiet segment'], $reads['a segment under a listener that throws at each node']);
     }
 
     public function test_a_caller_that_stops_is_still_told_when_neuron_throws_while_it_releases_the_run(): void
@@ -539,6 +759,27 @@ class ExecutionTest extends CloudTestCase
     }
 
     /**
+     * Take a stream up to a frame of the stream adapter, as a function that was given the stream does.
+     *
+     * @param Generator<int, object, mixed, WorkflowState> $events
+     * @return array<int, Settlement|null> what the stream had told of how its call ended when it gave that frame
+     */
+    protected function toldAt(Generator $events, string $frame): array
+    {
+        while ($events->valid()) {
+            $current = $events->current();
+
+            if ($current instanceof ProtocolEvent && $current->type === $frame) {
+                return $this->settled;
+            }
+
+            $events->next();
+        }
+
+        self::fail("The stream ended without giving '{$frame}'.");
+    }
+
+    /**
      * The run holding the workflow ID, as the store shows it now.
      */
     protected function held(): ?WorkflowRunSnapshot
@@ -603,6 +844,112 @@ class ExecutionTest extends CloudTestCase
                 $store->deleteIfUnchanged(self::WORKFLOW_ID, '__control', self::RIVAL_CONTROL);
             }
         });
+    }
+
+    /**
+     * @return array<string, array{string}> the values of zend.exception_ignore_args
+     */
+    public static function traceSettings(): array
+    {
+        return ['PHP keeps the arguments of a trace' => ['0'], 'PHP leaves the arguments out of a trace' => ['1']];
+    }
+
+    /**
+     * @return array<string, array{string, string}> a call, and the value of zend.exception_ignore_args it is made under
+     */
+    public static function callsUnderEachTraceSetting(): array
+    {
+        $cases = [];
+
+        foreach (['PHP keeps the arguments of a trace' => '0', 'PHP leaves the arguments out of a trace' => '1'] as $setting => $value) {
+            foreach (['a call that completes', 'a call whose node throws', 'a call Neuron throws for before a segment opens'] as $call) {
+                $cases["{$call}, where {$setting}"] = [$call, $value];
+            }
+        }
+
+        return $cases;
+    }
+
+    /**
+     * An exception keeps the arguments of every frame of its trace unless PHP is told to leave them out, and the
+     * workflow is one of them. Nothing the SDK keeps for itself may hold that exception: the workflow, and the
+     * store connection it holds, must go when the caller lets go of what the call returned.
+     */
+    #[DataProvider('callsUnderEachTraceSetting')]
+    public function test_a_workflow_is_released_with_what_its_call_returned_whatever_a_trace_keeps(string $call, string $ignoreArguments): void
+    {
+        $workflow = match ($call) {
+            'a call that completes' => $this->completing(),
+            'a call whose node throws' => $this->flaky(),
+            // Neuron throws for a workflow with no workflow ID, before it opens a segment.
+            default => (new Workflow())->addNode(new CompleteNode($this->bench()->executions)),
+        };
+        $released = WeakReference::create($workflow);
+        $setting = ini_set('zend.exception_ignore_args', $ignoreArguments);
+        $collecting = gc_enabled();
+        gc_disable();
+
+        try {
+            $execution = Execution::of($workflow, self::start());
+            $outcome = $execution->settlement->outcome;
+            $held = $execution->settlement->cause;
+            unset($workflow, $execution, $held);
+            $stillAlive = $released->get() instanceof Workflow;
+        } finally {
+            if ($collecting) {
+                gc_enable();
+            }
+
+            if ($setting !== false) {
+                ini_set('zend.exception_ignore_args', $setting);
+            }
+        }
+
+        self::assertSame(
+            ['a call that completes' => Outcome::Completed, 'a call whose node throws' => Outcome::Failed][$call] ?? Outcome::Aborted,
+            $outcome,
+        );
+        self::assertFalse($stillAlive, 'Something the SDK keeps holds the exception of the call, and with it the workflow.');
+    }
+
+    /**
+     * The SDK keeps how a stream failed from the moment Neuron said it, in a listener the workflow holds. Kept
+     * with what the node threw, that record would hold the workflow through the arguments of the trace.
+     */
+    #[DataProvider('traceSettings')]
+    public function test_a_workflow_is_released_with_the_stream_that_failed_whatever_a_trace_keeps(string $ignoreArguments): void
+    {
+        $workflow = $this->flaky()->setStreamAdapter(static fn (): FramingAdapter => new FramingAdapter());
+        $released = WeakReference::create($workflow);
+        $setting = ini_set('zend.exception_ignore_args', $ignoreArguments);
+        $collecting = gc_enabled();
+        gc_disable();
+
+        try {
+            $events = Execution::events($workflow, self::start(), static function (): void {
+            });
+
+            try {
+                while ($events->valid()) {
+                    $events->next();
+                }
+            } catch (NodeFailed $thrown) {
+                unset($thrown);
+            }
+
+            unset($workflow, $events);
+            $stillAlive = $released->get() instanceof Workflow;
+        } finally {
+            if ($collecting) {
+                gc_enable();
+            }
+
+            if ($setting !== false) {
+                ini_set('zend.exception_ignore_args', $setting);
+            }
+        }
+
+        self::assertFalse($stillAlive, 'Something the SDK keeps holds the exception of the stream, and with it the workflow.');
     }
 
     public function test_a_workflow_is_released_with_the_call_that_executed_it(): void

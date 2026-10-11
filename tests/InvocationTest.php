@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace NeuronCore\Cloud\Tests;
 
 use DateTimeImmutable;
+use NeuronCore\Cloud\CloudException;
+use NeuronCore\Cloud\Code;
 use NeuronCore\Cloud\Invocation;
 use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
 use NeuronCore\Cloud\Verb;
@@ -13,6 +15,7 @@ use PHPUnit\Framework\TestCase;
 use TypeError;
 
 use function array_column;
+use function array_filter;
 use function array_map;
 use function array_unique;
 use function array_values;
@@ -95,6 +98,67 @@ class InvocationTest extends TestCase
             'attempt' => 2,
             'payload' => $carried,
         ]);
+    }
+
+    #[DataProvider('segments')]
+    public function test_the_observe_of_a_segment_names_the_segment_and_says_nothing_of_how_it_ended(Invocation $segment): void
+    {
+        $observe = Invocation::observeOf($segment);
+
+        self::assertSame(Verb::Observe, $observe->verb);
+        self::assertSame(['invocationId' => $segment->invocationId, 'verb' => $segment->verb->value], $observe->body);
+        self::assertSame(
+            [$segment->origin, $segment->definition, $segment->workflowId, $segment->runId],
+            [$observe->origin, $observe->definition, $observe->workflowId, $observe->runId],
+        );
+    }
+
+    #[DataProvider('segments')]
+    public function test_the_observe_of_a_segment_carries_neither_its_input_nor_its_fence(Invocation $segment): void
+    {
+        $observe = Invocation::observeOf($segment);
+
+        self::assertSame(
+            [null, null, null, null, null],
+            [$observe->attempt, $observe->expiresAt, $observe->signal, $observe->payload, $observe->event],
+        );
+    }
+
+    public function test_the_observe_of_a_segment_is_a_message_of_its_own(): void
+    {
+        $wake = self::invocation('inv_01JB7K4T9QW2', Verb::Wake, 'platform', 1);
+
+        $first = Invocation::observeOf($wake);
+        $second = Invocation::observeOf($wake);
+
+        self::assertStringStartsWith('obs_', $first->invocationId);
+        self::assertNotSame($first->invocationId, $second->invocationId);
+        self::assertNotSame($wake->invocationId, $first->invocationId);
+    }
+
+    #[DataProvider('segments')]
+    public function test_the_observe_of_a_segment_is_rebuilt_after_a_json_queue_held_it(Invocation $segment): void
+    {
+        $observe = Invocation::observeOf($segment);
+
+        $queued = json_encode($observe->toArray(), JSON_THROW_ON_ERROR);
+
+        self::assertEquals($observe, Invocation::fromArray(json_decode($queued, true, flags: JSON_THROW_ON_ERROR)));
+    }
+
+    #[DataProvider('notices')]
+    public function test_a_notice_of_the_sdk_has_no_observe(Invocation $notice): void
+    {
+        try {
+            Invocation::observeOf($notice);
+        } catch (CloudException $refused) {
+            self::assertSame(Code::InvalidRequest, $refused->reason);
+            self::assertStringContainsString("'{$notice->invocationId}'", $refused->getMessage());
+
+            return;
+        }
+
+        self::fail("An observe was built for the {$notice->verb->value} '{$notice->invocationId}'.");
     }
 
     public function test_the_verbs_are_the_four_segments_and_the_two_notices(): void
@@ -195,6 +259,22 @@ class InvocationTest extends TestCase
     }
 
     /**
+     * @return array<string, array{Invocation}> the invocations of these tests that execute a segment
+     */
+    public static function segments(): array
+    {
+        return array_filter(self::invocations(), static fn (array $row): bool => !self::isNotice($row[0]));
+    }
+
+    /**
+     * @return array<string, array{Invocation}> the invocations of these tests that only post to the platform
+     */
+    public static function notices(): array
+    {
+        return array_filter(self::invocations(), static fn (array $row): bool => self::isNotice($row[0]));
+    }
+
+    /**
      * @return array<string, array{string}> what the queue may hold in place of a serialized array
      */
     public static function carriedPayloadsThatAreNoArray(): array
@@ -205,6 +285,11 @@ class InvocationTest extends TestCase
             'no value at all' => [''],
             'characters outside base64' => ['%%%'],
         ];
+    }
+
+    protected static function isNotice(Invocation $invocation): bool
+    {
+        return $invocation->verb === Verb::Announce || $invocation->verb === Verb::Observe;
     }
 
     /**

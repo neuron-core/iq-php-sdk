@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud;
 
+use NeuronCore\Cloud\Runtime\Notices;
+
 use function base64_decode;
 use function base64_encode;
 use function serialize;
@@ -86,6 +88,26 @@ final class Invocation
             $data['event'] ?? null,
             $data['body'] ?? null,
         );
+    }
+
+    /**
+     * The observe of a segment whose job the queue gave up. Nobody knows how
+     * such a segment ended: a worker that is given the observe reads the store
+     * and tells the platform what it shows.
+     *
+     * @param self $segment a start, a wake, an answer or a signal
+     * @throws CloudException invalid_request, when $segment is itself an announcement or an observe
+     */
+    public static function observeOf(self $segment): self
+    {
+        if ($segment->verb === Verb::Announce || $segment->verb === Verb::Observe) {
+            throw new CloudException(
+                "The {$segment->verb->value} '{$segment->invocationId}' is a notice of the SDK and not a segment: nothing observes it.",
+                Code::InvalidRequest,
+            );
+        }
+
+        return Notices::observe($segment, ['invocationId' => $segment->invocationId, 'verb' => $segment->verb->value]);
     }
 
     /**

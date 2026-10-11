@@ -164,13 +164,15 @@ final class FaultDrill
     public function conclude(string $label, StoreFault $fault): FaultCase
     {
         $struck = $fault->struck();
+        $executed = file($this->bench->executions->path, FILE_IGNORE_NEW_LINES) ?: [];
 
         return new FaultCase(
             $struck instanceof StoreOperation ? "{$label}, {$struck->describe()}" : $label,
             $struck,
             $fault->committed(),
             $this->sightings,
-            array_count_values(file($this->bench->executions->path, FILE_IGNORE_NEW_LINES) ?: []),
+            array_count_values($executed),
+            $executed === [] ? null : $executed[count($executed) - 1],
             $this->journal->ignitions(self::WORKFLOW_ID),
             $this->journal->removals(self::WORKFLOW_ID) > 0,
             $this->stored(),

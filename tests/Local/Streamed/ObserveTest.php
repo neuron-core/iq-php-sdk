@@ -28,7 +28,9 @@ use function count;
  * leaves in the queue what run() leaves there, an announcement and then one
  * observe that says how the segment ended. The observe is handed over when
  * the stream ends: once the last frame was given, and the store holds what
- * the segment left.
+ * the segment left. A segment that fails under a stream adapter does not
+ * wait for the end: LastFrameTest has its observe in the queue when the
+ * first error frame is given.
  */
 class ObserveTest extends StreamedTestCase
 {

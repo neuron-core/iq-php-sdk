@@ -89,21 +89,20 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
     }
 
     /**
-     * The tool had failed the run, and the end Neuron then reports is neither suspended nor completed: the
-     * observe carries no outcome, and the platform hears what the store shows.
+     * The observe does not wait for the browser: it is in the queue when the first frame of the failure is given.
      */
     #[DataProvider('backends')]
-    public function test_a_browser_that_leaves_on_the_error_frame_is_reported_as_observed_with_the_run_the_tool_failed(string $backend): void
+    public function test_a_browser_that_leaves_on_the_error_frame_is_reported_as_failed_with_the_class_of_what_the_tool_threw(string $backend): void
     {
         $this->chatWhoseRefundFails($backend, times: 1);
         $this->approval()->readUntil('RUN_ERROR');
 
         $this->work();
 
-        self::assertSame(['announce of the answer', 'observe of the answer: no outcome'], $this->notices(after: 2));
+        self::assertSame(['announce of the answer', 'observe of the answer: failed'], $this->notices(after: 2));
         [, $report] = $this->posted(self::REPORTS);
         self::assertSame(
-            ['answer', 'observed', null, null, 'failed', 2],
+            ['answer', 'failed', PaymentProviderDown::class, 2, 'failed', 2],
             [$report['verb'], $report['outcome'], $report['errorClass'], $report['executedAttempt'], $report['run']['status'], $report['run']['attempt']],
         );
     }
