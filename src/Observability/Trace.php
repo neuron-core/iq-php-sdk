@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Observability;
 
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\Cloud\Runtime\Protocol;
 use Throwable;
 
 use function array_is_list;
@@ -45,6 +45,8 @@ use function substr;
  * never for an abandoned run). The run ID, workflow ID and the caller's
  * attributes ride on every span: backends group and filter by span, and none
  * has a trace-level record to hang them on.
+ *
+ * @internal
  */
 class Trace
 {
@@ -81,6 +83,13 @@ class Trace
     protected array $spans = [];
 
     /**
+     * The last error the run reported, as strings: the exception itself would be kept as long as the trace.
+     *
+     * @var array{type: class-string, message: string}|null
+     */
+    protected ?array $lastError = null;
+
+    /**
      * @param array<string, mixed> $attributes Run-level attributes stamped on every span.
      */
     public function __construct(
@@ -114,18 +123,30 @@ class Trace
     }
 
     /**
-     * Fail the run and the innermost open span: OTel has no trace-level
-     * status, a failure exists only where a span carries it.
+     * Fail the run and the innermost open span, with the last error the run
+     * reported: OTel has no trace-level status, a failure exists only where a
+     * span carries it.
      */
-    public function markFailed(Throwable $exception): void
+    public function markFailed(): void
     {
         $this->status = self::STATUS_FAILED;
 
         $key = $this->innermost();
         if ($key !== null) {
-            $this->open[$key]['status'] = ['code' => self::STATUS_CODE_ERROR, 'message' => $exception->getMessage()];
-            $this->open[$key]['attributes']['error.type'] = $exception::class;
+            $this->open[$key]['status'] = ['code' => self::STATUS_CODE_ERROR, 'message' => $this->lastError['message'] ?? ''];
+            $this->open[$key]['attributes']['error.type'] = $this->lastError['type'] ?? null;
         }
+    }
+
+    /**
+     * Attach an `exception` span event for an error that may be the run's
+     * failure. The framework reports a listener that threw the same way, and
+     * the run goes on then: only the end of the segment tells which it was,
+     * and {@see markFailed()} is called there.
+     */
+    public function recordError(Throwable $exception): void
+    {
+        $this->lastError = ['type' => $exception::class, 'message' => $exception->getMessage()];
 
         $this->recordException($exception);
     }
@@ -216,6 +237,14 @@ class Trace
     }
 
     /**
+     * Whether nothing was opened: an export of it would be a request with no span.
+     */
+    public function isEmpty(): bool
+    {
+        return $this->open === [] && $this->spans === [];
+    }
+
+    /**
      * Close the trace and return the OTLP payload. Spans still open (an
      * inference that threw before its stop event, a node interrupted
      * mid-flight) are closed now: OTLP cannot represent an unfinished span.
@@ -251,7 +280,7 @@ class Trace
             ] + $span;
         }, $this->spans);
 
-        [$sdkName, $sdkVersion] = explode(':', NeuronCloud::SDK);
+        [$sdkName, $sdkVersion] = explode('/', Protocol::SDK);
 
         return [
             'resourceSpans' => [[

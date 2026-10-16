@@ -22,8 +22,9 @@ use function is_int;
 use function rtrim;
 
 /**
- * Posts the SDK's announcements and reports to the platform, and publishes
- * a sync, one try each.
+ * Posts the SDK's announcements and reports to the platform, publishes a
+ * sync, and hands it the trace of a segment or the results of an evaluation,
+ * one try each.
  *
  * @internal
  */
@@ -35,9 +36,17 @@ final class PlatformClient
 
     protected const SYNC = '/v1/sync';
 
+    /** The path OTLP over HTTP gives an export of traces. */
+    protected const TRACES = '/v1/traces';
+
+    protected const EVALUATIONS = '/v1/evaluations';
+
     protected const TIMEOUT_SECONDS = 3.0;
 
     protected const SYNC_TIMEOUT_SECONDS = 15.0;
+
+    /** An evaluation is sent once, when a command line run ends: nothing waits behind it. */
+    protected const EVALUATION_TIMEOUT_SECONDS = 15.0;
 
     /** A 4xx answer that carries one of these will never be accepted, however often it is sent. */
     protected const FINAL_CODES = [Code::InvalidRequest, Code::UnsupportedProtocol];
@@ -100,6 +109,30 @@ final class PlatformClient
     }
 
     /**
+     * The spans of one segment, as an OTLP export request in JSON. It is posted in the process that executed
+     * the segment, so it waits no longer than an announcement does.
+     *
+     * @param array<string, mixed> $trace
+     * @throws CloudException unauthorized, for a 401 or a 403; report_undelivered, for any other answer that is
+     *                        not a 2xx, when the platform gave none and when the trace cannot be encoded
+     */
+    public function traces(array $trace): void
+    {
+        $this->hand(self::TRACES, $trace, self::TIMEOUT_SECONDS);
+    }
+
+    /**
+     * What one evaluator found, with the inputs and the outputs it ran on.
+     *
+     * @param array<string, mixed> $evaluation
+     * @throws CloudException as traces()
+     */
+    public function evaluation(array $evaluation): void
+    {
+        $this->hand(self::EVALUATIONS, $evaluation, self::EVALUATION_TIMEOUT_SECONDS);
+    }
+
+    /**
      * A list the answer leaves out counts as empty.
      *
      * @param array<string, mixed> $fields
@@ -151,6 +184,24 @@ final class PlatformClient
             "The platform answered {$answer->statusCode} to {$path} and recorded nothing.",
             $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
+    }
+
+    /**
+     * Post what the platform only takes in: any 2xx answer is enough, and nothing in it is read.
+     *
+     * @param array<string, mixed> $body
+     * @throws CloudException
+     */
+    protected function hand(string $path, array $body, float $timeout): void
+    {
+        $answer = $this->send($path, $body, $timeout);
+
+        if (!$answer->isSuccessful()) {
+            throw new CloudException(
+                "The platform answered {$answer->statusCode} to {$path}.",
+                $this->reason($answer->statusCode, $this->fieldsOf($answer)['code'] ?? null, self::FINAL_CODES),
+            );
+        }
     }
 
     /**

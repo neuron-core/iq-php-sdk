@@ -118,10 +118,14 @@ final class TestBench
             $message = match (parse_url($request->uri, PHP_URL_PATH)) {
                 '/v1/reports' => 'report',
                 '/v1/sync' => 'sync',
+                // A trace follows OTLP, and an evaluation what Neuron's evaluations give: protocol 1 has no schema for either.
+                '/v1/traces', '/v1/evaluations' => null,
                 default => 'announcement',
             };
 
-            ProtocolSchema::assertValid($message, is_array($request->body) ? $request->body : []);
+            if ($message !== null) {
+                ProtocolSchema::assertValid($message, is_array($request->body) ? $request->body : []);
+            }
         }
 
         foreach ($this->platform->delivered() as ['message' => $message, 'answer' => $answer]) {

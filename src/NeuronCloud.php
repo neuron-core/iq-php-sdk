@@ -10,6 +10,9 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\Observability\CloudListener;
+use NeuronCore\Cloud\Observability\TraceExporter;
 use NeuronCore\Cloud\Runtime\Definition;
 use NeuronCore\Cloud\Runtime\Endpoint;
 use NeuronCore\Cloud\Runtime\InPlaceDispatcher;
@@ -36,6 +39,9 @@ class NeuronCloud
     protected ?Closure $persistence = null;
 
     protected ?DispatcherInterface $dispatcher = null;
+
+    /** @var array{captureContent: bool, attributes: array<string, mixed>}|null how segments are traced; null: none is */
+    protected ?array $tracing = null;
 
     /**
      * @param string|null $signingKey only the endpoint needs it
@@ -105,6 +111,39 @@ class NeuronCloud
     }
 
     /**
+     * Trace every segment this process executes, and send its spans to the
+     * platform when the segment ends: one OpenTelemetry trace per run, with a
+     * span for each node, inference, tool call and retrieval. Unlike the
+     * reports of a run, a trace carries what your application works on: the
+     * message and the stack trace of an exception always, and prompts,
+     * completions, tool arguments and tool results unless $captureContent is
+     * false. It is sent from the process that executed the segment, a web
+     * request included, and a trace the platform did not take is logged and
+     * dropped. Call it before workflow(), like setPersistence().
+     *
+     * @param bool $captureContent false: no prompt, completion, tool argument or tool result leaves the application
+     * @param array<string, mixed> $attributes stamped on every span, such as the environment of the deployment
+     */
+    public function enableTracing(bool $captureContent = true, array $attributes = []): static
+    {
+        $this->tracing = ['captureContent' => $captureContent, 'attributes' => $attributes];
+
+        return $this;
+    }
+
+    /**
+     * An output for Neuron's evaluations that sends the results of a run to
+     * the platform, with the inputs and the outputs of every item: give it to
+     * the "output" list of evaluation.php. It needs the API key only.
+     *
+     * @param string|null $environment where the evaluation ran, such as "ci"
+     */
+    public function evaluationOutput(?string $environment = null): CloudOutput
+    {
+        return new CloudOutput($this->platform(), $environment);
+    }
+
+    /**
      * App Sync, the last step of a deploy: publish every registered definition
      * and version, and the URL of the endpoint. The list is complete and
      * replaces the one the platform holds.
@@ -160,7 +199,7 @@ class NeuronCloud
             $name,
             $workflowId,
             $this->registry,
-            new WorkflowBuilder($this->persistence()),
+            $this->builder($this->persistence()),
             $this->dispatcher(),
         );
     }
@@ -174,7 +213,7 @@ class NeuronCloud
 
         return new Runner(
             $this->registry,
-            new WorkflowBuilder($persistence),
+            $this->builder($persistence),
             new Ledger($persistence),
             $this->platform(),
             $this->dispatcher(),
@@ -189,7 +228,7 @@ class NeuronCloud
         return new Endpoint(
             new Signature($this->signingKey),
             $this->registry,
-            new WorkflowBuilder($persistence),
+            $this->builder($persistence),
             new Ledger($persistence),
             $this->dispatcher(),
         );
@@ -198,6 +237,27 @@ class NeuronCloud
     protected function platform(): PlatformClient
     {
         return new PlatformClient($this->httpClient, $this->platformUrl, $this->apiKey);
+    }
+
+    /**
+     * @param Closure(): PersistenceInterface $persistence
+     */
+    protected function builder(Closure $persistence): WorkflowBuilder
+    {
+        if ($this->tracing === null) {
+            return new WorkflowBuilder($persistence);
+        }
+
+        $exporter = new TraceExporter($this->platform());
+        $tracing = $this->tracing;
+
+        // Spans are named after the definition: it is the name the platform knows the workflow by.
+        return new WorkflowBuilder($persistence, static fn (Definition $definition): CloudListener => new CloudListener(
+            $exporter,
+            $definition->name,
+            metadata: $tracing['attributes'],
+            captureContent: $tracing['captureContent'],
+        ));
     }
 
     /**

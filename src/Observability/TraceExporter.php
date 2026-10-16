@@ -4,29 +4,22 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Observability;
 
-use JsonException;
-use NeuronCore\Cloud\Http\Transport;
-use NeuronCore\Cloud\Http\TransportException;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\Cloud\CloudException;
+use NeuronCore\Cloud\Runtime\PlatformClient;
 
 use function error_log;
-use function json_encode;
-use function rtrim;
-
-use const JSON_THROW_ON_ERROR;
 
 /**
- * Ships finished traces over OTLP/HTTP with JSON encoding: `POST {platformUrl}/traces`.
- * The base URL includes `/api` for Neuron Cloud or `/v1` for an OTLP collector. Best-effort: a trace that fails to encode or upload is logged, never
- * thrown — tracing must not break the workflow run.
+ * Ships finished traces over OTLP/HTTP with JSON encoding: `POST {platformUrl}/v1/traces`,
+ * with the API key and the HTTP client of the SDK. Best-effort: a trace that fails to
+ * encode or upload is logged, never thrown — tracing must not break the workflow run.
+ *
+ * @internal
  */
 class TraceExporter
 {
-    public function __construct(
-        protected readonly Transport $transport,
-        protected readonly string $platformUrl,
-        protected readonly string $apiKey,
-    ) {
+    public function __construct(protected readonly PlatformClient $platform)
+    {
     }
 
     /**
@@ -35,27 +28,10 @@ class TraceExporter
     public function send(array $trace): void
     {
         try {
-            $json = json_encode($trace, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            error_log('[TraceExporter] Failed to encode trace: ' . $e->getMessage());
-
-            return;
-        }
-
-        try {
-            $this->transport->send(
-                rtrim($this->platformUrl, '/') . '/traces',
-                $json,
-                [
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                    'X-Neuron-SDK' => NeuronCloud::SDK,
-                ],
-                'POST',
-            );
-        } catch (TransportException $e) {
-            error_log('[TraceExporter] Failed to send trace: ' . $e->getMessage());
+            $this->platform->traces($trace);
+        } catch (CloudException $e) {
+            // The cause says why no answer came: a network error, or a value JSON cannot carry.
+            error_log('[TraceExporter] Failed to send trace: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
         }
     }
 }

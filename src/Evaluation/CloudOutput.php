@@ -14,9 +14,8 @@ use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
 use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Tools\ToolCall;
-use NeuronCore\Cloud\Http\Transport;
-use NeuronCore\Cloud\Http\TransportException;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\Cloud\CloudException;
+use NeuronCore\Cloud\Runtime\PlatformClient;
 
 use function array_map;
 use function is_array;
@@ -27,34 +26,33 @@ use function is_object;
 use function is_string;
 use function json_encode;
 use function error_log;
-use function rtrim;
 use function uniqid;
 
 use const JSON_THROW_ON_ERROR;
 
 /**
- * Sends an evaluation run to a Neuron Cloud platform instance.
+ * Sends an evaluation run to Neuron Cloud.
  *
  * This is the Neuron Cloud SDK home for the evaluation-output channel: it turns every
- * evaluator report in an {@see EvaluationReport} into a separate payload consumed
- * by the platform's `POST /api/evaluation` endpoint.
+ * evaluator report in an {@see EvaluationReport} into a separate payload, posted to
+ * `{platformUrl}/v1/evaluations` with the API key and the HTTP client of the SDK.
  *
- * Build it from the SDK root so it shares the platform credentials and transport,
- * and hand the concrete instance to neuron-ai's evaluation output pipeline (neuron-ai
- * no longer builds drivers from scalar config — it takes a class string or instance):
+ * Build it from the SDK root, and hand the instance to neuron-ai's evaluation output
+ * pipeline in `evaluation.php` (neuron-ai takes a class string or an instance):
  *
- *   $cloud->evaluationOutput();
+ *   'output' => [ConsoleOutput::class, $cloud->evaluationOutput()],
  *
- * The platformUrl is the `/api` root; evaluation payloads are POSTed to
- * `{platformUrl}/evaluation`.
+ * Best-effort: a payload that fails to encode or upload is logged, never thrown, so
+ * the other outputs of the pipeline and the exit code of the run are what they would be.
  */
 class CloudOutput implements EvaluationOutputInterface
 {
+    /**
+     * @internal built by {@see \NeuronCore\Cloud\NeuronCloud::evaluationOutput()}
+     */
     public function __construct(
-        private readonly Transport $transport,
-        private readonly string $platformUrl,
-        private readonly string $apiKey,
-        private readonly ?string $environment = null,
+        protected readonly PlatformClient $platform,
+        protected readonly ?string $environment = null,
     ) {
     }
 
@@ -108,27 +106,10 @@ class CloudOutput implements EvaluationOutputInterface
         ];
 
         try {
-            $json = json_encode($payload, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            error_log('[NeuronCloudOutput] Failed to encode payload: ' . $e->getMessage());
-
-            return;
-        }
-
-        try {
-            $this->transport->send(
-                rtrim($this->platformUrl, '/') . '/evaluation',
-                $json,
-                [
-                    'Authorization' => 'Bearer ' . $this->apiKey,
-                    'Content-Type' => 'application/json',
-                    'Accept' => 'application/json',
-                    'X-Neuron-SDK' => NeuronCloud::SDK,
-                ],
-                'POST',
-            );
-        } catch (TransportException $e) {
-            error_log('[NeuronCloudOutput] Failed to send evaluation: ' . $e->getMessage());
+            $this->platform->evaluation($payload);
+        } catch (CloudException $e) {
+            // The cause says why no answer came: a network error, or a value JSON cannot carry.
+            error_log('[NeuronCloudOutput] Failed to send evaluation: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
         }
     }
 
@@ -165,7 +146,7 @@ class CloudOutput implements EvaluationOutputInterface
     /**
      * @return array<string, mixed>
      */
-    private function failureToArray(AssertionFailure $failure): array
+    protected function failureToArray(AssertionFailure $failure): array
     {
         return [
             'evaluator_class' => $failure->getEvaluatorClass(),
@@ -181,7 +162,7 @@ class CloudOutput implements EvaluationOutputInterface
         return $time->format('Y-m-d\TH:i:s.uP');
     }
 
-    private function formatOutput(mixed $output): mixed
+    protected function formatOutput(mixed $output): mixed
     {
         // A Trajectory is not JsonSerializable (all state protected) — a plain
         // json_encode would ship `{}`. Project it through its public API instead.

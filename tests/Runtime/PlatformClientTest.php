@@ -20,6 +20,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
+use function array_intersect_key;
 use function array_slice;
 
 class PlatformClientTest extends TestCase
@@ -40,6 +41,10 @@ class PlatformClientTest extends TestCase
         'endpoint' => 'https://shop.example.com/neuron-cloud.php',
         'definitions' => [['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600]],
     ];
+
+    protected const TRACE = ['resourceSpans' => [['scopeSpans' => [['spans' => [['name' => 'invoke_workflow order-fulfilment']]]]]]];
+
+    protected const EVALUATION = ['run_id' => 'eval_1', 'name' => 'App\\Evaluators\\RefundEvaluator', 'results' => []];
 
     protected const ANNOUNCEMENT = [
         'protocol' => 1,
@@ -232,6 +237,127 @@ class PlatformClientTest extends TestCase
     public function test_a_200_that_is_not_the_answer_to_a_sync_counts_as_undelivered(string $body): void
     {
         self::assertSame(Code::ReportUndelivered, self::syncRefusalBy(new ScriptedHttpClient(new HttpResponse(200, $body))));
+    }
+
+    // ----------------------------------------------------------------
+    // Traces and evaluations: taken in, and nothing of the answer is read
+    // ----------------------------------------------------------------
+
+    #[DataProvider('platformUrls')]
+    public function test_a_trace_is_posted_to_the_traces_path_of_the_platform_url(string $platformUrl, string $expected): void
+    {
+        $http = self::recording();
+
+        (new PlatformClient($http, $platformUrl, self::API_KEY))->traces(self::TRACE);
+
+        self::assertSame(HttpMethod::POST, self::sent($http)->method);
+        self::assertSame($expected . '/v1/traces', self::sent($http)->uri);
+    }
+
+    #[DataProvider('platformUrls')]
+    public function test_an_evaluation_is_posted_to_the_evaluations_path_of_the_platform_url(string $platformUrl, string $expected): void
+    {
+        $http = self::recording();
+
+        (new PlatformClient($http, $platformUrl, self::API_KEY))->evaluation(self::EVALUATION);
+
+        self::assertSame(HttpMethod::POST, self::sent($http)->method);
+        self::assertSame($expected . '/v1/evaluations', self::sent($http)->uri);
+    }
+
+    public function test_a_trace_and_an_evaluation_carry_the_api_key_the_name_of_the_sdk_and_their_body_as_it_was_given(): void
+    {
+        $http = self::recording();
+
+        self::client($http)->traces(self::TRACE);
+        self::client($http)->evaluation(self::EVALUATION);
+
+        [$trace, $evaluation] = $http->received();
+        self::assertSame(
+            ['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'neuron-cloud-php/1.0.0'],
+            array_intersect_key($trace->headers, ['Authorization' => true, 'User-Agent' => true]),
+        );
+        self::assertSame($trace->headers, $evaluation->headers);
+        self::assertSame([self::TRACE, self::EVALUATION], [$trace->body, $evaluation->body]);
+    }
+
+    public function test_a_trace_is_given_three_seconds_and_an_evaluation_fifteen(): void
+    {
+        $http = self::recording();
+
+        self::client($http)->traces(self::TRACE);
+        self::client($http)->evaluation(self::EVALUATION);
+
+        self::assertSame([3.0, 15.0], [$http->received()[0]->timeout, $http->received()[1]->timeout]);
+    }
+
+    #[DataProvider('answersThatTakeIn')]
+    public function test_any_2xx_answer_takes_a_trace_and_an_evaluation_in_whatever_its_body(HttpResponse $answer): void
+    {
+        $client = self::client(new ScriptedHttpClient($answer));
+
+        $refused = self::thrownBy(static function () use ($client): void {
+            $client->traces(self::TRACE);
+            $client->evaluation(self::EVALUATION);
+        });
+
+        self::assertNull($refused);
+    }
+
+    #[DataProvider('answersThatTakeNothingIn')]
+    public function test_an_answer_that_is_no_2xx_refuses_a_trace_and_an_evaluation(HttpResponse $answer, bool $thrown, Code $reason): void
+    {
+        $client = self::client(new ScriptedHttpClient($answer, $thrown));
+
+        self::assertSame(
+            [$reason, $reason],
+            [
+                self::reasonThrownBy(static fn () => $client->traces(self::TRACE)),
+                self::reasonThrownBy(static fn () => $client->evaluation(self::EVALUATION)),
+            ],
+        );
+    }
+
+    public function test_a_trace_that_gets_no_answer_counts_as_undelivered_and_keeps_what_the_client_threw(): void
+    {
+        $failure = new RuntimeException('Malformed UTF-8 characters, possibly incorrectly encoded');
+
+        $refused = self::thrownBy(static fn () => self::client(new ScriptedHttpClient($failure))->traces(self::TRACE));
+
+        self::assertSame([Code::ReportUndelivered, $failure], [$refused?->reason, $refused?->getPrevious()]);
+    }
+
+    /**
+     * @return array<string, array{HttpResponse}>
+     */
+    public static function answersThatTakeIn(): array
+    {
+        return [
+            'a 200 with an empty object, as an OTLP collector answers' => [new HttpResponse(200, '{}')],
+            'a 200 that says something else' => [new HttpResponse(200, '{"partialSuccess":{}}')],
+            'a 202 with no body' => [new HttpResponse(202, '')],
+            'a 204' => [new HttpResponse(204, '')],
+        ];
+    }
+
+    /**
+     * @return iterable<string, array{HttpResponse, bool, Code}>
+     */
+    public static function answersThatTakeNothingIn(): iterable
+    {
+        $answers = [
+            'a 401' => [new HttpResponse(401, '{"code":"unauthorized"}'), Code::Unauthorized],
+            'a 403' => [new HttpResponse(403, ''), Code::Unauthorized],
+            'a 404' => [new HttpResponse(404, ''), Code::ReportUndelivered],
+            'a 413' => [new HttpResponse(413, ''), Code::ReportUndelivered],
+            'a 500' => [new HttpResponse(500, ''), Code::ReportUndelivered],
+            'a 503' => [new HttpResponse(503, '{"code":"unavailable"}'), Code::ReportUndelivered],
+        ];
+
+        foreach ($answers as $label => [$answer, $reason]) {
+            yield "{$label}, thrown by the client" => [$answer, true, $reason];
+            yield "{$label}, returned by the client" => [$answer, false, $reason];
+        }
     }
 
     /**

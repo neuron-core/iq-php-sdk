@@ -45,7 +45,8 @@ use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 use NeuronAI\Workflow\Observability\WorkflowNodeEnd;
 use NeuronAI\Workflow\Observability\WorkflowNodeStart;
 use NeuronAI\Workflow\Observability\WorkflowStart;
-use NeuronCore\Cloud\Http\Transport;
+use NeuronAI\Workflow\Workflow;
+use NeuronAI\Workflow\WorkflowStatus;
 use Throwable;
 
 use function array_map;
@@ -93,11 +94,18 @@ use const JSON_UNESCAPED_UNICODE;
  * is the thread, shipped as `gen_ai.conversation.id`).
  *
  * The run's outcome follows the framework's terminal vocabulary: WorkflowEnd
- * alone = completed, plus WorkflowInterrupted = suspended, plus WorkflowError =
- * failed — the span where it happened gets an ERROR status and an `exception`
- * event. A ChannelError is not a failure — the run keeps going — so it is
- * only an `exception` event. Listener exceptions are swallowed: a tracing bug
- * must not break the run.
+ * alone = completed, plus WorkflowInterrupted = suspended, and a WorkflowEnd
+ * whose state is failed = failed — the span where it happened gets an ERROR
+ * status. A WorkflowError is an `exception` event and no more: the framework
+ * reports it for the failure of the run and for a listener that threw while
+ * the run keeps going, and only the end tells which it was. A ChannelError is
+ * not a failure either, so it is only an `exception` event. Listener
+ * exceptions are swallowed: a tracing bug must not break the run.
+ *
+ * The SDK subscribes one to every workflow it builds to execute, once
+ * {@see \NeuronCore\Cloud\NeuronCloud::enableTracing()} was called.
+ *
+ * @internal
  */
 class CloudListener
 {
@@ -119,8 +127,6 @@ class CloudListener
         'grok' => 'x_ai',
     ];
 
-    protected readonly TraceExporter $exporter;
-
     /** The trace of the run in flight, null between runs. */
     protected ?Trace $trace = null;
 
@@ -138,16 +144,13 @@ class CloudListener
      *                                             it where it must not leave the application.
      */
     public function __construct(
-        Transport $transport,
-        string $platformUrl,
-        string $apiKey,
+        protected readonly TraceExporter $exporter,
         protected readonly ?string $name = null,
         protected readonly ?string $userId = null,
         protected readonly ?string $sessionId = null,
         protected readonly array $metadata = [],
         protected readonly bool $captureContent = true,
     ) {
-        $this->exporter = new TraceExporter($transport, $platformUrl, $apiKey);
     }
 
     public function __invoke(ObservabilityEvent $event): void
@@ -166,9 +169,9 @@ class CloudListener
         match ($event::class) {
             WorkflowStart::class => $this->startRun($event),
             WorkflowInterrupted::class => $this->trace()->markSuspended(),
-            WorkflowError::class => $this->trace()->markFailed($event->exception),
+            WorkflowError::class => $this->recordError($event),
             ChannelError::class => $this->trace()->recordException($event->exception),
-            WorkflowEnd::class => $this->flush(),
+            WorkflowEnd::class => $this->endRun($event),
 
             WorkflowNodeStart::class => $this->start($event, 'node', $this->shortName($event->node)),
             WorkflowNodeEnd::class => $this->stop($event),
@@ -264,7 +267,7 @@ class CloudListener
         $branch = $event->branchId ?? '';
 
         return match ($event::class) {
-            WorkflowStart::class => 'workflow',
+            WorkflowStart::class, WorkflowError::class => 'workflow',
             WorkflowNodeStart::class, WorkflowNodeEnd::class => "node:{$event->node}:{$branch}",
             BranchStart::class, BranchEnd::class => "branch:{$branch}",
             MiddlewareStart::class, MiddlewareEnd::class => 'middleware:' . $event->middleware::class . ":{$event->phase}:{$branch}",
@@ -286,7 +289,7 @@ class CloudListener
      * invocation, or a workflow invocation for anything else. It has no stop
      * event — flush closes it last, after every span it wraps.
      */
-    protected function startRun(WorkflowStart $event): void
+    protected function startRun(WorkflowStart|WorkflowError $event): void
     {
         $this->trace()->identify($event->execution?->runId, $event->execution?->workflowId);
 
@@ -311,6 +314,34 @@ class CloudListener
             'gen_ai.operation.name' => 'invoke_workflow',
             'gen_ai.workflow.name' => $name,
         ]);
+    }
+
+    /**
+     * A segment that fails while it builds its graph reports no start: the
+     * error is the first thing heard of it, and opens the root span that a
+     * start would have opened. An error reported under a node opens nothing.
+     */
+    protected function recordError(WorkflowError $event): void
+    {
+        if ($this->trace === null && $event->source instanceof Workflow) {
+            $this->startRun($event);
+        }
+
+        $this->trace()->recordError($event->exception);
+    }
+
+    /**
+     * The state of the segment's end is the framework's word on how the run
+     * ended: an error it reported on the way may have been a listener's. An
+     * end with nothing heard before it has no span to fail, and sends nothing.
+     */
+    protected function endRun(WorkflowEnd $event): void
+    {
+        if ($event->state->getStatus() === WorkflowStatus::Failed) {
+            $this->trace?->markFailed();
+        }
+
+        $this->flush();
     }
 
     protected function startInference(InferenceStart $event): void
@@ -397,12 +428,15 @@ class CloudListener
             return;
         }
 
+        $empty = $this->trace->isEmpty();
         $trace = $this->trace->close();
         $this->trace = null;
         $this->conversationId = null;
         $this->provider = null;
 
-        $this->exporter->send($trace);
+        if (!$empty) {
+            $this->exporter->send($trace);
+        }
     }
 
     /**

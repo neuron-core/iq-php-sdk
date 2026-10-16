@@ -29,6 +29,7 @@ Every JSON example in this document is a message that the real SDK produced, or 
 10. [Durations and limits](#10-durations-and-limits)
 11. [What is not settled](#11-what-is-not-settled)
 12. [How to check an implementation](#12-how-to-check-an-implementation)
+13. [Traces and evaluation results](#13-traces-and-evaluation-results)
 
 [Glossary](#glossary)
 
@@ -84,6 +85,8 @@ One more value can cross: a label that code outside the SDK stored with a run re
 
 The platform keeps nothing else of what the application sends (section 7.2).
 
+The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. Section 13 describes them.
+
 ### 1.4 What protocol 1 covers
 
 Protocol 1 covers eight messages.
@@ -109,7 +112,8 @@ Protocol 1 does not cover the following. The names in the right column are reser
 | A retry policy declared in the application's code | Nothing: the policy is a setting of the platform |
 | A marker "do not retry this failure" | The report field `retryable` |
 | A switch per definition "the platform may start this" | The manifest field `platformStart` |
-| Listing runs, child workflows, telemetry of steps, traces, a pull transport | Nothing |
+| Listing runs, child workflows, a pull transport | Nothing |
+| Traces and evaluation results | Not messages of protocol 1, but the SDK sends them when the application turns them on: section 13 |
 
 In protocol 1 the application delivers events and answers to its own runs, in its own code. The platform never does.
 
@@ -437,6 +441,8 @@ A person starts and ends a rotation. **OPERATOR ACTION.** The protocol requires 
 |---|---|---|---|
 | The SDK | The answer to an announcement or a report | 3 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to a sync | 15 seconds | FIXED BY THE PROTOCOL |
+| The SDK | The answer to a trace (section 13) | 3 seconds | FIXED BY THE PROTOCOL |
+| The SDK | The answer to the results of an evaluation (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
 | The platform | The answer of the endpoint to any message, a `ping` included | 10 seconds | SETTING |
 
 The platform answers a sync only after it has pinged the endpoint (section 5.1). The time that it allows that ping and the rest of its work must fit in the 15 seconds that the SDK waits: this bounds the setting.
@@ -2958,6 +2964,147 @@ The five `Simulator/` classes use no application: the test plays the application
 23. It refuses a notice for a run it does not know. Hold the run.
 24. It keeps the body of a request in a log.
 25. It answers a sync before it has pinged the endpoint, or more than 15 seconds after it received it.
+
+---
+
+## 13. Traces and evaluation results
+
+Two more requests can reach the platform. Neither is a message of protocol 1, and no rule of section 7 depends on either: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths.
+
+### 13.1 What they have in common
+
+| | |
+|---|---|
+| Who turns them on | The developer, in the application's code: tracing with one call on the SDK, evaluation results by listing the SDK's output in the configuration of the evaluations. Both are off otherwise. **SETTING**, set in the application |
+| Transport | As section 3.2: `POST`, `Authorization: Bearer <API key>`, the same `User-Agent`, one JSON object |
+| `protocol` field | None. The bodies are not versioned by protocol 1 |
+| Answer | Any `2xx` takes the request in, whatever its body. The SDK reads nothing of the answer. **FIXED BY THE PROTOCOL** |
+| A refusal | Any other answer, and no answer within the timeout of section 3.8. The SDK writes one line in the application's own log and drops the request: it is never sent again, by the SDK or by a queue. A `401` stops nothing else |
+| What they carry | The customer's data, which protocol 1 keeps out (section 1.3): see 13.4 |
+
+The platform must not learn the state of a run from a trace. A trace may be missing, late or sent twice by a process that was run twice, and it is sent by the process that executed the segment before that process reports: only the snapshot of a report or of an `inspect` says what a run is (section 6).
+
+### 13.2 A trace: `POST /v1/traces`
+
+The body is an OTLP `ExportTraceServiceRequest` in its JSON encoding, the body an OpenTelemetry collector takes at the same path: `resourceSpans`, then `scopeSpans`, then `spans`. IDs are lowercase hexadecimal, times are Unix nanoseconds written as decimal strings, and attributes are typed key and value pairs.
+
+```json
+{"resourceSpans": [{
+  "resource": {"attributes": [
+    {"key": "service.name", "value": {"stringValue": "checkout"}},
+    {"key": "telemetry.sdk.name", "value": {"stringValue": "neuron-cloud-php"}},
+    {"key": "telemetry.sdk.language", "value": {"stringValue": "php"}},
+    {"key": "telemetry.sdk.version", "value": {"stringValue": "1.0.0"}}]},
+  "scopeSpans": [{
+    "scope": {"name": "neuron-core/cloud-sdk", "version": "1.0.0"},
+    "spans": [
+      {"traceId": "8c1f0e6a4b7d2c935a1e0f4d6b8c2a17", "spanId": "3f9a1c2b4d5e6f70", "parentSpanId": "a1b2c3d4e5f60718",
+       "flags": 257, "name": "ChargeNode", "kind": 1,
+       "startTimeUnixNano": "1791453603100000000", "endTimeUnixNano": "1791453603900000000",
+       "attributes": [
+         {"key": "neuron.span.kind", "value": {"stringValue": "node"}},
+         {"key": "neuron.run.id", "value": {"stringValue": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12"}},
+         {"key": "neuron.workflow.id", "value": {"stringValue": "order:123"}}]},
+      {"traceId": "8c1f0e6a4b7d2c935a1e0f4d6b8c2a17", "spanId": "a1b2c3d4e5f60718",
+       "flags": 257, "name": "invoke_workflow order-fulfilment", "kind": 1,
+       "startTimeUnixNano": "1791453603000000000", "endTimeUnixNano": "1791453604250000000",
+       "attributes": [
+         {"key": "gen_ai.operation.name", "value": {"stringValue": "invoke_workflow"}},
+         {"key": "gen_ai.workflow.name", "value": {"stringValue": "order-fulfilment"}},
+         {"key": "neuron.span.kind", "value": {"stringValue": "workflow"}},
+         {"key": "neuron.run.id", "value": {"stringValue": "2-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12"}},
+         {"key": "neuron.workflow.id", "value": {"stringValue": "order:123"}},
+         {"key": "neuron.run.status", "value": {"stringValue": "suspended"}}]}]}]}]}
+```
+
+One request is one segment. What the platform can rely on:
+
+| Fact | Detail |
+|---|---|
+| The trace is the run | `traceId` is the first 32 hexadecimal characters of the SHA-256 of the run ID. Every segment of a run sends its spans under that trace ID, so the platform puts a run together by trace ID, or by `neuron.run.id` |
+| A segment never sends a span twice | Each request holds only the spans of its segment, under span IDs made for it. There is no span for the whole run |
+| Every segment has one parentless span | It is named `invoke_workflow <definition>` or, for an agent, `invoke_agent <definition>`, and it carries `neuron.run.status`: `completed`, `suspended` or `failed`, which is how that segment ended. The other spans of the segment are under it |
+| Every span names its run | `neuron.run.id` and `neuron.workflow.id` are on every span, with the attributes the developer gave for all traces, such as `deployment.environment` |
+| A segment that never started | One that failed while it was built sends its parentless span alone, with `neuron.run.status` `failed` and the error. The SDK sends no request with no span |
+| A trace with no run ID | A listener of the application can keep from the SDK both the start of a segment and the error the framework reports when that listener fails. The spans of that segment then have a random trace ID and no `neuron.run.id`. The platform keeps or drops them; it cannot attach them to a run |
+
+The names and attributes follow the OpenTelemetry semantic conventions for generative AI where they have a word, and `neuron.*` where they do not.
+
+| `neuron.span.kind` | Span name | `kind` | What it measures |
+|---|---|---|---|
+| `workflow` | `invoke_workflow <definition>` | 1, internal | The segment of a workflow |
+| `agent` | `invoke_agent <definition>` | 1 | The segment of an agent. It carries `gen_ai.agent.name` and `gen_ai.conversation.id`, the workflow ID of the agent, which is its thread |
+| `node` | The short class name of the node | 1 | One execution of a node |
+| `branch` | `branch.<id>` | 1 | One parallel branch. Spans of a branch carry `neuron.branch.id` |
+| `middleware` | `<class>.<phase>` | 1 | One phase of a middleware |
+| `generation` | `chat <model>` | 3, client | One call to a model: `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.finish_reasons`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and, when the provider reports them, `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.reasoning.output_tokens` |
+| `tool` | `execute_tool <tool>` | 1 | One tool call: `gen_ai.tool.name`, `gen_ai.tool.call.id`, `gen_ai.tool.type`, `gen_ai.tool.description` |
+| `retrieval` | `retrieval` | 3 | One retrieval: `neuron.rag.documents.count` |
+| `processor` | `rag.preprocess.<class>`, `rag.postprocess.<class>` | 1 | One step before or after a retrieval |
+| `structured` | `structured.schema`, `structured.extract`, `structured.deserialize`, `structured.validate` | 1 | One step of a structured output. A failed validation carries an error status and `neuron.structured.violations` |
+
+An error is an `exception` event on the span that was open when it happened, with `exception.type`, `exception.message` and `exception.stacktrace`. The application reports an error of its own monitoring the same way while the run goes on, so an `exception` event does not mean that the run failed. A segment failed when `neuron.run.status` of its parentless span says `failed`; one span of that segment then carries the status code `2` (error), with the message of the error and `error.type`, its class.
+
+With content capture, which is on unless the developer turns it off, these attributes are present too, each a string cut at 4,000 characters, the structured ones as JSON:
+
+| Attribute | On | Holds |
+|---|---|---|
+| `gen_ai.input.messages`, `gen_ai.output.messages` | `generation` | The messages given to the model and its answer, as `{role, parts}` |
+| `gen_ai.tool.call.arguments`, `gen_ai.tool.call.result` | `tool` | What the tool was given and what it returned |
+| `gen_ai.retrieval.query.text`, `gen_ai.retrieval.documents` | `retrieval` | The question, and the ID and the score of each document |
+
+The platform should answer `200` with `{}`, as a collector does, and may answer any other `2xx`.
+
+### 13.3 The results of an evaluation: `POST /v1/evaluations`
+
+An evaluation is a run of the developer's evaluators on their datasets, on a developer's machine or in CI. It has nothing to do with a workflow run: no ID in it is a run ID or a workflow ID. The SDK sends one request per evaluator, when all evaluators of the run are done.
+
+```json
+{"run_id": "eval_6acb600d897908.92076975",
+ "name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "environment": "ci", "error": null,
+ "started_at": "2026-10-11T10:00:00.123456+00:00", "finished_at": "2026-10-11T10:00:02.500000+00:00",
+ "summary": {"total": 2, "passed": 1, "failed": 1, "success_rate": 0.5,
+             "total_execution_time": 2.376544, "average_execution_time": 0.92,
+             "total_assertions": 2, "assertions_passed": 1, "assertions_failed": 1, "assertion_success_rate": 0.5,
+             "cached_runs": 0,
+             "score_statistics": {"average_score": 0.5, "min_score": 0.0, "max_score": 1.0},
+             "score_statistics_by_label": {"StringContains": {"average": 0.5, "min": 0.0, "max": 1.0, "count": 2}},
+             "has_failures": true},
+ "results": [
+   {"evaluator_class": "App\\Evaluators\\RefundEvaluator", "index": 0, "passed": true,
+    "input": {"question": "Refund order 123."}, "output": "Order 123 was refunded.",
+    "execution_time": 0.84, "cached_run": false, "error": null,
+    "assertions_passed": 1, "assertions_failed": 0, "assertion_scores": [1.0],
+    "scores": [{"label": "StringContains", "value": 1.0, "passed": true}], "failures": []},
+   {"evaluator_class": "App\\Evaluators\\RefundEvaluator", "index": 1, "passed": false,
+    "input": {"question": "Where is my order?"}, "output": "I cannot help with that.",
+    "execution_time": 1.0, "cached_run": false, "error": null,
+    "assertions_passed": 0, "assertions_failed": 1, "assertion_scores": [0.0],
+    "scores": [{"label": "StringContains", "value": 0.0, "passed": false}],
+    "failures": [{"evaluator_class": "App\\Evaluators\\RefundEvaluator", "assertion": "StringContains",
+                  "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37, "context": []}]}]}
+```
+
+| Field | Meaning |
+|---|---|
+| `run_id` | Made for this request, `eval_` and a unique suffix. Two evaluators of one evaluation have different ones, and nothing ties them together but `started_at` and `environment` |
+| `name` | The class of the evaluator |
+| `namespace` | The group the evaluator declares, or null |
+| `environment` | What the developer named where the evaluation ran, or null |
+| `error` | Why the evaluator could not run, or null. `results` is then empty |
+| `started_at`, `finished_at` | When the evaluator ran, with microseconds and the offset from UTC |
+| `summary` | Counts and rates over the items and over their assertions, times in seconds, and the statistics of the scores, overall and by label. `score_statistics` is null when no assertion gave a score |
+| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `failures` lists each failed assertion |
+
+Receivers ignore fields they do not know: the summary and the results follow what the framework's evaluations give, and may gain fields.
+
+### 13.4 What the platform does with them
+
+Both carry the customer's data. A trace holds the message and the stack trace of every error and, with content capture, prompts, model answers and what tools were given and returned. An evaluation holds the inputs and the outputs of the evaluated code. R15 is about the messages of protocol 1: it does not forbid the platform to keep what the application chose to send here, and it does not allow the platform to mix it with the coordination data of a run.
+
+- **AUTOMATION.** The platform authenticates both paths as it does a notice, and answers `401` with `unauthorized` to a key it does not accept.
+- **AUTOMATION.** It attaches a trace to the run its `neuron.run.id` names, in the environment of the API key, and shows it with that run. A trace whose run the platform does not know is kept on its own or dropped: it never creates a run, never opens a closed one and never changes a status.
+- **SETTING.** How long traces and evaluation results are kept, who may read them, and how large a request may be are the platform's own. A request the platform finds too large is answered with a `4xx` and is lost: the SDK does not split or retry it.
 
 ---
 

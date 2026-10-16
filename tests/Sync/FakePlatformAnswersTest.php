@@ -27,6 +27,23 @@ class FakePlatformAnswersTest extends TestCase
         self::assertSame([], ProtocolSchema::violations('recorded', $answer->json()));
     }
 
+    #[DataProvider('whatThePlatformOnlyTakesIn')]
+    public function test_a_trace_and_an_evaluation_are_taken_in_with_a_200(string $path): void
+    {
+        $answer = (new FakePlatform())->request(HttpRequest::post('https://platform.test' . $path, ['resourceSpans' => []]));
+
+        self::assertSame([200, []], [$answer->statusCode, $answer->json()]);
+    }
+
+    public function test_a_trace_can_be_refused_like_any_other_request(): void
+    {
+        $platform = (new FakePlatform())->failNext(1, 503);
+
+        $answer = self::answerOf($platform, HttpRequest::post('https://platform.test/v1/traces', ['resourceSpans' => []]));
+
+        self::assertSame(503, $answer->statusCode);
+    }
+
     public function test_the_answer_to_a_sync_matches_the_schema_of_a_sync_answer(): void
     {
         $answer = (new FakePlatform())->request(self::sync());
@@ -44,6 +61,17 @@ class FakePlatformAnswersTest extends TestCase
 
         self::assertSame(['code' => $code], $answer->json());
         self::assertSame([], ProtocolSchema::violations('platform-error', $answer->json()));
+    }
+
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function whatThePlatformOnlyTakesIn(): array
+    {
+        return [
+            'a trace' => ['/v1/traces'],
+            'the results of an evaluation' => ['/v1/evaluations'],
+        ];
     }
 
     /**

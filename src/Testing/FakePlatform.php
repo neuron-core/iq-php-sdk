@@ -47,6 +47,10 @@ class FakePlatform implements HttpClientInterface
 
     protected const SYNC = '/v1/sync';
 
+    protected const TRACES = '/v1/traces';
+
+    protected const EVALUATIONS = '/v1/evaluations';
+
     public readonly string $signingKey;
 
     /** @var array<int, array{request: HttpRequest, status: int}> every request received, with the status it was answered */
@@ -146,6 +150,8 @@ class FakePlatform implements HttpClientInterface
         return match ($this->path($request)) {
             self::ANNOUNCEMENTS, self::REPORTS => new HttpResponse(200, '{"recorded":true}'),
             self::SYNC => $this->syncAnswer($request),
+            // Taken in, as an OTLP collector answers an export.
+            self::TRACES, self::EVALUATIONS => new HttpResponse(200, '{}'),
             default => $this->refusal(404),
         };
     }

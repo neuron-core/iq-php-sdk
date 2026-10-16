@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronCore\Cloud\Tests\Runtime;
 
 use Closure;
+use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -12,8 +13,12 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
+use NeuronCore\Cloud\Observability\CloudListener;
+use NeuronCore\Cloud\Observability\TraceExporter;
 use NeuronCore\Cloud\Runtime\Definition;
+use NeuronCore\Cloud\Runtime\PlatformClient;
 use NeuronCore\Cloud\Runtime\WorkflowBuilder;
+use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
 use NeuronCore\Cloud\Tests\Stub\Units\SelfConfiguredWorkflow;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -186,6 +191,62 @@ class WorkflowBuilderTest extends TestCase
         $this->expectExceptionObject($failure);
 
         $this->build(static fn (): Workflow => throw $failure);
+    }
+
+    public function test_a_workflow_built_to_execute_gets_a_listener_of_its_own_from_the_tracer_which_is_told_its_definition(): void
+    {
+        $asked = [];
+        $builder = $this->tracingBuilder($asked);
+        $definition = $this->definition(static fn (): Workflow => new Workflow());
+
+        $builder->build($definition, self::WORKFLOW_ID, self::RUN_ID);
+        $builder->build($definition, self::WORKFLOW_ID, self::RUN_ID);
+
+        self::assertSame([$definition, $definition], $asked);
+    }
+
+    public function test_a_workflow_built_only_to_read_the_store_gets_no_listener(): void
+    {
+        $asked = [];
+
+        $this->tracingBuilder($asked)->build($this->definition(static fn (): Workflow => new Workflow()), self::WORKFLOW_ID, null);
+
+        self::assertSame([], $asked);
+    }
+
+    /**
+     * A segment the application configures has the decisions of the SDK imposed a second time: the workflow
+     * must not be traced twice.
+     */
+    public function test_imposing_the_decisions_of_the_sdk_again_adds_no_listener(): void
+    {
+        $asked = [];
+        $builder = $this->tracingBuilder($asked);
+        $definition = $this->definition(static fn (): Workflow => new Workflow());
+        $workflow = $builder->build($definition, self::WORKFLOW_ID, self::RUN_ID);
+
+        $builder->impose($workflow, $definition);
+
+        self::assertCount(1, $asked);
+    }
+
+    /**
+     * A builder whose tracer notes the definition it is asked a listener for.
+     *
+     * @param Definition[] $asked
+     */
+    protected function tracingBuilder(array &$asked): WorkflowBuilder
+    {
+        $exporter = new TraceExporter(new PlatformClient(new ScriptedHttpClient(new HttpResponse(200, '{}')), 'https://platform.test', 'test-api-key'));
+
+        return new WorkflowBuilder(
+            fn (): PersistenceInterface => $this->sdkStore,
+            static function (Definition $definition) use (&$asked, $exporter): CloudListener {
+                $asked[] = $definition;
+
+                return new CloudListener($exporter, $definition->name);
+            },
+        );
     }
 
     /**
