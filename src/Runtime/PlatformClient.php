@@ -19,12 +19,13 @@ use function array_is_list;
 use function is_array;
 use function is_bool;
 use function is_int;
+use function rawurlencode;
 use function rtrim;
 
 /**
  * Posts the SDK's announcements and reports to the platform, publishes a
- * sync, and hands it the trace of a segment or the results of an evaluation,
- * one try each.
+ * sync, hands it the trace of a segment or the results of an evaluation, and
+ * reads a dataset it keeps, one try each.
  *
  * @internal
  */
@@ -41,12 +42,18 @@ final class PlatformClient
 
     protected const EVALUATIONS = '/v1/evaluations';
 
+    /** Followed by the slug of the dataset. */
+    protected const DATASETS = '/v1/datasets/';
+
     protected const TIMEOUT_SECONDS = 3.0;
 
     protected const SYNC_TIMEOUT_SECONDS = 15.0;
 
     /** An evaluation is sent once, when a command line run ends: nothing waits behind it. */
     protected const EVALUATION_TIMEOUT_SECONDS = 15.0;
+
+    /** A dataset is read once per evaluator, before its items run: only the developer waits for it. */
+    protected const DATASET_TIMEOUT_SECONDS = 15.0;
 
     /** A 4xx answer that carries one of these will never be accepted, however often it is sent. */
     protected const FINAL_CODES = [Code::InvalidRequest, Code::UnsupportedProtocol];
@@ -88,7 +95,7 @@ final class PlatformClient
      */
     public function sync(array $manifest): array
     {
-        $answer = $this->send(self::SYNC, $manifest, self::SYNC_TIMEOUT_SECONDS);
+        $answer = $this->send(HttpMethod::POST, self::SYNC, $manifest, self::SYNC_TIMEOUT_SECONDS);
 
         $fields = $this->fieldsOf($answer);
         if ($answer->statusCode === 200 && $this->isSyncAnswer($fields)) {
@@ -133,6 +140,59 @@ final class PlatformClient
     }
 
     /**
+     * The items of a dataset the platform keeps, in the environment of the API key.
+     *
+     * @return list<array<array-key, mixed>> each item as the platform holds it
+     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
+     *                        that carries it; report_undelivered, for any other answer that is not a 2xx with a list
+     *                        of items, a 404 for a slug the platform does not know included, and when the platform
+     *                        gave none
+     */
+    public function dataset(string $slug): array
+    {
+        $path = self::DATASETS . rawurlencode($slug);
+        $answer = $this->send(HttpMethod::GET, $path, null, self::DATASET_TIMEOUT_SECONDS);
+
+        $fields = $this->fieldsOf($answer);
+        $items = $fields['items'] ?? null;
+        if ($answer->isSuccessful() && $this->isListOfItems($items)) {
+            return $items;
+        }
+
+        $explanation = match (true) {
+            $answer->statusCode === 404 => " It keeps no dataset with the slug '{$slug}' in the environment of the API key.",
+            $answer->isSuccessful() => ' That is not a dataset: it holds no list of items.',
+            default => '',
+        };
+
+        throw new CloudException(
+            "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
+            $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
+        );
+    }
+
+    /**
+     * Whether the items of a dataset are what an evaluator runs on: a list of JSON objects or arrays. An empty
+     * dataset is one.
+     *
+     * @phpstan-assert-if-true list<array<array-key, mixed>> $items
+     */
+    protected function isListOfItems(mixed $items): bool
+    {
+        if (!is_array($items) || !array_is_list($items)) {
+            return false;
+        }
+
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
      * A list the answer leaves out counts as empty.
      *
      * @param array<string, mixed> $fields
@@ -173,7 +233,7 @@ final class PlatformClient
      */
     protected function post(string $path, array $body): void
     {
-        $answer = $this->send($path, $body, self::TIMEOUT_SECONDS);
+        $answer = $this->send(HttpMethod::POST, $path, $body, self::TIMEOUT_SECONDS);
 
         $fields = $this->fieldsOf($answer);
         if ($answer->statusCode === 200 && ($fields['recorded'] ?? null) === true) {
@@ -194,7 +254,7 @@ final class PlatformClient
      */
     protected function hand(string $path, array $body, float $timeout): void
     {
-        $answer = $this->send($path, $body, $timeout);
+        $answer = $this->send(HttpMethod::POST, $path, $body, $timeout);
 
         if (!$answer->isSuccessful()) {
             throw new CloudException(
@@ -205,14 +265,14 @@ final class PlatformClient
     }
 
     /**
-     * @param array<string, mixed> $body
+     * @param array<string, mixed>|null $body null for a GET
      * @return HttpResponse the answer of the platform, whatever its status
      * @throws CloudException report_undelivered, when the platform gave no answer
      */
-    protected function send(string $path, array $body, float $timeout): HttpResponse
+    protected function send(HttpMethod $method, string $path, ?array $body, float $timeout): HttpResponse
     {
         try {
-            return $this->httpClient->request($this->request($path, $body, $timeout));
+            return $this->httpClient->request($this->request($method, $path, $body, $timeout));
         } catch (HttpException $e) {
             // Neuron's clients throw an answer of 400 and above, and attach it.
             return $e->response ?? throw $this->undelivered($path, $e);
@@ -222,12 +282,12 @@ final class PlatformClient
     }
 
     /**
-     * @param array<string, mixed> $body
+     * @param array<string, mixed>|null $body
      */
-    protected function request(string $path, array $body, float $timeout): HttpRequest
+    protected function request(HttpMethod $method, string $path, ?array $body, float $timeout): HttpRequest
     {
         return new HttpRequest(
-            HttpMethod::POST,
+            $method,
             rtrim($this->platformUrl, '/') . $path,
             ['Authorization' => 'Bearer ' . $this->apiKey, 'User-Agent' => Protocol::SDK],
             $body,

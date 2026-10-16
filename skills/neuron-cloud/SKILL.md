@@ -1,6 +1,6 @@
 ---
 name: neuron-cloud
-description: Connect Neuron AI workflows and agents to Neuron Cloud with the neuron-core/cloud-sdk package — durable orchestration (the application runs every segment on its own queue and keeps its own data, the platform keeps the clock for timers, retries and scheduled starts), tracing of every segment as OpenTelemetry spans with enableTracing(), and evaluation results sent from evaluation.php with evaluationOutput(). Use this skill whenever the user mentions Neuron Cloud, the cloud SDK, durable or orchestrated workflows, a workflow or an agent that must survive a crash, a deploy or a wait of days, timers and retries driven by a platform, sending traces or evaluation results to Neuron Cloud, or wiring NeuronCloud into an application. Also trigger for NeuronCloud, ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, CloudException, CloudOutput, CloudListener, FakePlatform, FakeDispatcher, enableTracing, evaluationOutput, sync(), handle(), invoke(), NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. In a Laravel application, wire it with the neuron-cloud-laravel skill.
+description: Connect Neuron AI workflows and agents to Neuron Cloud with the neuron-core/cloud-sdk package — durable orchestration (the application runs every segment on its own queue and keeps its own data, the platform keeps the clock for timers, retries and scheduled starts), tracing of every segment as OpenTelemetry spans with enableTracing(), evaluation results sent from evaluation.php with evaluationOutput(), and evaluators that run on datasets kept by the platform with dataset(). Use this skill whenever the user mentions Neuron Cloud, the cloud SDK, durable or orchestrated workflows, a workflow or an agent that must survive a crash, a deploy or a wait of days, timers and retries driven by a platform, sending traces or evaluation results to Neuron Cloud, evaluating on a dataset stored on Neuron Cloud, or wiring NeuronCloud into an application. Also trigger for NeuronCloud, ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, CloudException, CloudOutput, CloudDataset, CloudListener, FakePlatform, FakeDispatcher, enableTracing, evaluationOutput, dataset(), sync(), handle(), invoke(), NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. In a Laravel application, wire it with the neuron-cloud-laravel skill.
 ---
 
 # Neuron Cloud SDK
@@ -11,7 +11,7 @@ description: Connect Neuron AI workflows and agents to Neuron Cloud with the neu
 |---|---|---|
 | **Orchestration** | A run survives a crash, a deploy and a wait of days. The platform fires its timers, retries it after a failure or a dead worker, and starts it on a schedule | The service, a queue, one endpoint, a worker, a sync at deploy |
 | **Observability** | Every segment the SDK executes is sent as one OpenTelemetry trace: nodes, inferences, tool calls, retrievals | One call, `enableTracing()`, on the service of the orchestration |
-| **Evaluation output** | The results of `vendor/bin/neuron evaluation` reach the platform | One entry in `evaluation.php`. It needs the API key and nothing else |
+| **Evaluations** | The results of `vendor/bin/neuron evaluation` reach the platform, and an evaluator can run on a dataset the platform keeps | An output in `evaluation.php`, and `dataset()` in an evaluator built with the service. Both need the API key and nothing else |
 
 The workflow itself stays ordinary Neuron code that knows nothing about the SDK: write it with **neuron-workflow** and **neuron-agent**. This skill is the plain PHP wiring. **In a Laravel application use the neuron-cloud-laravel skill**: its package builds the service, the queue jobs, the endpoint and the deploy command. Any other framework is wired as below, with the service in its container and its own queue behind the dispatcher.
 
@@ -270,12 +270,76 @@ return [
 
 - **`evaluationOutput()` returns a `CloudOutput`**, built with the API key, the platform URL and the HTTP client of the service it comes from.
 - **Only the API key is needed**: no store, no dispatcher, no registered definition. Build a `NeuronCloud` here, or require the bootstrap file when its other dependencies are available where evaluations run.
-- **Guard the key.** A `NeuronCloud` built from a missing key throws when `evaluation.php` is read, and the run ends with no result.
+- **Guard the key.** Without it, `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` throws a `TypeError` in an `evaluation.php` that declares `strict_types`, and the run ends with no result. Without `strict_types` it builds a service with an empty key, and the platform refuses every request.
 - **One message per evaluator** is sent when all evaluators are done: its class, its summary, and for every dataset item the input, the output, the scores and the failed assertions. Inputs and outputs do leave the application: that is the point of this output.
 - **`environment`** names where the evaluation ran (`ci`, `local`, a branch), or is null.
 - **It is best effort too.** A platform that is away is logged; the other outputs still run and the exit code of the command is what the assertions decide.
 
 Evaluators, datasets, assertions and the other output drivers: **neuron-evaluation**.
+
+## Evaluation Datasets
+
+`dataset()` returns a dataset of Neuron's evaluations whose items Neuron Cloud keeps, a `CloudDataset`. An evaluator returns it from `getDataset()` in place of a `JsonDataset`, with the service it receives in its constructor:
+
+```php
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Evaluation\Assertions\StringContains;
+use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronCore\Cloud\NeuronCloud;
+
+class RefundEvaluator extends BaseEvaluator
+{
+    public function __construct(protected NeuronCloud $cloud)
+    {
+        parent::__construct();
+    }
+
+    public function getDataset(): DatasetInterface
+    {
+        return $this->cloud->dataset('refund-requests');   // the slug of the dataset on the platform
+    }
+
+    public function run(array $datasetItem): mixed
+    {
+        return SupportAgent::make()->chat(new UserMessage($datasetItem['input']['question']))->getMessage()->getContent();
+    }
+
+    public function evaluate(mixed $output, array $datasetItem): void
+    {
+        $this->assert(new StringContains($datasetItem['expected_output']['answer']), $output);
+    }
+}
+```
+
+Neuron's evaluation command builds every evaluator through the `resolver` of `evaluation.php`. Make it the application's container when it builds classes by name and holds the service, as PHP-DI does: `'resolver' => fn (string $class): object => $container->get($class)`. Without a container, `evaluation.php` builds the service and hands it over:
+
+```php
+// evaluation.php
+use App\Evaluators\RefundEvaluator;
+use NeuronAI\Evaluation\Output\ConsoleOutput;
+use NeuronCore\Cloud\NeuronCloud;
+
+$apiKey = getenv('NEURON_CLOUD_API_KEY');
+$cloud = $apiKey ? new NeuronCloud($apiKey) : null;
+
+return [
+    'output' => array_filter([ConsoleOutput::class, $cloud?->evaluationOutput(environment: 'ci')]),
+    // Builds every evaluator, and every output listed by its class name
+    'resolver' => fn (string $class): object => match ($class) {
+        RefundEvaluator::class => new RefundEvaluator($cloud ?? throw new RuntimeException('Set NEURON_CLOUD_API_KEY: RefundEvaluator runs on a dataset of Neuron Cloud.')),
+        default => new $class(),
+    },
+];
+```
+
+- **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there. Only the active items of the dataset are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`.
+- **Only the API key is needed**: no store, no dispatcher, no registered definition.
+- **The items are read once per evaluator**, when Neuron's runner loads the dataset: after `setUp()`, before the first item runs, in the process of the command. `--concurrency` forks after that, and the children never call the platform. `dataset()` itself reads nothing.
+- **A dataset that cannot be read stops its evaluator.** An unknown slug, a refused key, no answer within 15 seconds, or an answer that is not a dataset makes `load()` throw a `CloudException`. The command reports that evaluator as one that could not run, runs the others and exits with 1. A missing key stops it the same way, when it is built: that is what the `throw` in the resolver is for.
+- **An empty dataset runs nothing**, and nothing fails.
+- **`--cache` keys an item by its content**: an item changed on the platform runs again, an unchanged one is served from the cache.
+- **Never build `CloudDataset` with `new`**: its constructor takes a class internal to the SDK.
 
 ## Testing
 
@@ -326,7 +390,9 @@ $queue->runAll($cloud);                    // ...which a worker then executes
 - Iterating `events()` without `valid()` first → a refusal arrives as an exception in the middle of a response.
 - `enableTracing()` with default arguments on sensitive data → prompts and tool results reach the platform. Pass `captureContent: false`; exception messages are sent either way.
 - `enableTracing()` called after `$cloud->workflow()` → that workflow object was prepared without tracing. Call it in the bootstrap file.
-- `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` unguarded in `evaluation.php` → a `TypeError` on every machine without the key, and no result. List the output only when the key is set.
+- `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` unguarded in `evaluation.php` → on a machine without the key, a `TypeError` and no result where the file declares `strict_types`, and a service whose every request is refused where it does not. Build the service only when the key is set.
+- An evaluator that takes `NeuronCloud` in its constructor and no `resolver` in `evaluation.php` → "requires constructor arguments: build it with a resolver". Give it the service through the resolver.
+- An evaluator that catches the `CloudException` of its dataset and returns an empty list → it runs nothing, and the command passes. Let it throw.
 
 ## Related
 

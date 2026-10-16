@@ -29,7 +29,7 @@ Every JSON example in this document is a message that the real SDK produced, or 
 10. [Durations and limits](#10-durations-and-limits)
 11. [What is not settled](#11-what-is-not-settled)
 12. [How to check an implementation](#12-how-to-check-an-implementation)
-13. [Traces and evaluation results](#13-traces-and-evaluation-results)
+13. [Traces, evaluation results and datasets](#13-traces-evaluation-results-and-datasets)
 
 [Glossary](#glossary)
 
@@ -85,7 +85,7 @@ One more value can cross: a label that code outside the SDK stored with a run re
 
 The platform keeps nothing else of what the application sends (section 7.2).
 
-The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. Section 13 describes them.
+The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. It can also read a dataset the platform keeps, which sends nothing but the name of the dataset. Section 13 describes all three.
 
 ### 1.4 What protocol 1 covers
 
@@ -113,7 +113,7 @@ Protocol 1 does not cover the following. The names in the right column are reser
 | A marker "do not retry this failure" | The report field `retryable` |
 | A switch per definition "the platform may start this" | The manifest field `platformStart` |
 | Listing runs, child workflows, a pull transport | Nothing |
-| Traces and evaluation results | Not messages of protocol 1, but the SDK sends them when the application turns them on: section 13 |
+| Traces, evaluation results and datasets | Not messages of protocol 1, but the SDK sends them when the application turns them on: section 13 |
 
 In protocol 1 the application delivers events and answers to its own runs, in its own code. The platform never does.
 
@@ -443,6 +443,7 @@ A person starts and ends a rotation. **OPERATOR ACTION.** The protocol requires 
 | The SDK | The answer to a sync | 15 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to a trace (section 13) | 3 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to the results of an evaluation (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
+| The SDK | The answer to the read of a dataset (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
 | The platform | The answer of the endpoint to any message, a `ping` included | 10 seconds | SETTING |
 
 The platform answers a sync only after it has pinged the endpoint (section 5.1). The time that it allows that ping and the rest of its work must fit in the 15 seconds that the SDK waits: this bounds the setting.
@@ -2967,11 +2968,11 @@ The five `Simulator/` classes use no application: the test plays the application
 
 ---
 
-## 13. Traces and evaluation results
+## 13. Traces, evaluation results and datasets
 
-Two more requests can reach the platform. Neither is a message of protocol 1, and no rule of section 7 depends on either: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths.
+Three more requests can reach the platform. None is a message of protocol 1, and no rule of section 7 depends on any of them: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths. Two hand the platform what the application sends: a trace and the results of an evaluation. The third reads a dataset the platform keeps (13.5).
 
-### 13.1 What they have in common
+### 13.1 What a trace and the results of an evaluation have in common
 
 | | |
 |---|---|
@@ -3105,6 +3106,28 @@ Both carry the customer's data. A trace holds the message and the stack trace of
 - **AUTOMATION.** The platform authenticates both paths as it does a notice, and answers `401` with `unauthorized` to a key it does not accept.
 - **AUTOMATION.** It attaches a trace to the run its `neuron.run.id` names, in the environment of the API key, and shows it with that run. A trace whose run the platform does not know is kept on its own or dropped: it never creates a run, never opens a closed one and never changes a status.
 - **SETTING.** How long traces and evaluation results are kept, who may read them, and how large a request may be are the platform's own. A request the platform finds too large is answered with a `4xx` and is lost: the SDK does not split or retry it.
+
+### 13.5 A dataset: `GET /v1/datasets/{slug}`
+
+An evaluator of the application can run on a dataset that the platform keeps, instead of a file of the application. The SDK reads the dataset once per evaluator, when the evaluation runner loads it, on a developer's machine or in CI. Like the results of an evaluation, it has nothing to do with a workflow run.
+
+| | |
+|---|---|
+| Who turns it on | The developer, by returning the SDK's dataset from an evaluator. **SETTING**, set in the application |
+| Request | `GET {platformUrl}/v1/datasets/{slug}`, with `Authorization: Bearer <API key>`, the `User-Agent` of section 3.2 and no body. `{slug}` is the name the platform gives the dataset, percent-encoded as one segment of the path |
+| Answer | A `2xx` whose body is a JSON object with `items`: a list of JSON objects, one per item. The SDK hands each item to the evaluator as it is, in the order of the list, and ignores every other field. An empty list is a dataset with no item. **FIXED BY THE PROTOCOL** |
+| A refusal | Any other answer, and no answer within the timeout of section 3.8. The SDK sends the request once: the evaluator does not run, and the developer sees why. `401` and `403` are `unauthorized`, a `4xx` that carries `invalid_request` or `unsupported_protocol` is that code, and anything else is `report_undelivered`, a `404` included |
+
+```json
+{"slug": "refund-requests", "name": "Refund requests", "description": null,
+ "items": [
+   {"input": {"question": "Refund order 123."}, "expected_output": {"answer": "refunded"}},
+   {"input": "Where is my order?", "expected_output": null}]}
+```
+
+- **AUTOMATION.** The platform authenticates the path as it does a notice, and looks the slug up among the datasets of the environment of the API key. It answers `404` to a slug it does not know there.
+- **What an item holds is the platform's.** The evaluator reads the item and the SDK reads nothing of it. The platform sends the `input` and the `expected_output` an operator stored, and only the items that are active.
+- **What crosses.** The request carries nothing but the slug. The answer brings data the customer stored on the platform into the application. It goes back to the platform only when the developer also lists the output of 13.3, as the `input` of each result.
 
 ---
 

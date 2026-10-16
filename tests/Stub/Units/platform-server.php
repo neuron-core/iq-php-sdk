@@ -8,9 +8,10 @@ declare(strict_types=1);
  *
  *   /moved/...   is answered 307, to the same path without that prefix
  *   /silent/...  is never answered
+ *   GET /v1/datasets/<slug> is answered with <slug>.json of the directory NEURON_CLOUD_DATASETS names, or 404
  *   anything else is recorded
  *
- * Usage: NEURON_CLOUD_REQUEST_LOG=<file> php -S 127.0.0.1:<port> platform-server.php
+ * Usage: NEURON_CLOUD_REQUEST_LOG=<file> NEURON_CLOUD_DATASETS=<directory> php -S 127.0.0.1:<port> platform-server.php
  */
 
 $path = (string) \parse_url((string) $_SERVER['REQUEST_URI'], \PHP_URL_PATH);
@@ -40,4 +41,21 @@ if (\str_starts_with($path, '/silent/')) {
 }
 
 \header('Content-Type: application/json');
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && \str_starts_with($path, '/v1/datasets/')) {
+    $dataset = \getenv('NEURON_CLOUD_DATASETS') . '/' . \basename(\rawurldecode(\substr($path, \strlen('/v1/datasets/')))) . '.json';
+
+    if (!\is_file($dataset)) {
+        // What the platform answers for a slug it does not know.
+        \http_response_code(404);
+        echo '{"message":"Not found."}';
+
+        return;
+    }
+
+    echo \file_get_contents($dataset);
+
+    return;
+}
+
 echo '{"recorded":true}';

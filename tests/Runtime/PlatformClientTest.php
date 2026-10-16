@@ -46,6 +46,11 @@ class PlatformClientTest extends TestCase
 
     protected const EVALUATION = ['run_id' => 'eval_1', 'name' => 'App\\Evaluators\\RefundEvaluator', 'results' => []];
 
+    /** What the platform answers for a dataset: the items, under what describes the dataset. */
+    protected const DATASET = '{"slug":"refund-requests","name":"Refund requests","description":null,"items":['
+        . '{"input":{"question":"Refund order 123."},"expected_output":{"answer":"refunded"}},'
+        . '{"input":"Where is my order?","expected_output":null}]}';
+
     protected const ANNOUNCEMENT = [
         'protocol' => 1,
         'invocationId' => 'inv_01JB7K4T9QW2',
@@ -327,6 +332,99 @@ class PlatformClientTest extends TestCase
         self::assertSame([Code::ReportUndelivered, $failure], [$refused?->reason, $refused?->getPrevious()]);
     }
 
+    // ----------------------------------------------------------------
+    // Datasets: read, and the answer must be one
+    // ----------------------------------------------------------------
+
+    #[DataProvider('platformUrls')]
+    public function test_a_dataset_is_read_with_a_get_on_the_datasets_path_of_the_platform_url(string $platformUrl, string $expected): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, self::DATASET));
+
+        (new PlatformClient($http, $platformUrl, self::API_KEY))->dataset('refund-requests');
+
+        self::assertSame(HttpMethod::GET, self::sent($http)->method);
+        self::assertSame($expected . '/v1/datasets/refund-requests', self::sent($http)->uri);
+    }
+
+    public function test_a_dataset_is_read_with_the_api_key_the_name_of_the_sdk_no_body_and_fifteen_seconds(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, self::DATASET));
+
+        self::client($http)->dataset('refund-requests');
+
+        self::assertSame(
+            [['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'neuron-cloud-php/1.0.0'], null, 15.0],
+            [array_intersect_key(self::sent($http)->headers, ['Authorization' => true, 'User-Agent' => true]), self::sent($http)->body, self::sent($http)->timeout],
+        );
+    }
+
+    public function test_the_slug_of_a_dataset_is_encoded_into_one_segment_of_the_path(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, self::DATASET));
+
+        self::client($http)->dataset("../reports?all=1#\r\n");
+
+        self::assertSame(self::PLATFORM_URL . '/v1/datasets/..%2Freports%3Fall%3D1%23%0D%0A', self::sent($http)->uri);
+    }
+
+    public function test_a_dataset_is_its_items_as_the_platform_holds_them_and_nothing_else(): void
+    {
+        $items = self::client(new ScriptedHttpClient(new HttpResponse(200, self::DATASET)))->dataset('refund-requests');
+
+        self::assertSame(
+            [
+                ['input' => ['question' => 'Refund order 123.'], 'expected_output' => ['answer' => 'refunded']],
+                ['input' => 'Where is my order?', 'expected_output' => null],
+            ],
+            $items,
+        );
+    }
+
+    public function test_a_dataset_with_no_items_is_an_empty_list(): void
+    {
+        $items = self::client(new ScriptedHttpClient(new HttpResponse(200, '{"slug":"empty","items":[]}')))->dataset('empty');
+
+        self::assertSame([], $items);
+    }
+
+    public function test_a_slug_the_platform_does_not_know_counts_as_undelivered_and_says_so(): void
+    {
+        foreach ([true, false] as $thrown) {
+            $http = new ScriptedHttpClient(new HttpResponse(404, '{"message":"Not found."}'), $thrown);
+
+            $refused = self::thrownBy(static fn (): array => self::client($http)->dataset('refund-requets'));
+
+            self::assertSame(Code::ReportUndelivered, $refused?->reason);
+            self::assertStringContainsString("no dataset with the slug 'refund-requets'", $refused->getMessage());
+        }
+    }
+
+    #[DataProvider('unauthorizedAnswers')]
+    public function test_a_dataset_refused_with_a_401_or_a_403_is_unauthorized(HttpResponse $answer, bool $thrown): void
+    {
+        $http = new ScriptedHttpClient($answer, $thrown);
+
+        self::assertSame(Code::Unauthorized, self::reasonThrownBy(static fn (): array => self::client($http)->dataset('refund-requests')));
+    }
+
+    #[DataProvider('answersThatAreNoDataset')]
+    public function test_an_answer_that_is_no_dataset_counts_as_undelivered(HttpResponse $answer, bool $thrown): void
+    {
+        $http = new ScriptedHttpClient($answer, $thrown);
+
+        self::assertSame(Code::ReportUndelivered, self::reasonThrownBy(static fn (): array => self::client($http)->dataset('refund-requests')));
+    }
+
+    public function test_a_dataset_that_gets_no_answer_counts_as_undelivered_and_keeps_what_the_client_threw(): void
+    {
+        $unreachable = HttpException::networkError(HttpRequest::get(self::PLATFORM_URL), 'Connection refused');
+
+        $refused = self::thrownBy(static fn (): array => self::client(new ScriptedHttpClient($unreachable))->dataset('refund-requests'));
+
+        self::assertSame([Code::ReportUndelivered, $unreachable], [$refused?->reason, $refused?->getPrevious()]);
+    }
+
     /**
      * @return array<string, array{HttpResponse}>
      */
@@ -357,6 +455,37 @@ class PlatformClientTest extends TestCase
         foreach ($answers as $label => [$answer, $reason]) {
             yield "{$label}, thrown by the client" => [$answer, true, $reason];
             yield "{$label}, returned by the client" => [$answer, false, $reason];
+        }
+    }
+
+    /**
+     * @return iterable<string, array{HttpResponse, bool}>
+     */
+    public static function answersThatAreNoDataset(): iterable
+    {
+        yield from self::inBothShapes([
+            'a 400 with no code' => [new HttpResponse(400, '{}')],
+            'a 500' => [new HttpResponse(500, '{"code":"internal_error"}')],
+            'a 503' => [new HttpResponse(503, '')],
+        ]);
+
+        // A client only ever returns these: none of Neuron's throws an answer below 400.
+        $returned = [
+            'a 200 with no body' => new HttpResponse(200, ''),
+            'a 200 with an empty object' => new HttpResponse(200, '{}'),
+            'a 200 that is not JSON' => new HttpResponse(200, '<html><body>OK</body></html>'),
+            'a 200 that is a list of items, not a dataset' => new HttpResponse(200, '[{"input":"a"}]'),
+            'items that are an object' => new HttpResponse(200, '{"items":{"first":{"input":"a"}}}'),
+            'items with a key of their own' => new HttpResponse(200, '{"items":{"1":{"input":"a"}}}'),
+            'an item that is a string' => new HttpResponse(200, '{"items":[{"input":"a"},"b"]}'),
+            'an item that is null' => new HttpResponse(200, '{"items":[null]}'),
+            'items that are null' => new HttpResponse(200, '{"items":null}'),
+            'a 204' => new HttpResponse(204, ''),
+            'a 302 that was not followed' => new HttpResponse(302, '', ['Location' => 'https://elsewhere.test/v1/datasets/refund-requests']),
+        ];
+
+        foreach ($returned as $name => $answer) {
+            yield $name => [$answer, false];
         }
     }
 

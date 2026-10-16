@@ -10,6 +10,7 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
+use NeuronCore\Cloud\Evaluation\CloudDataset;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
 use NeuronCore\Cloud\Observability\CloudListener;
 use NeuronCore\Cloud\Observability\TraceExporter;
@@ -141,6 +142,19 @@ class NeuronCloud
     public function evaluationOutput(?string $environment = null): CloudOutput
     {
         return new CloudOutput($this->platform(), $environment);
+    }
+
+    /**
+     * A dataset the platform keeps, for the getDataset() of an evaluator: an
+     * evaluator that receives this service from the application's container
+     * returns it there. Its items are read when Neuron's runner loads the
+     * dataset, not here. It needs the API key only.
+     *
+     * @param string $slug what the platform names the dataset by
+     */
+    public function dataset(string $slug): CloudDataset
+    {
+        return new CloudDataset($this->platform(), $slug);
     }
 
     /**

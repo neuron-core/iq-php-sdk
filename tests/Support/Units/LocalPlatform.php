@@ -12,15 +12,21 @@ use function fclose;
 use function file;
 use function fsockopen;
 use function is_resource;
+use function file_put_contents;
+use function glob;
 use function json_decode;
+use function json_encode;
+use function mkdir;
 use function parse_url;
 use function proc_close;
 use function proc_open;
 use function proc_terminate;
+use function rmdir;
 use function stream_socket_get_name;
 use function stream_socket_server;
 use function sys_get_temp_dir;
 use function tempnam;
+use function uniqid;
 use function unlink;
 use function usleep;
 
@@ -32,7 +38,7 @@ use const PHP_URL_PORT;
 /**
  * A platform on PHP's built-in server, for what only a real HTTP exchange
  * proves: what the SDK's default client sends, and what it does with the
- * answer. Call stop() in tearDown().
+ * answer. It serves the datasets it is given. Call stop() in tearDown().
  */
 final class LocalPlatform
 {
@@ -54,10 +60,15 @@ final class LocalPlatform
 
     protected string $requestLog;
 
+    /** Where the datasets are kept, one file for each slug. */
+    protected string $datasets;
+
     public function __construct()
     {
         $this->port = self::freePort();
         $this->requestLog = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-');
+        $this->datasets = sys_get_temp_dir() . '/' . uniqid('neuron-cloud-datasets-');
+        mkdir($this->datasets);
 
         $process = proc_open(
             [PHP_BINARY, '-S', "127.0.0.1:{$this->port}", dirname(__DIR__, 2) . self::ROUTER],
@@ -65,7 +76,7 @@ final class LocalPlatform
             [0 => ['pipe', 'r'], 2 => ['pipe', 'w']],
             $this->pipes,
             null,
-            ['NEURON_CLOUD_REQUEST_LOG' => $this->requestLog],
+            ['NEURON_CLOUD_REQUEST_LOG' => $this->requestLog, 'NEURON_CLOUD_DATASETS' => $this->datasets],
         );
 
         if (!is_resource($process)) {
@@ -82,6 +93,19 @@ final class LocalPlatform
     public function url(string $prefix = ''): string
     {
         return "http://127.0.0.1:{$this->port}{$prefix}";
+    }
+
+    /**
+     * Keep a dataset under a slug, and answer it as the platform does.
+     *
+     * @param array<int, array<string, mixed>> $items
+     */
+    public function keepDataset(string $slug, array $items): void
+    {
+        file_put_contents(
+            "{$this->datasets}/{$slug}.json",
+            json_encode(['slug' => $slug, 'name' => $slug, 'description' => null, 'items' => $items], JSON_THROW_ON_ERROR),
+        );
     }
 
     /**
@@ -106,6 +130,12 @@ final class LocalPlatform
 
         proc_close($this->process);
         unlink($this->requestLog);
+
+        foreach (glob("{$this->datasets}/*.json") ?: [] as $dataset) {
+            unlink($dataset);
+        }
+
+        rmdir($this->datasets);
     }
 
     /**

@@ -1,11 +1,11 @@
 ---
 name: neuron-cloud-laravel
-description: Connect the Neuron AI agents and workflows of a Laravel application to Neuron Cloud with the neuron-core/neuron-cloud-laravel package — the orchestrator (config/neuron-cloud.php definitions, the PersistenceInterface binding, two queues and their workers, the POST /neuron-cloud endpoint, neuron-cloud:sync at deploy, controllers that start, stream and answer runs through NeuronCloud, the InvocationSettled event), tracing with CloudListener through the NEURON_CLOUD_TRACING setting of the package, and evaluation results with the CloudOutput class the container builds for evaluation.php. Use this skill whenever the host application is Laravel and the user mentions Neuron Cloud, durable or orchestrated agents and workflows, platform timers and retries, or sending traces or evaluation results to Neuron Cloud. Also trigger for neuron-cloud:sync, RunInvocation, ObserveRun, InvocationSettled, config/neuron-cloud.php, NEURON_CLOUD_API_KEY, NEURON_CLOUD_SIGNING_KEY, NEURON_CLOUD_TRACING, NEURON_CLOUD_EVALUATION_ENVIRONMENT, the neuron-cloud and neuron-cloud-observe queues, or moving a Neuron Laravel integration onto Neuron Cloud.
+description: Connect the Neuron AI agents and workflows of a Laravel application to Neuron Cloud with the neuron-core/neuron-cloud-laravel package — the orchestrator (config/neuron-cloud.php definitions, the PersistenceInterface binding, two queues and their workers, the POST /neuron-cloud endpoint, neuron-cloud:sync at deploy, controllers that start, stream and answer runs through NeuronCloud, the InvocationSettled event), tracing with CloudListener through the NEURON_CLOUD_TRACING setting of the package, evaluation results with the CloudOutput class the container builds for evaluation.php, and evaluators that run on datasets kept by the platform through the NeuronCloud the container injects. Use this skill whenever the host application is Laravel and the user mentions Neuron Cloud, durable or orchestrated agents and workflows, platform timers and retries, sending traces or evaluation results to Neuron Cloud, or evaluating on a dataset stored on Neuron Cloud. Also trigger for neuron-cloud:sync, RunInvocation, ObserveRun, InvocationSettled, config/neuron-cloud.php, NEURON_CLOUD_API_KEY, NEURON_CLOUD_SIGNING_KEY, NEURON_CLOUD_TRACING, NEURON_CLOUD_EVALUATION_ENVIRONMENT, dataset(), CloudDataset, the neuron-cloud and neuron-cloud-observe queues, or moving a Neuron Laravel integration onto Neuron Cloud.
 ---
 
 # Neuron Cloud in Laravel
 
-`neuron-core/neuron-cloud-laravel` is the Laravel bridge of the Neuron Cloud SDK. It builds the SDK's `NeuronCloud` from a config file, puts the SDK's messages on Laravel's queue, registers the one URL the platform calls and adds the command a deploy runs. Your controllers start and answer runs through `NeuronCloud` itself. Tracing is one environment variable, and the evaluation output one line of `evaluation.php`.
+`neuron-core/neuron-cloud-laravel` is the Laravel bridge of the Neuron Cloud SDK. It builds the SDK's `NeuronCloud` from a config file, puts the SDK's messages on Laravel's queue, registers the one URL the platform calls and adds the command a deploy runs. Your controllers start and answer runs through `NeuronCloud` itself. Tracing is one environment variable, the evaluation output one line of `evaluation.php`, and a dataset of the platform one line of an evaluator.
 
 It stands on two other skills. **neuron-laravel-integration** lays the Laravel foundations of Neuron: the `App\Neuron` layout, `NeuronServiceProvider`, the tables, agents built by the container, the error mapping, `neuron:evaluate`. **neuron-cloud** says what the SDK is and the rules every run obeys. Read both before wiring this one: this skill only adds what is Laravel-shaped about the cloud.
 
@@ -25,6 +25,7 @@ It stands on two other skills. **neuron-laravel-integration** lays the Laravel f
 | The outcome of a queued segment | The `InvocationSettled` event | Where you close a browser stream or tell a user |
 | Traces (`CloudListener`) | The `tracing` keys of `config/neuron-cloud.php` | Off until `NEURON_CLOUD_TRACING=true`. The package subscribes the listener: you never build it |
 | Evaluation results (`CloudOutput`) | A container binding of the package | Listed by its class in `evaluation.php` |
+| Evaluation datasets (`CloudDataset`) | `$this->cloud->dataset()` in the `getDataset()` of an evaluator | The container injects `NeuronCloud` in the evaluator: nothing to bind |
 
 Rules that decide correctness, beside those of **neuron-cloud**:
 
@@ -334,6 +335,67 @@ NEURON_CLOUD_EVALUATION_ENVIRONMENT=ci   # where the evaluation ran: ci, local, 
 - **Evaluators keep calling the agent directly**, on in-memory stores, as the guide builds them. Never evaluate through `$cloud->workflow()`: every item would be announced to the platform as a real run.
 - **Never build `CloudOutput` with `new`**: its constructor takes a class internal to the SDK.
 
+## Evaluation Datasets
+
+An evaluator runs on a dataset kept on the platform when its `getDataset()` returns `$this->cloud->dataset($slug)`. `neuron:evaluate` builds evaluators through the container, so the evaluator takes the package's `NeuronCloud` in its constructor, beside the agent. It is the evaluator of **neuron-laravel-integration** ("Evaluation") with its JSON file replaced:
+
+```php
+namespace App\Neuron\Evaluators;
+
+use App\Neuron\Agents\SupportAgent;
+use App\Neuron\Tools\LookupOrder;
+use App\Neuron\Tools\RefundOrder;
+use Illuminate\Support\Str;
+use NeuronAI\Chat\History\InMemoryMessageStore;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Evaluation\Assertions\StringContains;
+use NeuronAI\Evaluation\BaseEvaluator;
+use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronAI\Workflow\Persistence\InMemoryPersistence;
+use NeuronCore\Cloud\NeuronCloud;
+
+class RefundRequestEvaluator extends BaseEvaluator
+{
+    public function __construct(protected SupportAgent $agent, protected NeuronCloud $cloud)
+    {
+        parent::__construct();
+
+        $this->agent->setMessageStore(new InMemoryMessageStore())->setPersistence(new InMemoryPersistence());
+    }
+
+    public function cacheDependencies(): array
+    {
+        return [SupportAgent::class, LookupOrder::class, RefundOrder::class];
+    }
+
+    public function getDataset(): DatasetInterface
+    {
+        return $this->cloud->dataset('refund-requests');   // the slug of the dataset on the platform
+    }
+
+    public function run(array $datasetItem): mixed
+    {
+        return $this->agent->for("user-{$datasetItem['input']['customer']}-".Str::uuid())
+            ->chat(new UserMessage($datasetItem['input']['question']))
+            ->getMessage()
+            ->getContent();
+    }
+
+    public function evaluate(mixed $output, array $datasetItem): void
+    {
+        $this->assert(new StringContains($datasetItem['expected_output']['answer']), $output);
+    }
+}
+```
+
+- **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there; only the active items are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`. The customers and orders an item names must exist in the evaluation database, as for a JSON dataset.
+- **Nothing to bind.** The container injects the package's singleton, built from `config/neuron-cloud.php`: its API key, its platform URL and, in tests, the `neuron-cloud.http` binding. Never build a `NeuronCloud` in an evaluator.
+- **The key goes in `.env.evaluation`**, as for the output. Without it the container cannot build the evaluator: `neuron:evaluate` reports it as an evaluator that could not run, with the message that names `NEURON_CLOUD_API_KEY`, runs the others and exits 1. No guard is needed, and none would help: without the platform the evaluator has nothing to run on.
+- **The items are read once per evaluator**, by the command's own process, before `--concurrency` forks: the child hooks of the command need nothing more.
+- **A dataset that cannot be read stops its evaluator** in the same way: an unknown slug, a refused key, no answer within 15 seconds. An empty dataset runs nothing, and nothing fails.
+- **With `vendor/bin/neuron evaluation`**, the `resolver` entry of the guide's `evaluation.php` builds the evaluator through the container too.
+- **`--cache` keys an item by its content**: an item changed on the platform runs again. Keep `cacheDependencies()` for the files `run()` depends on.
+
 ## Testing
 
 Bind the SDK's `FakePlatform` as `neuron-cloud.http` and give the application its signing key, before `NeuronCloud` is first resolved:
@@ -377,6 +439,7 @@ $platform->wake($cloud, 'order:123');                         // the platform's 
 - `enableTracing()` or a `CloudListener` wired by hand in a provider → done twice, or done where a worker never sees it. Set `NEURON_CLOUD_TRACING`.
 - `NEURON_CLOUD_TRACING=true` with sensitive prompts and no decision about content → they reach the platform. Set `NEURON_CLOUD_TRACING_CAPTURE_CONTENT=false`; exception messages are sent either way.
 - Evaluating through `$cloud->workflow()` → the platform lists every dataset item as a run.
+- `new NeuronCloud(...)` in an evaluator → it ignores `NEURON_CLOUD_PLATFORM_URL` and the `neuron-cloud.http` binding of tests. Take the package's in the constructor.
 - `Http::fake()` to fake the platform → the real one is called. Bind `FakePlatform` as `neuron-cloud.http`.
 
 ## Related
