@@ -40,7 +40,7 @@ You wire five pieces:
 | The dispatcher | Hands a message of the SDK to your queue |
 | The endpoint | The URL the platform calls |
 | The worker | Takes one message off the queue and gives it to the SDK |
-| The sync | Publishes your workflows and the endpoint URL at the end of every deploy |
+| The sync | Publishes your workflows and the endpoint URL at the end of every deploy, or when the platform asks for it |
 
 ## 1. The service
 
@@ -63,6 +63,7 @@ return (new NeuronCloud(
 ))
     ->setPersistence(fn () => new DatabasePersistence($pdo))
     ->setDispatcher(new RedisDispatcher($redis))
+    ->setEndpointUrl('https://shop.example.com/neuron-cloud.php')
     ->register('order-fulfilment', fn () => new OrderWorkflow())
     ->register('support-agent', fn () => new SupportAgent());
 ```
@@ -148,10 +149,12 @@ At the end of every deploy, after the workers have restarted on the new code:
 // bin/sync.php
 $cloud = require __DIR__ . '/../bootstrap.php';
 
-$cloud->sync('https://shop.example.com/neuron-cloud.php');
+$cloud->sync();
 ```
 
-It publishes every registered definition and the endpoint URL. The platform must be able to reach that URL over HTTPS.
+It publishes every registered definition and the endpoint URL of `setEndpointUrl()`; a URL given to `sync()` is published instead. The platform must be able to reach that URL over HTTPS.
+
+The platform can also ask your endpoint for the same list, when someone requests a sync from its dashboard: the endpoint answers with exactly what `sync()` would post. Where `sync()` would refuse to publish (no endpoint URL set, an in-memory or file store, nothing registered), the endpoint refuses too, with `409 sync_refused`, and does not say why: run the sync from the deploy to see the reason.
 
 ## Starting and answering runs
 

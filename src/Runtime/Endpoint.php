@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Runtime;
 
+use Closure;
 use NeuronAI\Exceptions\AgentException;
 use NeuronAI\Exceptions\StaleWorkflowRunException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
@@ -29,7 +30,8 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * The signed URL the platform calls. A start and a wake are handed to the
- * queue; an inspect, an abandon and a ping are answered in the request.
+ * queue; an inspect, an abandon, a ping and a sync are answered in the
+ * request.
  *
  * @internal
  */
@@ -44,12 +46,17 @@ final class Endpoint
      */
     protected const LONGEST_BODY = 65536;
 
+    /**
+     * @param Closure(): array<string, mixed> $manifest what a sync of this deployment publishes; it throws a
+     *                                                  CloudException when this deployment cannot publish one
+     */
     public function __construct(
         protected Signature $signature,
         protected Registry $registry,
         protected WorkflowBuilder $builder,
         protected Ledger $ledger,
         protected DispatcherInterface $dispatcher,
+        protected Closure $manifest,
     ) {
     }
 
@@ -122,6 +129,10 @@ final class Endpoint
             return $this->respond(200, ['protocols' => [Protocol::VERSION]]);
         }
 
+        if ($message->verb === PlatformMessage::SYNC) {
+            return $this->sync();
+        }
+
         try {
             $definition = $this->definitionOf($message);
         } catch (CloudException $unknown) {
@@ -166,6 +177,21 @@ final class Endpoint
         }
 
         return $this->respond(202, []);
+    }
+
+    /**
+     * The body sync() would post, which the platform takes in as a sync. A deployment that sync() would refuse
+     * refuses here too, and the answer does not say why: sync() does.
+     */
+    protected function sync(): HttpResponse
+    {
+        try {
+            $manifest = ($this->manifest)();
+        } catch (CloudException) {
+            return $this->refuse(409, Code::SyncRefused);
+        }
+
+        return $this->respond(200, $manifest);
     }
 
     protected function inspect(PlatformMessage $message, Definition $definition): HttpResponse

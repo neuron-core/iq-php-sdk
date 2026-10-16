@@ -21,6 +21,7 @@ use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
+use function count;
 use function json_encode;
 use function sys_get_temp_dir;
 
@@ -50,6 +51,28 @@ class SyncTest extends TestCase
             ],
             $http->received()[0]->body,
         );
+    }
+
+    public function test_the_manifest_is_the_body_it_publishes_and_building_it_sends_nothing(): void
+    {
+        $http = self::answering(['protocol' => 1, 'modified' => true, 'versions' => [], 'stranded' => []]);
+        $sync = self::sync($http);
+
+        $manifest = $sync->manifest(self::ENDPOINT);
+        $sentWhileBuilt = count($http->received());
+        $sync->publish(self::ENDPOINT);
+
+        self::assertSame([0, $manifest], [$sentWhileBuilt, $http->received()[0]->body]);
+    }
+
+    #[DataProvider('storesOfOneProcess')]
+    public function test_the_manifest_is_refused_for_a_store_whose_writes_do_not_hold_across_processes(PersistenceInterface $store): void
+    {
+        $http = self::answering(['protocol' => 1, 'modified' => true, 'versions' => [], 'stranded' => []]);
+
+        $reason = self::reasonThrownBy(static fn (): array => self::sync($http, $store)->manifest(self::ENDPOINT));
+
+        self::assertSame(Code::UnsuitablePersistence, $reason);
     }
 
     #[DataProvider('whetherAnythingChanged')]

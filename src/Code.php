@@ -19,6 +19,7 @@ enum Code: string
     case DispatchFailed = 'dispatch_failed';
     case Unavailable = 'unavailable';
     case AbandonRefused = 'abandon_refused';
+    case SyncRefused = 'sync_refused';
     case InternalError = 'internal_error';
 
     // Reports: rejected. A wake carries wrong_definition only and a start never does; submitInputs(), signal()

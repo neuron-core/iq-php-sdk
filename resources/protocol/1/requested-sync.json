@@ -1,0 +1,15 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "title": "Requested sync",
+    "description": "POST {endpoint}. The platform asks for the manifest a sync publishes. The 200 answer is the body of a sync, which sync.json describes, and the platform takes it in as a sync. An SDK that does not know the verb answers 400 invalid_request; one that could not publish a sync answers 409 sync_refused.",
+    "type": "object",
+    "required": ["protocol", "verb"],
+    "properties": {
+        "protocol": {
+            "$ref": "definitions.json#/$defs/protocol"
+        },
+        "verb": {
+            "const": "sync"
+        }
+    }
+}

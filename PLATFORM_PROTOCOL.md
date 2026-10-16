@@ -89,7 +89,7 @@ The table holds for the messages of protocol 1. An application can turn on two m
 
 ### 1.4 What protocol 1 covers
 
-Protocol 1 covers eight messages.
+Protocol 1 covers eight messages, and one extension that either side may lack: the requested sync.
 
 | Message | From | To | Kind |
 |---|---|---|---|
@@ -101,6 +101,7 @@ Protocol 1 covers eight messages.
 | `abandon` | Platform | Application | Order, sent only when a person asks |
 | `inspect` | Platform | Application | Question |
 | `ping` | Platform | Application | Question |
+| `sync`, requested | Platform | Application | Extension: the request for the list of definitions and the endpoint URL, answered with the body of a sync (section 5.11) |
 
 Protocol 1 does not cover the following. The names in the right column are reserved: the platform must not use them for anything else.
 
@@ -308,7 +309,7 @@ Every message is an HTTP `POST` with a JSON object as its body. Every answer is 
 | Direction | URL | Authenticated by |
 |---|---|---|
 | Application to platform | `{platformUrl}/v1/sync`, `{platformUrl}/v1/announcements`, `{platformUrl}/v1/reports` | The API key, as a bearer token |
-| Platform to application | The endpoint URL that the last sync published. One URL receives all five messages of the platform | A signature made with the signing key |
+| Platform to application | The endpoint URL that the last sync published. One URL receives all five messages of the platform, and the requested sync of section 5.11 | A signature made with the signing key |
 
 `{platformUrl}` is `https://cloud.neuron-ai.dev` unless the application is configured with another one. The SDK removes a trailing slash from it and appends the path.
 
@@ -351,7 +352,7 @@ The endpoint deals with a request in a fixed order, and that order explains whic
 3. The body is longer than 65,536 bytes: `400`.
 4. The body is not a JSON object, or its `protocol` is not 1: `400`.
 5. The value of `verb` is unknown, or a field of that message is missing or malformed: `400`.
-6. The endpoint answers a `ping` here.
+6. The endpoint answers a `ping` here, and a requested sync (section 5.11).
 7. This deployment does not have the definition, or for a `start` and a `wake` the version in the run ID: `404`.
 8. A `start` or a `wake` goes to the application's queue: `202`, or `503` when the queue does not take it. An `inspect` or an `abandon` is dealt with in the request.
 
@@ -360,7 +361,7 @@ The endpoint deals with a request in a fixed order, and that order explains whic
 The platform signs every request with the rule of [Standard Webhooks](https://www.standardwebhooks.com/). **FIXED BY THE PROTOCOL.**
 
 1. **Take the key bytes.** A signing key is the text `whsec_` followed by the base64 of the key bytes. Remove `whsec_` and decode the rest from base64. The result is the key.
-2. **Choose the message ID.** For a `start` and a `wake` it is the `invocationId` of the order, which stays the same every time the platform sends that order again. For an `inspect`, an `abandon` and a `ping` it is any ID the platform mints for that request. Reference simulator: `msg_` followed by 24 hexadecimal digits.
+2. **Choose the message ID.** For a `start` and a `wake` it is the `invocationId` of the order, which stays the same every time the platform sends that order again. For an `inspect`, an `abandon`, a `ping` and a requested sync it is any ID the platform mints for that request. Reference simulator: `msg_` followed by 24 hexadecimal digits.
 3. **Take the timestamp.** The current Unix time in seconds, written in decimal digits with no leading zero. Take a new timestamp for every request, also when the platform sends the same order again.
 4. **Serialize the body once.** The bytes that the platform signs are the bytes that it sends. Do not serialize the body a second time for the request.
 5. **Build the signed text**: the message ID, a dot, the timestamp, a dot, the body. In bytes: `{id}.{timestamp}.{body}`.
@@ -422,7 +423,7 @@ Within the window, anyone who recorded a signed request can send it again. That 
 | Key | Who holds it | What its holder can do |
 |---|---|---|
 | API key | The application and the platform | Publish a sync, which replaces the manifest and the endpoint URL. Send announcements and reports |
-| Signing key | The platform and the application's endpoint | Send the five messages of the platform: start any registered definition that can start without input, on any workflow ID; wake a run, which fires a timer that is due or forces a retry of a failed or dead run; abandon a run; inspect any workflow ID |
+| Signing key | The platform and the application's endpoint | Send the five messages of the platform: start any registered definition that can start without input, on any workflow ID; wake a run, which fires a timer that is due or forces a retry of a failed or dead run; abandon a run; inspect any workflow ID; read the list of definitions and the endpoint URL that a sync publishes (section 5.11) |
 
 The signing key alone can start runs, and the platform cannot stop a start that somebody else signed. It can only notice it afterwards: the application announces and reports a segment whose origin is `platform` under an invocation ID that the platform never sent. The platform alerts on that (section 7.16). On a run that has a tag (section 2.5), the holder of the key can act only through the definition that the tag names. The platform must store signing keys as it stores its most sensitive secrets.
 
@@ -454,7 +455,7 @@ These rules hold for every body, in both directions. **FIXED BY THE PROTOCOL.** 
 
 - **A body is one JSON object**, in UTF-8. The endpoint answers `400 invalid_request` to a list, a scalar, text that is not JSON, text that is not UTF-8, a string with an unpaired surrogate escape, and values nested 512 levels deep or more, the body counted as the first level.
 - **No message to the endpoint is longer than 65,536 bytes.** The endpoint answers `400 invalid_request` to a longer one and does not decode it. The largest valid message of protocol 1 is under 4 KB.
-- **Every request carries `"protocol": 1`.** The exceptions are the sync, which lists `protocols`, and the body of a `ping` answer, which does too. No answer carries `protocol`, except the answer to a sync.
+- **Every request carries `"protocol": 1`.** The exceptions are the sync, which lists `protocols`, and the bodies of a `ping` answer and of the answer to a requested sync, which do too. No answer carries `protocol`, except the answer to a sync.
 - **Instants are Unix seconds**, as whole numbers.
 - **An integer is written without a fraction and without an exponent.** `1.0` and `1e0` are malformed. The endpoint answers `400 invalid_request` to such a number in any field, and `400 unsupported_protocol` when the field is `protocol`. In the answer to a sync such a number makes the answer unusable for the SDK. A JSON Schema cannot express this rule, so a validator does not catch it.
 - **A receiver ignores the fields it does not know.** The platform must also not store them (section 7.2). The rule is about fields: what the platform does with a value that it does not know, such as a new outcome, is not settled (U3).
@@ -1021,20 +1022,21 @@ No answer of the endpoint carries `protocol`. Every answer is a JSON object sent
 | Status | `code` | Answers | Meaning | What the platform does |
 |---|---|---|---|---|
 | `202` | None: the body is `{}` | `start`, `wake` | Verified, valid, queued. Nothing has run | Assumes nothing yet |
-| `200` | None | `inspect`, `abandon`, `ping` | The question was answered, or the abandon is done | Reads the body |
-| `400` | `invalid_request` | All | The message is malformed, longer than 65,536 bytes, or has an unknown `verb`. For an `inspect` and an `abandon` also: the run that holds the workflow ID has a tag that is not the definition named (section 5.6) | Never sends the message again. Alerts |
+| `200` | None | `inspect`, `abandon`, `ping`, requested `sync` | The question was answered, or the abandon is done | Reads the body |
+| `400` | `invalid_request` | All | The message is malformed, longer than 65,536 bytes, or has an unknown `verb`. For an `inspect` and an `abandon` also: the run that holds the workflow ID has a tag that is not the definition named (section 5.6). For a requested sync also: the SDK does not know the verb (section 5.11) | Never sends the message again. Alerts, except for a requested sync |
 | `400` | `unsupported_protocol` | All | `protocol` is not 1 | Never sends the message again. Alerts |
 | `401` | `invalid_signature` | All | One answer for every signature problem: a wrong key, an altered body, a timestamp outside the window, no key configured | Stops every delivery to this endpoint and keeps what it had planned. Alerts. Pings every 60 seconds. Resumes after a ping succeeds, the ping of a sync included (section 7.15) |
 | `404` | `unknown_definition`, `unknown_version` | `start`, `wake`, `inspect`, `abandon` | This deployment lacks that code | Sends the message again with a back-off while the version is in the manifest. Never sends a `start` or a `wake` for a version that left the manifest |
 | `405` | `invalid_request` | All | The request was not a `POST` | Never sends the message again. Alerts |
 | `409` | A refusal of the application's engine, or `abandon_refused` | `abandon` | The abandon did not discard the run | Plans from `run` |
+| `409` | `sync_refused` | requested `sync` | The application would not publish this sync either (section 5.11) | Ends the request |
 | `503` | `dispatch_failed` for a `start` and a `wake`, `unavailable` for an `abandon` | `start`, `wake`, `abandon` | The application's queue or store failed. The answer carries `Retry-After`, in seconds: 5 today | Sends the same message again once `Retry-After` has passed, or after the back-off when the answer carries no `Retry-After`. Holds back every other message to this endpoint until then |
 | `500` | `internal_error` | All | Something unexpected was thrown in the application. Nobody knows whether an order was queued | Sends the same message again up to 5 times, with a back-off of 5 seconds that doubles to 300. Then section 7.12 |
 | A `3xx`, no answer within 10 seconds | None | All | Unknown | The same as after a `500` |
 
 This document says that a message got **no usable answer** when the endpoint answered `500` or a `3xx`, or did not answer within the platform's timeout: the last two rows of the table.
 
-Every refusal but a `409` has the same body, with its own code. Three of them, as the endpoint sent them: a `401`, a `404` and a `500`.
+Every refusal but the `409` to an abandon has the same body, with its own code. Three of them, as the endpoint sent them: a `401`, a `404` and a `500`.
 
 <!-- example: error-401 | schema: error.json -->
 ```json
@@ -1065,11 +1067,56 @@ A `503` of the endpoint has the same kind of body, and carries the header `Retry
 | Where it appears | Codes |
 |---|---|
 | Answers of the platform to the application | `unauthorized`, `invalid_request`, `unsupported_protocol`, `endpoint_unverified` (to a sync only) |
-| Answers of the endpoint | `invalid_signature`, `invalid_request`, `unsupported_protocol`, `unknown_definition`, `unknown_version`, `dispatch_failed`, `unavailable`, `abandon_refused`, `internal_error` |
+| Answers of the endpoint | `invalid_signature`, `invalid_request`, `unsupported_protocol`, `unknown_definition`, `unknown_version`, `dispatch_failed`, `unavailable`, `abandon_refused`, `sync_refused` (to a requested sync only), `internal_error` |
 | A `409` answer to an abandon | `stale_run`, `stale_attempt`, `executing`, `conflict`, `completed`, `abandon_refused`. The schema also allows `run_in_flight` and `not_awaited`, which an abandon cannot produce |
 | A report whose outcome is `refused` | `run_in_flight`, `stale_run`, `stale_attempt`, `executing`, `not_awaited`, `conflict` |
 | A report whose outcome is `rejected` | `expired`, `invalid_start`, `already_claimed` for a start; `wrong_definition` for a wake, and for a wake only |
 | A report whose outcome is `aborted` | `not_executed`, `unknown_definition`, `unknown_version`, `announce_failed`, `unavailable` |
+
+### 5.11 Requested sync: the platform asks for the manifest
+
+**What it is for.** The platform asks the application for the sync it would publish, and takes the answer in as that sync. An owner can then publish the manifest from the dashboard without a deploy: after a deploy that did not run the sync, or to connect an environment for the first time at a URL that the owner types.
+
+**Its place in protocol 1.** An extension, which changes neither the protocol version nor any other message. An endpoint that does not know the verb answers `400 invalid_request`, as it answers any verb it does not know. To this message, the platform reads that answer as "this SDK does not answer a requested sync", and as nothing more: it raises no alert.
+
+**Who sends it, and when.** The platform, when an operator asks for it. **OPERATOR ACTION.** It goes to the endpoint URL of the manifest, or to a URL that an owner typed, and it is signed like every message of the platform (section 3.4). The platform sends it once and never again by itself, whatever the answer: a person asked for it, and a person asks again. Reference simulator: it never sends one.
+
+**Request:** `POST {endpoint}`, schema `requested-sync.json`. The body has two fields and nothing else.
+
+<!-- example: requested-sync | schema: requested-sync.json -->
+```json
+{"protocol": 1, "verb": "sync"}
+```
+
+**Answer `200`,** schema `sync.json`. The body is the one that a sync of the deployment would post (section 5.1), built by the same code: every registered version of every definition, in the same order, and the endpoint URL that the application is configured with.
+
+<!-- example: requested-sync-answer | schema: sync.json -->
+```json
+{"protocols": [1], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "https://shop.example.com/neuron-cloud",
+ "definitions": [{"definition": "order-fulfilment", "version": 2, "leaseSeconds": 600},
+                 {"definition": "order-fulfilment", "version": 1, "leaseSeconds": 600},
+                 {"definition": "nightly-reconciliation", "version": 1, "leaseSeconds": 900}]}
+```
+
+The SDK cannot see the URL that a request arrived at, so the `endpoint` of the answer is the one the application was configured with, and the SDK does not compare the two. The platform compares them after it has decoded the body: the endpoint writes `/` as `\/`, as in every answer. When they are equal, the endpoint has just answered a signed request at that URL, which proves what a ping would (section 5.8). When they differ, the answer moves the endpoint to another URL, as a sync that names it would. Section 7.15 says how the platform takes the answer in.
+
+The answer grows with the list, by about 70 bytes for each registered version. A platform that limits the size of an answer of the endpoint must allow the longest manifest that it accepts in a sync. It names the definitions, the versions, the leases and the endpoint URL: what a sync publishes, and nothing more.
+
+**Every answer.** The rows of section 5.9 hold, with these differences. The endpoint answers a requested sync before it looks for any definition, and reads nothing in the application's store, so it never answers `404` or `503`.
+
+| Status | Body | Meaning | What the platform does |
+|---|---|---|---|
+| `200` | A sync | The manifest of the deployment | Takes it in as a sync (section 7.15) |
+| `400` | `{"code": "invalid_request"}` | The SDK does not know the verb, or the body is malformed | Ends the request as not supported. No alert |
+| `409` | `{"code": "sync_refused"}` | The application would refuse to publish this sync itself: it is configured with no endpoint URL, or with one that does not begin with `https://`; it has no store, or one that several processes cannot share; it registered no definition, or a lease under 60 seconds. The answer does not say which | Ends the request. A person runs the sync from the deploy, which says why |
+| Any other | As section 5.9 | As section 5.9 | Ends the request. A `401` and a `503` of the endpoint of the manifest also act on its deliveries, as section 5.9 says |
+
+Unlike the `409` to an abandon, this `409` carries no snapshot:
+
+<!-- example: error-409-sync-refused | schema: error.json -->
+```json
+{"code": "sync_refused"}
+```
 
 ---
 
@@ -2111,6 +2158,8 @@ The platform never sends an abandon for another reason: not for a run that the r
 
 What the platform does with two syncs that arrive at the same time is not settled (U4).
 
+A **requested sync** (section 5.11) is taken in by the same procedure from step 2, on the body of the endpoint's `200`. Step 1 has no API key to check, because the platform made the request itself, over HTTPS, to a URL that it chose. When the `endpoint` of the answer is the URL that the platform called, step 5 sends no ping: the endpoint has just answered a signed request there. When it is another URL, steps 3 to 5 apply to that URL, as for any sync that moves the endpoint. Step 7 answers nobody: the platform shows the result to the operator who asked.
+
 How the platform counts the open runs of a version: a run counts for the definition the platform holds it under and the version of its run ID (section 7.11, step 4). It counts while it is open. An entry of the manifest gets its count in `versions`, also when the count is 0. A definition and version that is not in the manifest and has open runs goes to `stranded`. For a run whose run ID is not minted, when the manifest holds no version of its definition, the version to count it for is not settled (U27).
 
 What the manifest decides afterwards:
@@ -2829,6 +2878,7 @@ Four things in the repository of the SDK let the platform's engineer check an im
 | The `200` answer to an announcement or a report | `recorded.json` |
 | A refusal of the platform | `platform-error.json` |
 | The five messages of the platform | `start.json`, `wake.json`, `inspect.json`, `abandon.json`, `ping.json` |
+| The requested sync of section 5.11, and its `200` answer | `requested-sync.json`, `sync.json` |
 | The `200` answer to an `inspect` or an `abandon` | `inspect-answer.json` |
 | The `200` answer to a `ping` | `ping-answer.json` |
 | Every answer of the endpoint that is not `200` or `202`, the `409` to an abandon included | `error.json` |
@@ -2836,7 +2886,7 @@ Four things in the repository of the SDK let the platform's engineer check an im
 
 How the platform uses them:
 
-- **On everything it sends**: its five messages and its three kinds of answer validate, in its own test suite.
+- **On everything it sends**: its five messages, the requested sync and its three kinds of answer validate, in its own test suite.
 - **On everything it receives**: it validates a sync, an announcement and a report before it uses them, and answers `400` to one that does not validate, with the code that section 5.1 or 5.2 gives: `unsupported_protocol` for the protocol version, `invalid_request` otherwise. Whether it refuses a body that fails only for a value which the schema does not list is not settled (U3). It validates the body of a `200` and of a `409` of the endpoint. What follows one that does not validate is not settled (U1).
 
 What the schemas do not check in a message of the platform, and the platform must check itself before it sends: that no number is written with a fraction or an exponent; that the body is no longer than 65,536 bytes; that the `invocationId` of a `start` or a `wake` equals the `webhook-id` header; the bounds of `expiresAt`. For a body that the platform receives, whether it must make the first check, and which size it must accept, are not settled (U2). The schemas accept fields they do not know, as the protocol requires.
@@ -3173,6 +3223,7 @@ An evaluator of the application can run on a dataset that the platform keeps, in
 | Reader | The client, such as a browser, that receives the output of a streamed segment |
 | Reminder | A job on the application's queue that tells a worker "read the store and post the report of this segment" |
 | Report | The notice "this is the run now": the outcome of one call, and a snapshot |
+| Requested sync | The extension of section 5.11: the platform asks the endpoint for the body of a sync, and takes the answer in as one |
 | Retry policy | How many times, and how far apart, the platform wakes a failed or dead run before it gives up. A setting of the platform |
 | Run | One execution of a definition on a workflow ID |
 | Run ID | The identifier of one run. Minted by whoever starts it |

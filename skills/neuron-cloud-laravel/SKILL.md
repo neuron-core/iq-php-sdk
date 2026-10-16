@@ -125,6 +125,8 @@ php artisan neuron-cloud:sync   # publishes the definitions and the endpoint
 
 The sync fails, and publishes nothing, when a key is missing, the queue driver keeps no job, `retry_after` does not exceed `timeout`, no store is bound, nothing is registered or `APP_URL` is not `https`. Its message names the cause: fix that, never work around the check. Local development needs an HTTPS tunnel to be synced.
 
+An owner can also request a sync from the platform's dashboard. The endpoint then answers with what the command would publish, `APP_URL/neuron-cloud` included, whatever host the request came through: nothing to configure. Where the SDK would refuse to publish, the endpoint answers `409 sync_refused` without the reason: run `neuron-cloud:sync` to read it.
+
 ## The Agent
 
 The agent of **neuron-laravel-integration** stays as it is, with these changes:

@@ -1,6 +1,6 @@
 ---
 name: neuron-cloud
-description: Connect Neuron AI workflows and agents to Neuron Cloud with the neuron-core/cloud-sdk package — durable orchestration (the application runs every segment on its own queue and keeps its own data, the platform keeps the clock for timers, retries and scheduled starts), tracing of every segment as OpenTelemetry spans with enableTracing(), evaluation results sent from evaluation.php with evaluationOutput(), and evaluators that run on datasets kept by the platform with dataset(). Use this skill whenever the user mentions Neuron Cloud, the cloud SDK, durable or orchestrated workflows, a workflow or an agent that must survive a crash, a deploy or a wait of days, timers and retries driven by a platform, sending traces or evaluation results to Neuron Cloud, evaluating on a dataset stored on Neuron Cloud, or wiring NeuronCloud into an application. Also trigger for NeuronCloud, ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, CloudException, CloudOutput, CloudDataset, CloudListener, FakePlatform, FakeDispatcher, enableTracing, evaluationOutput, dataset(), sync(), handle(), invoke(), NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. In a Laravel application, wire it with the neuron-cloud-laravel skill.
+description: Connect Neuron AI workflows and agents to Neuron Cloud with the neuron-core/cloud-sdk package — durable orchestration (the application runs every segment on its own queue and keeps its own data, the platform keeps the clock for timers, retries and scheduled starts), tracing of every segment as OpenTelemetry spans with enableTracing(), evaluation results sent from evaluation.php with evaluationOutput(), and evaluators that run on datasets kept by the platform with dataset(). Use this skill whenever the user mentions Neuron Cloud, the cloud SDK, durable or orchestrated workflows, a workflow or an agent that must survive a crash, a deploy or a wait of days, timers and retries driven by a platform, sending traces or evaluation results to Neuron Cloud, evaluating on a dataset stored on Neuron Cloud, or wiring NeuronCloud into an application. Also trigger for NeuronCloud, ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, CloudException, CloudOutput, CloudDataset, CloudListener, FakePlatform, FakeDispatcher, enableTracing, evaluationOutput, dataset(), sync(), setEndpointUrl(), handle(), invoke(), NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. In a Laravel application, wire it with the neuron-cloud-laravel skill.
 ---
 
 # Neuron Cloud SDK
@@ -29,7 +29,7 @@ A run executes in *segments*: from a start, an answer or a wake-up, to the next 
 | Dispatcher | Hands one `Invocation` to your queue | `setDispatcher()`, a class of yours |
 | Endpoint | The URL the platform calls | One file that calls `handle()` |
 | Worker | Takes one message off the queue and calls `invoke()` | A loop of yours |
-| Sync | Publishes the definitions and the endpoint URL | `sync()`, the last step of a deploy |
+| Sync | Publishes the definitions and the endpoint URL | `sync()`, the last step of a deploy; `handle()` answers the same body when the platform asks for it |
 
 Rules that decide correctness:
 
@@ -95,6 +95,7 @@ return (new NeuronCloud(
 ))
     ->setPersistence(fn () => new DatabasePersistence($pdo))
     ->setDispatcher(new RedisDispatcher($redis))
+    ->setEndpointUrl('https://shop.example.com/neuron-cloud.php')   // what the sync publishes
     ->register('order-fulfilment', fn () => new OrderWorkflow());
 ```
 
@@ -160,12 +161,14 @@ Run the worker under a process supervisor, one process per segment that should e
 // bin/sync.php
 $cloud = require __DIR__ . '/../bootstrap.php';
 
-$result = $cloud->sync('https://shop.example.com/neuron-cloud.php');
+$result = $cloud->sync();   // the URL of setEndpointUrl(); a URL given here is published instead
 
 echo $result->modified ? "Published.\n" : "Nothing changed.\n";
 ```
 
-The list is complete and replaces the one the platform holds. `sync()` throws a `CloudException` and publishes nothing for an endpoint that is not `https`, for an in-memory or file store, when nothing is registered, and when the platform could not reach the endpoint (`endpoint_unverified`): local development needs an HTTPS tunnel.
+The list is complete and replaces the one the platform holds. `sync()` throws a `CloudException` and publishes nothing for an endpoint that is not `https`, when no endpoint URL is given or set (`not_configured`), for an in-memory or file store, when nothing is registered, and when the platform could not reach the endpoint (`endpoint_unverified`): local development needs an HTTPS tunnel.
+
+The platform can also ask the endpoint for a sync, when an owner requests one from its dashboard. `handle()` answers it with the body `sync()` would post, so `setEndpointUrl()` belongs in the bootstrap the endpoint requires, not only in `bin/sync.php`. Where `sync()` would throw before sending, the endpoint answers `409 sync_refused` without the reason: run `bin/sync.php` to read it.
 
 ## Starting and Answering Runs
 

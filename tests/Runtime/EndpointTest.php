@@ -194,6 +194,8 @@ class EndpointTest extends TestCase
             new WorkflowBuilder($persistence),
             new Ledger($persistence),
             $this->queue,
+            // No test of this class asks for a sync.
+            static fn (): array => [],
         );
     }
 

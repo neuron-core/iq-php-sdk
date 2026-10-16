@@ -36,6 +36,9 @@ final class StatusTable
 
     protected const SNAPSHOT_FIELDS = ['run', 'claimed', 'snapshotRead', 'at'];
 
+    /** The schema of a message whose verb does not name it: sync.json is the body of the sync the SDK posts. */
+    protected const MESSAGE_SCHEMAS = ['sync' => 'requested-sync'];
+
     public static function assertRespectedBy(Exchange $exchange): void
     {
         $status = $exchange->answer->statusCode;
@@ -50,8 +53,13 @@ final class StatusTable
         } elseif ($status === 200 && self::verbOf($message) === 'ping') {
             Assert::assertSame(['protocols' => [1]], $fields);
             ProtocolSchema::assertValid('ping-answer', $fields);
+        } elseif ($status === 200 && self::verbOf($message) === 'sync') {
+            ProtocolSchema::assertValid('sync', $fields);
         } elseif ($status === 200) {
             self::assertSnapshot(self::SNAPSHOT_FIELDS, $fields);
+        } elseif ($status === 409 && self::verbOf($message) === 'sync') {
+            Assert::assertSame(['code' => 'sync_refused'], $fields, 'A sync the deployment cannot publish is refused with its code and nothing else.');
+            ProtocolSchema::assertValid('error', $fields);
         } elseif ($status === 409) {
             self::assertSnapshot(['code', ...self::SNAPSHOT_FIELDS], $fields);
         } elseif (isset(self::REFUSALS[$status])) {
@@ -62,7 +70,8 @@ final class StatusTable
 
         if (!in_array($status, self::REFUSED_AS_SENT, true)) {
             Assert::assertIsArray($message, 'Only a JSON object is taken for a message.');
-            ProtocolSchema::assertValid((string) self::verbOf($message), $message);
+            $verb = (string) self::verbOf($message);
+            ProtocolSchema::assertValid(self::MESSAGE_SCHEMAS[$verb] ?? $verb, $message);
         }
     }
 

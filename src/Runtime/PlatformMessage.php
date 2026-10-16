@@ -19,8 +19,9 @@ use function ltrim;
 
 /**
  * A message the platform sent the endpoint, decoded after its signature was
- * verified: an order (start, wake, abandon) or a question (inspect, ping),
- * with every field of its verb checked against its format.
+ * verified: an order (start, wake, abandon), a question (inspect, ping) or
+ * the request for a sync, with every field of its verb checked against its
+ * format.
  *
  * @internal
  */
@@ -36,6 +37,9 @@ final class PlatformMessage
 
     public const PING = 'ping';
 
+    /** The platform asks for the manifest a sync publishes, and takes it in from the answer. */
+    public const SYNC = 'sync';
+
     /** Seconds the platform may give a start at most, from the moment it first sends it to its use-by time. */
     public const LONGEST_START_LIFETIME = 3600;
 
@@ -46,11 +50,12 @@ final class PlatformMessage
         self::INSPECT => ['definition', 'workflowId', 'runId'],
         self::ABANDON => ['definition', 'workflowId', 'runId', 'attempt'],
         self::PING => [],
+        self::SYNC => [],
     ];
 
     /**
-     * @param string|null $definition null for a ping only, like the workflow ID
-     * @param string|null $runId null for a ping, and for an inspect that names no run
+     * @param string|null $definition null for a ping and a sync only, like the workflow ID
+     * @param string|null $runId null for a ping, a sync, and an inspect that names no run
      * @param int|null $attempt the fence of a wake, and of an abandon when the run exists
      * @param int|null $expiresAt the use-by time of a start
      * @param string|null $invocationId of a start and a wake: the webhook-id header, the same on every re-send
@@ -142,8 +147,8 @@ final class PlatformMessage
             self::INSPECT => $isAddressed && (!array_key_exists('runId', $carried) || Format::isRunId($runId)),
             self::ABANDON => $isAddressed && Format::isRunId($runId)
                 && (!array_key_exists('attempt', $carried) || self::isAttempt($attempt)),
-            // A ping carries nothing.
-            self::PING => true,
+            // A ping and a sync carry nothing.
+            self::PING, self::SYNC => true,
             default => false,
         };
     }

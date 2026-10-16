@@ -118,6 +118,47 @@ class AppSyncTest extends CloudTestCase
         self::assertSame([], $platform->received());
     }
 
+    public function test_sync_given_no_url_publishes_the_one_set_with_set_endpoint_url(): void
+    {
+        $bench = $this->deployment();
+        $bench->cloud->setEndpointUrl(self::ENDPOINT);
+
+        $bench->cloud->sync();
+
+        self::assertSame(self::ENDPOINT, $this->published()->body['endpoint'] ?? null);
+    }
+
+    public function test_a_url_given_to_sync_is_published_instead_of_the_one_set(): void
+    {
+        $bench = $this->deployment();
+        $bench->cloud->setEndpointUrl('https://old.example.com/neuron-cloud');
+
+        $bench->cloud->sync(self::ENDPOINT);
+
+        self::assertSame(self::ENDPOINT, $this->published()->body['endpoint'] ?? null);
+    }
+
+    public function test_sync_given_no_url_while_none_is_set_is_refused_as_not_configured_before_anything_is_published(): void
+    {
+        $bench = $this->deployment();
+
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync());
+
+        self::assertSame(Code::NotConfigured, $reason);
+        self::assertSame([], $bench->platform->received());
+    }
+
+    public function test_an_endpoint_url_the_platform_cannot_call_is_taken_when_it_is_set_and_refused_when_sync_uses_it(): void
+    {
+        $bench = $this->deployment();
+        $bench->cloud->setEndpointUrl('http://shop.example.com/neuron-cloud.php');
+
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync());
+
+        self::assertSame(Code::InvalidRequest, $reason);
+        self::assertSame([], $bench->platform->received());
+    }
+
     #[DataProvider('refusals')]
     public function test_a_sync_the_platform_refuses_throws_the_matching_code(int $status, Code $expected): void
     {

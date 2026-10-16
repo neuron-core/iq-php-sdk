@@ -87,6 +87,7 @@ class SchemaTest extends TestCase
             'inspect' => ['inspect'],
             'abandon' => ['abandon'],
             'ping' => ['ping'],
+            'requested-sync' => ['requested-sync'],
             'inspect-answer' => ['inspect-answer'],
             'ping-answer' => ['ping-answer'],
             'error' => ['error'],
@@ -139,6 +140,7 @@ class SchemaTest extends TestCase
             'an abandon' => ['abandon', '{"protocol": 1, "verb": "abandon", "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e", "attempt": 2}'],
             'an abandon of a start nothing was heard of' => ['abandon', '{"protocol": 1, "verb": "abandon", "definition": "order-fulfilment", "workflowId": "order:123", "runId": "2-0192f3a8-7c1e"}'],
             'a ping' => ['ping', '{"protocol": 1, "verb": "ping"}'],
+            'a requested sync' => ['requested-sync', '{"protocol": 1, "verb": "sync"}'],
             'the answer to an inspect that found a run' => ['inspect-answer', '{"run": ' . self::RUN . ', "claimed": true, "snapshotRead": true, "at": 1791453604}'],
             'the answer to an inspect that found a run no definition started' => ['inspect-answer', '{"run": ' . self::RUN_OF_NO_DEFINITION . ', "claimed": null, "snapshotRead": true, "at": 1791453604}'],
             'the report of a start refused by a run no definition started' => ['report', self::changed(self::START_REPORT, [
@@ -153,6 +155,7 @@ class SchemaTest extends TestCase
             'the 409 answer to an abandon' => ['inspect-answer', '{"code": "abandon_refused", "run": ' . self::RUN . ', "claimed": true, "snapshotRead": true, "at": 1791453604}'],
             'the answer to a ping' => ['ping-answer', '{"protocols": [1]}'],
             'the error body of a 401' => ['error', '{"code": "invalid_signature"}'],
+            'the error body of a requested sync the deployment could not publish' => ['error', '{"code": "sync_refused"}'],
             'the error body of a 409' => ['error', '{"code": "stale_run", "run": null, "claimed": true, "snapshotRead": true, "at": 1791453604}'],
             'the answer of the platform to an announcement or a report it recorded' => ['recorded', '{"recorded": true}'],
             'the answer of the platform to a message it refuses for good' => ['platform-error', '{"code": "invalid_request"}'],
@@ -173,6 +176,7 @@ class SchemaTest extends TestCase
             'a workflow ID with a control character' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": "order\u0007123"}'],
             'an empty workflow ID' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": ""}'],
             'another protocol' => ['ping', '{"protocol": 2, "verb": "ping"}'],
+            'a requested sync of another protocol' => ['requested-sync', '{"protocol": 2, "verb": "sync"}'],
             'a start whose run ID carries no version' => ['start', '{"protocol": 1, "verb": "start", "invocationId": "inv_01JB2M", "definition": "nightly-reconciliation",'
                 . ' "workflowId": "reconciliation:2026-10-07", "runId": "01JB2M8Q3W", "expiresAt": 1791368100}'],
             'a start without a use-by time' => ['start', '{"protocol": 1, "verb": "start", "invocationId": "inv_01JB2M", "definition": "nightly-reconciliation",'

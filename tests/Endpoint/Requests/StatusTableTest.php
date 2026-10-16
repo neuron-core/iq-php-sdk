@@ -12,10 +12,12 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
+use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
 use NeuronCore\Cloud\Tests\Stub\Requests\FailingQueue;
 use NeuronCore\Cloud\Tests\Stub\Requests\UnencodableRunWorkflow;
+use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
 use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -54,6 +56,17 @@ class StatusTableTest extends RequestTestCase
             '202 for a wake that is verified and valid' => [static fn (self $table): HttpResponse => $table->deliver($table->wake(attempt: 1)), 202, null],
             '200 for an inspect' => [static fn (self $table): HttpResponse => $table->deliver($table->inspect(self::RUN_ID)), 200, null],
             '200 for a ping' => [static fn (self $table): HttpResponse => $table->post(self::PING), 200, null],
+            '200 for a sync the platform asks for' => [
+                static function (self $table): HttpResponse {
+                    $table->cloud
+                        ->setPersistence(static fn (): PersistenceInterface => new RecordingPersistence())
+                        ->setEndpointUrl('https://shop.example.com/neuron-cloud');
+
+                    return $table->deliver(['verb' => 'sync']);
+                },
+                200,
+                null,
+            ],
             '200 for an abandon of a start that is still in the queue' => [
                 static function (self $table): HttpResponse {
                     $table->deliver($table->start());
@@ -140,6 +153,11 @@ class StatusTableTest extends RequestTestCase
                 ),
                 409,
                 'abandon_refused',
+            ],
+            '409 sync_refused for a sync the deployment could not publish' => [
+                static fn (self $table): HttpResponse => $table->deliver(['verb' => 'sync']),
+                409,
+                'sync_refused',
             ],
             '503 dispatch_failed when the queue fails' => [
                 static function (self $table): HttpResponse {

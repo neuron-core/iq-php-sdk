@@ -20,7 +20,8 @@ use function str_starts_with;
 
 /**
  * App Sync, the last step of a deploy: it publishes the definitions this
- * process registered and the URL the platform calls.
+ * process registered and the URL the platform calls. The platform can also
+ * ask the endpoint for the same manifest.
  *
  * @internal
  */
@@ -47,21 +48,33 @@ final class Sync
      */
     public function publish(string $endpointUrl): SyncResult
     {
-        $this->assertStoreIsSharedByProcesses();
-        $this->assertPublishable($endpointUrl);
-
-        $answer = $this->platform->sync([
-            'protocols' => [Protocol::VERSION],
-            'sdk' => Protocol::SDK,
-            'endpoint' => $endpointUrl,
-            'definitions' => array_map($this->registration(...), $this->registry->all()),
-        ]);
+        $answer = $this->platform->sync($this->manifest($endpointUrl));
 
         return new SyncResult(
             $answer['modified'],
             $this->retirable($answer['versions'] ?? []),
             $this->stranded($answer['stranded'] ?? []),
         );
+    }
+
+    /**
+     * What a sync publishes: the body publish() posts, and the one the endpoint answers when the platform asks
+     * for a sync. Both are refused for the same reasons.
+     *
+     * @return array<string, mixed>
+     * @throws CloudException unsuitable_persistence or invalid_request
+     */
+    public function manifest(string $endpointUrl): array
+    {
+        $this->assertStoreIsSharedByProcesses();
+        $this->assertPublishable($endpointUrl);
+
+        return [
+            'protocols' => [Protocol::VERSION],
+            'sdk' => Protocol::SDK,
+            'endpoint' => $endpointUrl,
+            'definitions' => array_map($this->registration(...), $this->registry->all()),
+        ];
     }
 
     /**

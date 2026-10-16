@@ -41,6 +41,8 @@ class NeuronCloud
 
     protected ?DispatcherInterface $dispatcher = null;
 
+    protected ?string $endpointUrl = null;
+
     /** @var array{captureContent: bool, attributes: array<string, mixed>}|null how segments are traced; null: none is */
     protected ?array $tracing = null;
 
@@ -112,6 +114,19 @@ class NeuronCloud
     }
 
     /**
+     * The URL the platform calls, as it would type it: what sync() publishes
+     * when it is given none, and what the endpoint answers when the platform
+     * asks for a sync. It is checked when a sync uses it, not here, so that a
+     * URL the platform cannot call leaves the rest of the endpoint working.
+     */
+    public function setEndpointUrl(string $url): static
+    {
+        $this->endpointUrl = $url;
+
+        return $this;
+    }
+
+    /**
      * Trace every segment this process executes, and send its spans to the
      * platform when the segment ends: one OpenTelemetry trace per run, with a
      * span for each node, inference, tool call and retrieval. Unlike the
@@ -162,22 +177,26 @@ class NeuronCloud
      * and version, and the URL of the endpoint. The list is complete and
      * replaces the one the platform holds.
      *
-     * @throws CloudException not_configured, when no persistence is set; unsuitable_persistence, for an in-memory or
-     *                        file store; invalid_request, when no definition is registered, for an endpoint URL that
-     *                        is not https and for a registered lease under 60 seconds: in all of these nothing was
-     *                        sent. endpoint_unverified, when the platform could not ping the endpoint; unauthorized,
-     *                        invalid_request or unsupported_protocol, when it refused the sync for good;
-     *                        report_undelivered, when it gave no usable answer: the sync may have been applied
+     * @param string|null $endpointUrl null: the URL setEndpointUrl() was given
+     * @throws CloudException not_configured, when no persistence is set, and when no endpoint URL is given or set;
+     *                        unsuitable_persistence, for an in-memory or file store; invalid_request, when no
+     *                        definition is registered, for an endpoint URL that is not https and for a registered
+     *                        lease under 60 seconds: in all of these nothing was sent. endpoint_unverified, when the
+     *                        platform could not ping the endpoint; unauthorized, invalid_request or
+     *                        unsupported_protocol, when it refused the sync for good; report_undelivered, when it gave
+     *                        no usable answer: the sync may have been applied
      */
-    public function sync(string $endpointUrl): SyncResult
+    public function sync(?string $endpointUrl = null): SyncResult
     {
-        return (new Sync($this->registry, $this->persistence(), $this->platform()))->publish($endpointUrl);
+        return $this->syncWith($this->persistence())->publish($endpointUrl ?? $this->endpointUrl());
     }
 
     /**
      * The endpoint: answer one request of the platform. A start and a wake are
      * handed to the dispatcher; an inspect, an abandon and a ping are answered
-     * here. It never throws.
+     * here, and so is a sync the platform asks for: with the body sync() would
+     * post, or with a 409 where sync() would throw before it sent anything. It
+     * never throws.
      *
      * @param array<array-key, mixed> $headers name => value, as getallheaders() gives them, or name => list of
      *                                         values, as a framework does; names in any case
@@ -245,7 +264,17 @@ class NeuronCloud
             $this->builder($persistence),
             new Ledger($persistence),
             $this->dispatcher(),
+            // Built only when the platform asks for a sync, from what is set then.
+            fn (): array => $this->syncWith($this->persistence())->manifest($this->endpointUrl()),
         );
+    }
+
+    /**
+     * @param Closure(): PersistenceInterface $persistence
+     */
+    protected function syncWith(Closure $persistence): Sync
+    {
+        return new Sync($this->registry, $persistence, $this->platform());
     }
 
     protected function platform(): PlatformClient
@@ -282,6 +311,17 @@ class NeuronCloud
     {
         return $this->persistence ?? throw new CloudException(
             'No persistence is set: call setPersistence() with a factory of the store your workflows use.',
+            Code::NotConfigured,
+        );
+    }
+
+    /**
+     * @throws CloudException not_configured
+     */
+    protected function endpointUrl(): string
+    {
+        return $this->endpointUrl ?? throw new CloudException(
+            'No endpoint URL is set: give sync() the URL the platform calls, or call setEndpointUrl().',
             Code::NotConfigured,
         );
     }

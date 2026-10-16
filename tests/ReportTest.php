@@ -166,7 +166,7 @@ class ReportTest extends TestCase
         $ofTheProtocol = [
             // Answers of the endpoint
             'invalid_signature', 'invalid_request', 'unsupported_protocol', 'unknown_definition', 'unknown_version',
-            'dispatch_failed', 'unavailable', 'abandon_refused', 'internal_error',
+            'dispatch_failed', 'unavailable', 'abandon_refused', 'sync_refused', 'internal_error',
             // Reports: rejected, then aborted
             'expired', 'invalid_start', 'already_claimed', 'wrong_definition', 'not_executed', 'announce_failed',
             // Answers of the platform

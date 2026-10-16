@@ -86,6 +86,13 @@ class NeuronCloudTest extends CloudTestCase
         self::assertSame($cloud, $cloud->setDispatcher(new FakeDispatcher()));
     }
 
+    public function test_set_endpoint_url_returns_the_instance_it_was_called_on(): void
+    {
+        $cloud = new NeuronCloud(TestBench::API_KEY);
+
+        self::assertSame($cloud, $cloud->setEndpointUrl('https://shop.example.com/neuron-cloud'));
+    }
+
     public function test_registering_a_version_again_replaces_it(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);

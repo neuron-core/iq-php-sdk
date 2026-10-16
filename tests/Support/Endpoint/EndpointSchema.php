@@ -22,6 +22,9 @@ final class EndpointSchema
     /** The statuses of a message the endpoint refused as it is: a test sends such a message broken on purpose. */
     protected const REFUSED_AS_SENT = [400, 401];
 
+    /** The schema of a message whose verb does not name it: sync.json is the body of the sync the SDK posts. */
+    protected const MESSAGE_SCHEMAS = ['sync' => 'requested-sync'];
+
     /**
      * @param array<string, mixed> $message what the platform sent
      */
@@ -31,7 +34,8 @@ final class EndpointSchema
         Assert::assertIsArray($body, 'Every answer of the endpoint is a JSON object.');
 
         if (!in_array($answer->statusCode, self::REFUSED_AS_SENT, true)) {
-            ProtocolSchema::assertValid((string) $message['verb'], $message);
+            $verb = (string) $message['verb'];
+            ProtocolSchema::assertValid(self::MESSAGE_SCHEMAS[$verb] ?? $verb, $message);
         }
 
         if ($answer->statusCode === 202) {
@@ -52,6 +56,11 @@ final class EndpointSchema
             return 'error';
         }
 
-        return $message['verb'] === 'ping' ? 'ping-answer' : 'inspect-answer';
+        return match ($message['verb']) {
+            'ping' => 'ping-answer',
+            // The platform takes the answer in as the sync the SDK would post.
+            'sync' => 'sync',
+            default => 'inspect-answer',
+        };
     }
 }

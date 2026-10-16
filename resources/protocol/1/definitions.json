@@ -99,6 +99,7 @@
                 "dispatch_failed",
                 "unavailable",
                 "abandon_refused",
+                "sync_refused",
                 "internal_error"
             ]
         },
