@@ -23,8 +23,7 @@ Tracing and evaluations need nothing more. Orchestration adds a signing key, a s
 ## Start With One Prompt
 
 ```
-You are going to set up Neuron AI, a PHP framework for building agentic applications,
-in this project, and you must follow three steps in order.
+You are going to set up the integration with Neuron Cloud platform in this project, and you must follow three steps in order.
 
 - First: install the package: check composer.json, if neuron-core/neuron-ai is
 already on the version 4.x. If it is run `composer update neuron-core/neuron-ai` to get the latest
@@ -38,8 +37,7 @@ stay updated whenever the package is updated through Composer;
 - Third: work out what kind of app this is. Look at composer.json
 and the project structure to see whether it is an application based on Laravel, Symfony, or legacy PHP,
 then activate the matching skill: neuron-cloud-php, neuron-cloud-laravel, or neuron-cloud-symfony.
-If Neuron is already part of the app go through the skill's foundations checklist
-item by item. Report what differs from the recommended setup.
+Enable tracing first, then ask if you should go ahead with Evaluation + Dataset, and Orchestration.
 ```
 
 ## Installation
