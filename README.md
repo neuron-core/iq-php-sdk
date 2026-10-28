@@ -20,6 +20,28 @@ All three use one service, built with your API key ([section 1](#1-the-service))
 
 Tracing and evaluations need nothing more. Orchestration adds a signing key, a shared store, a durable queue and a public HTTPS URL: [section 4](#4-orchestration) lists them.
 
+## Start With One Prompt
+
+```
+You are going to set up Neuron AI, a PHP framework for building agentic applications,
+in this project, and you must follow three steps in order.
+
+- First: install the package: check composer.json, if neuron-core/neuron-ai is
+already on the version 4.x. If it is run `composer update neuron-core/neuron-ai` to get the latest
+versionm if it's on 3.x or lower stop the installation process and suggest to update Neuron before moving forward;
+
+- Second: install the skills for the coding agent that ship
+with the package by running `npx --yes skills add ./vendor/neuron-core/cloud-sdk/skills -y` from
+the project root. Add this command to `post-update-cmd` in the composer.json file, so they
+stay updated whenever the package is updated through Composer;
+
+- Third: work out what kind of app this is. Look at composer.json
+and the project structure to see whether it is an application based on Laravel, Symfony, or legacy PHP,
+then activate the matching skill: neuron-cloud-php, neuron-cloud-laravel, or neuron-cloud-symfony.
+If Neuron is already part of the app go through the skill's foundations checklist
+item by item. Report what differs from the recommended setup.
+```
+
 ## Installation
 
 ```bash
@@ -28,7 +50,7 @@ composer require neuron-core/cloud-sdk
 
 Using Laravel? Install `neuron-core/neuron-cloud-laravel` instead: it binds the service from a config file, traces every agent and workflow the container builds once `NEURON_CLOUD_TRACING=true`, binds the evaluation output, and for orchestration runs the queue jobs, registers the endpoint and adds the deploy command.
 
-Coding agents get two skills with the package, `neuron-cloud` and `neuron-cloud-laravel`, which walk the same stages:
+Coding agents get two skills with the package, `neuron-cloud-php` and `neuron-cloud-laravel`, which walk the same stages:
 
 ```bash
 npx skills add ./vendor/neuron-core/cloud-sdk/skills -y
@@ -534,7 +556,7 @@ Approvals and other answers to a suspended run go through `submitInputs($payload
 <env name="NEURON_CLOUD_API_KEY" value="test-key" force="true"/>
 ```
 
-With tracing off `Tracing::subscribe()` never asks for the service. The test key lets the code that takes it be built, an evaluator on a dataset for one, and building it sends nothing. A test of tracing that takes its agent from the container sets the variable itself, as `Tracing::subscribe()` reads it, with `putenv('NEURON_CLOUD_TRACING=true')`, and puts it back in `tearDown()`, as the skill's [`testing.md`](skills/neuron-cloud/references/testing.md) does. The tests below build their agents and their service themselves, and read no variable.
+With tracing off `Tracing::subscribe()` never asks for the service. The test key lets the code that takes it be built, an evaluator on a dataset for one, and building it sends nothing. A test of tracing that takes its agent from the container sets the variable itself, as `Tracing::subscribe()` reads it, with `putenv('NEURON_CLOUD_TRACING=true')`, and puts it back in `tearDown()`, as the skill's [`testing.md`](skills/neuron-cloud-php/references/testing.md) does. The tests below build their agents and their service themselves, and read no variable.
 
 ```php
 use App\Agents\SupportAgent;

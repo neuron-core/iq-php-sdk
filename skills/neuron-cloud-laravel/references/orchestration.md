@@ -15,7 +15,7 @@ It stands on two other skills. **neuron-laravel-integration** lays the Laravel f
 | `NeuronCloud` | The lazy singleton of the package, built from `config/neuron-cloud.php` | Inject it in controllers and jobs. Never build your own |
 | Definitions | `config/neuron-cloud.php`, name => class | The container builds each class, from the workflow ID alone |
 | The workflow store | Your `PersistenceInterface` binding in `NeuronServiceProvider` | The package asks the container for it at every build: `bind()`, never `singleton()` |
-| Segments | `RunInvocation` jobs on the `neuron-cloud` queue | One job, one segment, run once |
+| Segments | `RunInvocation` jobs on the `neuron-cloud-php` queue | One job, one segment, run once |
 | Notices | `ObserveRun` jobs on the `neuron-cloud-observe` queue | Announcements and reports for the platform, retried until recorded |
 | The endpoint | `POST /neuron-cloud`, registered by the package | Outside every middleware group |
 | The deploy | `php artisan neuron-cloud:sync` | Publishes the definitions and `APP_URL/neuron-cloud` |
@@ -314,7 +314,7 @@ $platform->wake($cloud, 'order:123');                         // the platform's 
 - `PersistenceInterface` as a `singleton`, or bound without the `select 1` → a worker hands a closed PDO to every segment after the database dropped the connection.
 - `QUEUE_CONNECTION=sync` outside tests → `neuron-cloud:sync` refuses it; nothing would survive the request.
 - `retry_after` at Laravel's 90 with `timeout` 300 → a second worker takes a job that still runs. The sync refuses it: set `DB_QUEUE_RETRY_AFTER=360`.
-- One worker on the default queue only → nothing runs: the package uses `neuron-cloud` and `neuron-cloud-observe`.
+- One worker on the default queue only → nothing runs: the package uses `neuron-cloud-php` and `neuron-cloud-observe`.
 - A global middleware, a rate limiter or a WAF rule on `/neuron-cloud` → the platform's messages are answered by something else. Exempt the route.
 - `APP_URL=http://…` or a URL the platform cannot reach → the sync fails. Use the public `https` address, or a tunnel in development.
 - `neuron-cloud:sync` before `queue:restart` → workers on old code abort the first messages of the new version. Restart first.
