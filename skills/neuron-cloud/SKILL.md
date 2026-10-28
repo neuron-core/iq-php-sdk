@@ -1,299 +1,283 @@
 ---
 name: neuron-cloud
-description: Connect Neuron AI workflows and agents to Neuron Cloud with the neuron-core/cloud-sdk package — durable orchestration (the application runs every segment on its own queue and keeps its own data, the platform keeps the clock for timers, retries and scheduled starts), tracing of every segment as OpenTelemetry spans with enableTracing(), evaluation results sent from evaluation.php with evaluationOutput(), and evaluators that run on datasets kept by the platform with dataset(). Use this skill whenever the user mentions Neuron Cloud, the cloud SDK, durable or orchestrated workflows, a workflow or an agent that must survive a crash, a deploy or a wait of days, timers and retries driven by a platform, sending traces or evaluation results to Neuron Cloud, evaluating on a dataset stored on Neuron Cloud, or wiring NeuronCloud into an application. Also trigger for NeuronCloud, ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, CloudException, CloudOutput, CloudDataset, CloudListener, FakePlatform, FakeDispatcher, enableTracing, evaluationOutput, dataset(), sync(), setEndpointUrl(), handle(), invoke(), NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. In a Laravel application, wire it with the neuron-cloud-laravel skill.
+description: Connect a PHP application's Neuron AI agents and workflows to Neuron Cloud with the neuron-core/cloud-sdk package, one stage at a time. First bind the NeuronCloud service in the container with the API key, then trace agents and workflows as OpenTelemetry spans (enableTracing(), tracer(), CloudListener), then send evaluation results (evaluationOutput(), CloudOutput) and run evaluators on datasets the platform keeps (dataset(), CloudDataset). Durable orchestration is an advanced step, wired only on request, for runs that survive a crash, a deploy or a wait of days, with timers, retries and scheduled starts kept by the platform (register(), workflow(), handle(), invoke(), sync(), ManagedWorkflow, PendingSegment, DispatcherInterface, Invocation, FakeDispatcher). Use when the user mentions Neuron Cloud, the cloud SDK, traces, evaluation results or datasets on Neuron Cloud, durable workflows, CloudException, FakePlatform, NEURON_CLOUD_API_KEY or NEURON_CLOUD_SIGNING_KEY. For Laravel, use neuron-cloud-laravel.
 ---
 
 # Neuron Cloud SDK
 
-`neuron-core/cloud-sdk` connects the workflows and agents of an application to Neuron Cloud. It gives three things, and each is wired on its own:
+`neuron-core/cloud-sdk` connects the agents and workflows of a PHP application to Neuron Cloud. A developer adopts it in stages. Each stage is wired on its own, and only when it is wanted:
 
-| Feature | What it does | What you wire |
-|---|---|---|
-| **Orchestration** | A run survives a crash, a deploy and a wait of days. The platform fires its timers, retries it after a failure or a dead worker, and starts it on a schedule | The service, a queue, one endpoint, a worker, a sync at deploy |
-| **Observability** | Every segment the SDK executes is sent as one OpenTelemetry trace: nodes, inferences, tool calls, retrievals | One call, `enableTracing()`, on the service of the orchestration |
-| **Evaluations** | The results of `vendor/bin/neuron evaluation` reach the platform, and an evaluator can run on a dataset the platform keeps | An output in `evaluation.php`, and `dataset()` in an evaluator built with the service. Both need the API key and nothing else |
+| Stage | What the developer gets | What you wire | Needs |
+|---|---|---|---|
+| **0. The service** | One `NeuronCloud` that every part of the application can take | The package, and one entry in the container | `NEURON_CLOUD_API_KEY` |
+| **1. Observability** | Every run of an agent or a workflow as an OpenTelemetry trace: nodes, inferences, tool calls, retrievals | `enableTracing()` on the service, and `$cloud->tracer()` subscribed through one small class where agents are built | The API key |
+| **2. Evaluation** | The results of `vendor/bin/neuron evaluation` on the platform, and evaluators that run on datasets the platform keeps | An output in `evaluation.php`, `dataset()` in an evaluator | The API key |
+| **3. Orchestration** (advanced) | Runs that survive a crash, a deploy or a wait of days. The platform fires their timers, retries them and starts them on a schedule | A store, a queue, an endpoint, a worker, a sync: [references/orchestration.md](references/orchestration.md) | The signing key too |
 
-The workflow itself stays ordinary Neuron code that knows nothing about the SDK: write it with **neuron-workflow** and **neuron-agent**. This skill is the plain PHP wiring. **In a Laravel application use the neuron-cloud-laravel skill**: its package builds the service, the queue jobs, the endpoint and the deploy command. Any other framework is wired as below, with the service in its container and its own queue behind the dispatcher.
+The agents and workflows stay ordinary Neuron code that knows nothing about the SDK: write them with **neuron-agent** and **neuron-workflow**. This skill is the plain PHP wiring. **In a Laravel application use the neuron-cloud-laravel skill**: its package binds the service and wires each stage from its config. Any other framework is wired as below, with the service in its container.
 
-## The Mental Model
+## Which Stage a Request Gets
 
-**Your application runs the workflow and keeps its data. The platform keeps a list of runs and a clock.**
+- **Stage 0 comes first, when it is missing.** It needs the API key and nothing else.
+- **A request that names no stage** ("add Neuron Cloud", "connect this app to Neuron Cloud") gets stages 0 and 1, then stops. End the answer by naming evaluation as the next step: the results of every evaluation run sent to the platform, and evaluators run on the datasets it keeps.
+- **A request that names a stage gets stage 0 and that stage.** Tracing, monitoring or observability is stage 1. Evaluation results, an evaluation output, a dataset or evaluations reported from CI is stage 2. Each stage stands on stage 0 alone: a request for evaluation does not turn tracing on. Say in one line which earlier stage is not wired yet, and leave it unwired.
+- **Orchestration is wired only when the developer asks for it**: durable runs, timers, retries, scheduled starts, runs that survive a crash, a deploy or a wait of days, runs started or answered through `$cloud->workflow()`, or one of its pieces by name. Read [references/orchestration.md](references/orchestration.md) then, and not before.
+- **The signing key, the store, the queue, the endpoint, the worker and the sync belong to orchestration.** Never add them for stages 0 to 2, and never present them as requirements of those stages.
+- **A developer who asks for everything gets every stage**, in this order.
 
-A run executes in *segments*: from a start, an answer or a wake-up, to the next wait or the end. Every segment runs in your processes, on your store. Before a segment the SDK tells the platform "this run is starting" (the announcement); after it, "this is the run now" (the report). When a timer or a retry comes due, the platform calls one signed URL of your application; the SDK puts that call on your queue and a worker continues the run.
+Check where the application stands first, and build on the service that is there. Never build a second one.
 
-| Piece | What it is | Who provides it |
-|---|---|---|
-| `NeuronCloud` | The one service. Built once per process from the API key and the signing key | You, in a bootstrap file |
-| Definition | A name the platform knows, a factory that builds the workflow, a version, a lease | `register()` |
-| Store | Neuron's own `PersistenceInterface`, shared by every process | `setPersistence()`, a closure that returns a store |
-| Dispatcher | Hands one `Invocation` to your queue | `setDispatcher()`, a class of yours |
-| Endpoint | The URL the platform calls | One file that calls `handle()` |
-| Worker | Takes one message off the queue and calls `invoke()` | A loop of yours |
-| Sync | Publishes the definitions and the endpoint URL | `sync()`, the last step of a deploy; `handle()` answers the same body when the platform asks for it |
+```bash
+grep -rlsE 'NeuronCloud|neuron-core/cloud-sdk' composer.json config src app bootstrap bootstrap.php public bin evaluation.php
+```
 
-Rules that decide correctness:
-
-- **Every start and every answer of a registered workflow goes through `$cloud->workflow()`.** A direct `run()`, `chat()` or `stream()` on the class is not announced: the platform never fires its timers or retries it.
-- **The factory rebuilds the workflow from the workflow ID alone.** A worker has no request and no logged-in user. Input of one run goes in the start event, never in the constructor.
-- **One store, shared by every process.** `sync()` refuses `InMemoryPersistence` and `FilePersistence`. The SDK sets its store and its lease on every workflow it builds: what the class declares is replaced.
-- **The queue runs a segment once.** Never retry a segment job: the platform retries a failed run with a new message. The only messages your queue tries again are the ones `invoke()` throws for (see the worker).
-- **Only coordination data reaches the platform**: names, IDs, statuses, wake-up times, the class of an exception. State, inputs, answers and results stay in your store, unless you turn tracing on (Observability).
-- **Authorize the user for the workflow ID before calling the SDK.** A workflow ID and an event name reach the platform: no secret in them.
-
-## Setup: Orchestration in Plain PHP
-
-Lay these down in order. Each step is one file.
-
-**1. Install and keys.**
+## Stage 0: The Service
 
 ```bash
 composer require neuron-core/cloud-sdk
 ```
 
-`NEURON_CLOUD_API_KEY` authenticates what the application sends; `NEURON_CLOUD_SIGNING_KEY` verifies what the platform sends to the endpoint. Both come from the dashboard. Only the endpoint needs the signing key.
+`NEURON_CLOUD_API_KEY` comes from the dashboard of the Neuron Cloud project. Put it in the environment of every process that uses the service.
 
-**2. The store.** `DatabasePersistence` needs Neuron's `workflow_store` table and a PDO in exception mode: the schema is in **neuron-workflow** ("Database Table Schema"). `EloquentPersistence` and `RedisPersistence` work too.
-
-**3. The dispatcher.** Plain PHP has no queue: you supply one, durable and as trusted as your code (a queued message holds serialized PHP). `toArray()` is JSON-safe and `fromArray()` reads it back.
+**With a container**, add one entry to its definitions. PHP-DI is the example: it builds classes by name and injects what their constructors ask for.
 
 ```php
-// src/RedisDispatcher.php
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
+// config/container.php: the definitions of the application's PHP-DI container
+use NeuronCore\Cloud\NeuronCloud;
 
-class RedisDispatcher implements DispatcherInterface
+return [
+    // One service for the whole application: the container builds it the first time something asks for it.
+    NeuronCloud::class => fn (): NeuronCloud => new NeuronCloud(
+        getenv('NEURON_CLOUD_API_KEY') ?: throw new RuntimeException('Set NEURON_CLOUD_API_KEY: the API key of the Neuron Cloud project.'),
+    ),
+];
+```
+
+**Without a container**, one file builds the service. An entry script that uses the service requires it once and hands it to what needs it.
+
+```php
+// bootstrap.php: the service, for an application with no container
+use NeuronCore\Cloud\NeuronCloud;
+
+require_once __DIR__ . '/vendor/autoload.php';
+
+return new NeuronCloud(
+    getenv('NEURON_CLOUD_API_KEY') ?: throw new RuntimeException('Set NEURON_CLOUD_API_KEY: the API key of the Neuron Cloud project.'),
+);
+```
+
+- **The API key is all the service needs** for stages 0 to 2. `NEURON_CLOUD_SIGNING_KEY` comes with orchestration.
+- **One service per process, shared.** A class takes `NeuronCloud` in its constructor, and the container injects it. A script takes it with `$container->get(NeuronCloud::class)` or from `bootstrap.php`. Every later stage takes it from there.
+- **Guard the key.** `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` without the key throws a `TypeError` in a file that declares `strict_types`. Without `strict_types` it builds a service with an empty key, and the platform refuses every request. The `throw` names the variable instead.
+- **Read the variables as the application reads its other settings.** The snippets use `getenv()`, which sees the environment of the process. A `.env` file loaded with phpdotenv's `Dotenv::createImmutable()`, or with Symfony's Dotenv, fills `$_ENV` and `$_SERVER` and leaves `getenv()` empty: there the entry throws although the key is in `.env`, and tracing never turns on. In such an application read `$_ENV['NEURON_CLOUD_API_KEY'] ?? null`, or the config the application builds from it, and the same for every variable of this skill.
+- **Building the service sends nothing.** Nothing reaches the platform until a stage uses it.
+- **Another container** holds the same entry as one shared service, built with the key from the environment.
+
+## Stage 1: Observability
+
+Tracing is two things: `enableTracing()` where the service is built, and a listener from `$cloud->tracer()` subscribed where the application builds an agent or a workflow, through one small class of the application, `App\Tracing`. Both depend on `NEURON_CLOUD_TRACING`, and tracing is best effort: with it off, the service is never asked for and no key is needed anywhere an agent is built; with it on and a service that cannot be built, the agent is built and runs untraced, and the cause is logged once per process.
+
+**Ask the developer first.** Tracing sends what the application works on:
+
+- **The names and IDs of every run**, always: the class, the run ID, and the thread ID of an agent as `gen_ai.conversation.id`. A thread named after its user carries the user's ID.
+- **The message and the stack trace of every exception**, always.
+- **Prompts, completions, tool arguments and tool results**, unless `captureContent` is `false`.
+
+Ask which they want before you write `enableTracing()`, and say why when the agents handle personal, financial, medical or confidential data. Write their answer as `captureContent`, and say which argument changes it. Never decide it silently: when you cannot ask, write `captureContent: false` and say so in your answer. Exception messages cannot be held back: where even those must not leave the application, leave tracing off.
+
+```php
+// config/container.php
+use App\Agents\SupportAgent;
+use App\Tracing;
+use NeuronCore\Cloud\NeuronCloud;
+use Psr\Container\ContainerInterface;
+
+return [
+    NeuronCloud::class => function (): NeuronCloud {
+        $cloud = new NeuronCloud(
+            getenv('NEURON_CLOUD_API_KEY') ?: throw new RuntimeException('Set NEURON_CLOUD_API_KEY: the API key of the Neuron Cloud project.'),
+        );
+
+        if (getenv('NEURON_CLOUD_TRACING') === 'true') {
+            // The developer's answer: false keeps prompts, completions and tool data in the application.
+            $cloud->enableTracing(captureContent: true);
+        }
+
+        return $cloud;
+    },
+
+    // One entry like this for every agent and workflow the application builds. Tracing::subscribe() calls the
+    // closure only when tracing is on, and hands the agent back untraced when the service cannot be built.
+    SupportAgent::class => fn (ContainerInterface $c): SupportAgent => Tracing::subscribe(
+        SupportAgent::make(),
+        fn (): NeuronCloud => $c->get(NeuronCloud::class),
+    ),
+];
+```
+
+The class is the application's: one file, written once, that every agent and workflow goes through.
+
+```php
+// src/Tracing.php: where every agent and workflow the application builds gets its tracer
+namespace App;
+
+use Closure;
+use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Workflow\WorkflowInterface;
+use NeuronCore\Cloud\NeuronCloud;
+use Throwable;
+
+final class Tracing
 {
-    public function __construct(protected Redis $redis)
-    {
-    }
+    protected static bool $failureLogged = false;
 
-    public function dispatch(Invocation $invocation): void
+    /**
+     * @template T of WorkflowInterface
+     * @param T $workflow an agent or a workflow
+     * @param Closure(): NeuronCloud $cloud called only when tracing is on
+     * @return T the same object, with its tracer when the service could be built
+     */
+    public static function subscribe(WorkflowInterface $workflow, Closure $cloud): WorkflowInterface
     {
-        $this->redis->rPush('neuron-cloud', json_encode($invocation->toArray(), JSON_THROW_ON_ERROR));
+        if (getenv('NEURON_CLOUD_TRACING') !== 'true') {
+            return $workflow;   // tracing off: the service is never asked for, and no key is needed
+        }
+
+        try {
+            $workflow->subscribe(ObservabilityEvent::class, $cloud()->tracer());
+        } catch (Throwable $e) {
+            // Best effort: the agent runs untraced, and the first failure of the process is logged.
+            if (!self::$failureLogged) {
+                self::$failureLogged = true;
+                while ($e->getPrevious() !== null) {
+                    $e = $e->getPrevious();   // the cause, under any exception a container wrapped it in
+                }
+                error_log('Neuron Cloud: agents run untraced, the service could not be built. ' . $e::class . ': ' . $e->getMessage());
+            }
+        }
+
+        return $workflow;
     }
 }
 ```
 
-A dispatcher that cannot queue the message throws: the SDK then fails the call (`dispatch_failed`) before anything runs.
-
-**4. The service.** One bootstrap file, required by the endpoint, the worker, the sync script and the application.
+**Without a container**, the same `if` goes in `bootstrap.php`, and an entry script that builds agents hands `Tracing::subscribe()` a closure that requires it:
 
 ```php
 // bootstrap.php
-use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronCore\Cloud\NeuronCloud;
 
-require __DIR__ . '/vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
-$pdo = new PDO(getenv('DATABASE_DSN'), options: [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
-$redis = new Redis();
-$redis->connect(getenv('REDIS_HOST') ?: '127.0.0.1');
+$cloud = new NeuronCloud(
+    getenv('NEURON_CLOUD_API_KEY') ?: throw new RuntimeException('Set NEURON_CLOUD_API_KEY: the API key of the Neuron Cloud project.'),
+);
 
-return (new NeuronCloud(
-    apiKey: getenv('NEURON_CLOUD_API_KEY'),
-    signingKey: getenv('NEURON_CLOUD_SIGNING_KEY') ?: null,
-))
-    ->setPersistence(fn () => new DatabasePersistence($pdo))
-    ->setDispatcher(new RedisDispatcher($redis))
-    ->setEndpointUrl('https://shop.example.com/neuron-cloud.php')   // what the sync publishes
-    ->register('order-fulfilment', fn () => new OrderWorkflow());
-```
-
-- **`register(name, factory, version: 1, leaseTimeout: 600)`.** The name is what the platform shows: lowercase letters, digits, `.`, `_`, `-`, at most 64 characters. The factory may declare `(string $workflowId, ?string $runId)`; the SDK binds the workflow to the workflow ID itself.
-- **The lease must exceed the slowest node** (one inference, one whole batch of tools). A sync refuses a lease under 60 seconds.
-- **`setPersistence()` takes a closure**, called for every workflow the SDK builds. In a worker that lives for hours, return a store on a connection that is still open: a `DatabasePersistence` keeps the PDO it is given.
-- **With no dispatcher set, every message runs in place.** That is for scripts and tests only.
-
-**5. The endpoint.** One public HTTPS URL, with nothing in front of it that answers in its place or rewrites the body: no authentication, no CSRF check, no rate limiter. The SDK verifies the signature over the raw body, hands a start or a wake to the dispatcher and answers by itself. `handle()` never throws.
-
-```php
-// public/neuron-cloud.php
-$cloud = require __DIR__ . '/../bootstrap.php';
-
-$response = $cloud->handle($_SERVER['REQUEST_METHOD'], getallheaders(), file_get_contents('php://input'));
-
-http_response_code($response->statusCode);
-foreach ($response->headers as $name => $value) {
-    header("{$name}: {$value}");
+if (getenv('NEURON_CLOUD_TRACING') === 'true') {
+    $cloud->enableTracing(captureContent: true);   // the developer's answer, as above
 }
-echo $response->body;
-```
 
-**6. The worker.** One message, one `invoke()`. It returns a `Report` for every message it dealt with, also for a segment that failed. It throws `CloudException` only when the message was not dealt with, and `$e->reason` says what to do.
+return $cloud;
+```
 
 ```php
-// bin/worker.php
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
+// public/index.php, or any entry script that builds agents
+use App\Agents\SupportAgent;
+use App\Tracing;
+use NeuronCore\Cloud\NeuronCloud;
 
-$cloud = require __DIR__ . '/../bootstrap.php';
-$redis = new Redis();
-$redis->connect(getenv('REDIS_HOST') ?: '127.0.0.1');
+require_once __DIR__ . '/../vendor/autoload.php';
 
-while ([, $job] = $redis->blPop(['neuron-cloud'], 0)) {
-    $invocation = Invocation::fromArray(json_decode($job, true, flags: JSON_THROW_ON_ERROR));
+// The service of bootstrap.php, built the first time a traced agent asks for it, then shared
+$cloud = function (): NeuronCloud {
+    static $service;
+    return $service ??= require __DIR__ . '/../bootstrap.php';
+};
 
-    try {
-        $cloud->invoke($invocation);
-    } catch (CloudException $e) {
-        // The platform refused the message for good: a person looks at it.
-        $final = in_array($e->reason, [Code::Unauthorized, Code::InvalidRequest, Code::UnsupportedProtocol], true);
-        // A start, an answer or a signal of yours that could not run before its use-by time.
-        $spent = $e->reason !== Code::ReportUndelivered && $invocation->expiresAt !== null && time() >= $invocation->expiresAt;
-
-        $redis->rPush($final || $spent ? 'neuron-cloud:failed' : 'neuron-cloud:later', $job);
-    }
-}
+// Where the application builds the agent, with the $cloud the entry script hands it
+$agent = Tracing::subscribe(SupportAgent::make(), $cloud);
 ```
 
-| `$e->reason` | What the worker does |
-|---|---|
-| `report_undelivered` | The platform did not record a notice. Give the same message to `invoke()` again later (10, 30, 60, 300, then every 900 seconds), without limit |
-| `unknown_definition`, `unknown_version`, `not_executed`, `announce_failed`, `unavailable` | Nothing ran: a worker on old code during a deploy, a store that was down. Try again later while `time() < $invocation->expiresAt`, then keep it aside |
-| `unauthorized`, `invalid_request`, `unsupported_protocol` | Final. Keep it aside until the key or the URL is fixed, then replay it |
+Set `NEURON_CLOUD_TRACING=true`, with the key, in the environment of every process that runs agents: web, CLI, workers.
 
-Run the worker under a process supervisor, one process per segment that should execute at the same time, and move the `later` list back with a cron. Read the `Report` too: a start of your own that did not run comes back as `rejected`, `refused` or `aborted`, and nothing else tells you.
+**Keep the test suite off the platform**, in the same step. With `NEURON_CLOUD_TRACING=true` in the environment the tests run in, or in a `.env` their bootstrap loads, every agent a test takes from the container sends its trace with the developer's key:
 
-**7. The sync, at the end of every deploy.** Restart the workers first: a worker on old code cannot build a new version.
-
-```php
-// bin/sync.php
-$cloud = require __DIR__ . '/../bootstrap.php';
-
-$result = $cloud->sync();   // the URL of setEndpointUrl(); a URL given here is published instead
-
-echo $result->modified ? "Published.\n" : "Nothing changed.\n";
+```xml
+<!-- phpunit.xml, in <php>: force="true" wins over what the shell exports -->
+<env name="NEURON_CLOUD_TRACING" value="false" force="true"/>
+<env name="NEURON_CLOUD_API_KEY" value="test-key" force="true"/>
 ```
 
-The list is complete and replaces the one the platform holds. `sync()` throws a `CloudException` and publishes nothing for an endpoint that is not `https`, when no endpoint URL is given or set (`not_configured`), for an in-memory or file store, when nothing is registered, and when the platform could not reach the endpoint (`endpoint_unverified`): local development needs an HTTPS tunnel.
+With tracing off `Tracing::subscribe()` never asks for the service. The test key lets the code that takes it be built, an evaluator on a dataset for one, and nothing is sent.
 
-The platform can also ask the endpoint for a sync, when an owner requests one from its dashboard. `handle()` answers it with the body `sync()` would post, so `setEndpointUrl()` belongs in the bootstrap the endpoint requires, not only in `bin/sync.php`. Where `sync()` would throw before sending, the endpoint answers `409 sync_refused` without the reason: run `bin/sync.php` to read it.
+- **A trace is one run.** Every `chat()`, `stream()` or `run()` of an agent or a workflow that carries the listener sends its spans when it ends or is interrupted. Spans follow the OpenTelemetry conventions for generative AI: `invoke_agent SupportAgent` or `invoke_workflow <class>`, named after the short class name, then a span per node, `chat <model>` per inference, `execute_tool <tool>` per tool call, `retrieval` for RAG. For an agent, the thread ID is `gen_ai.conversation.id`. The trace ID comes from the run ID, so a run resumed after an interruption adds to the same trace, when the agent that resumes it carries a listener too.
+- **The listener is silent until `enableTracing()`.** `tracer()` reads the settings of `enableTracing()` when it is called. Before that, or on a service with tracing off, it returns a listener that handles no event. Call `enableTracing()` where the service is built, before any `tracer()`.
+- **One listener may serve several agents.** It keeps each run apart: an agent whose tool runs another agent, a workflow node that runs an agent, two streams read in turns. A copy made with `$agent->for($threadId)` keeps the listener of the agent it copies. Each `tracer()` call returns a new listener, and one per agent works the same.
+- **Only agents that carry a listener are traced.** An agent built with `make()` or `new` outside the container, in a script or an evaluator, goes through `Tracing::subscribe()` too. `tracer()` needs the API key only: no store, no queue, no registered definition.
+- **A run the SDK executes is traced by the SDK.** Once orchestration registers an agent, every run of it that goes through `$cloud->workflow()` is traced once, by the SDK, under its definition name. The listener of the container's agent then leaves that run alone: nothing to remove.
+- **It is best effort.** The trace is posted by the process that ran the agent, with a 3 second timeout: in a web request, one call to the platform before `chat()` returns, or when the stream ends. A trace the platform did not take is logged with `error_log()` and dropped. It never changes the run or what the caller receives.
+- **`enableTracing(attributes: ['deployment.environment' => 'production'])`** stamps the same attributes on every span of the process: the environment, a release. There is no per-run attribute. `OTEL_SERVICE_NAME` names the service of every trace.
+- **Tracing never stops an agent.** With tracing off, `Tracing::subscribe()` hands the agent back as it is and never calls the closure: a machine, a CI job or a test suite without the key builds its agents and sends nothing. With tracing on, a service that cannot be built, for want of the key or for anything else its entry throws, leaves the agent untraced: it is built and runs, and the first failure of the process goes to `error_log()` with its cause, `RuntimeException: Set NEURON_CLOUD_API_KEY: …`. Every agent built after it asks again and logs nothing. Once per process is once per request under PHP-FPM, once per worker in a long-lived one, once per run of a test suite.
+- **Only `Tracing::subscribe()` catches.** What asks for the service itself still throws without the key: `$c->get(NeuronCloud::class)`, `bootstrap.php`, an evaluator that takes `NeuronCloud` (stage 2). An entry that takes the service as a parameter, `fn (NeuronCloud $cloud)`, makes the container build it for every agent, tracing off or not, and fails the agent without the key.
+- **The logged line names the cause.** PHP-DI hands on what a factory definition throws as it is, compiled or not. At an injected property or an array entry it may wrap it in a `DependencyException` that keeps it as `previous`, as the entry is defined and the container compiled or not. The class logs the innermost exception, so the line names the variable either way.
+- **A static method, because PHP-DI compiles it.** With `enableCompilation()`, PHP-DI copies each definition's code into a class, and refuses a closure that imports a variable, with `use` or as an arrow function that captures one: a closure shared by the agents' entries cannot be compiled. The closure an entry hands `Tracing::subscribe()` captures only `$c`, the parameter of the entry, and compiles. Taking a closure, not the container, the method serves an application with no container too.
+- **The variable decides, not the service alone.** A service with tracing on gives no listener to an agent while `Tracing::subscribe()` reads `NEURON_CLOUD_TRACING` as off. A test of tracing sets the variable too, and binds the service on `FakePlatform`: [references/testing.md](references/testing.md).
+- Neuron's own events, custom listeners and logging: **neuron-monitoring**.
 
-## Starting and Answering Runs
+When the request named no stage, stop here and name evaluation as the next step.
 
-`$cloud->workflow($name, $workflowId)` returns the workflow bound to one workflow ID. Each call on it prepares one segment, used once:
+## Stage 2: Evaluation
 
-```php
-$order = $cloud->workflow('order-fulfilment', "order:{$orderId}");
+Two pieces, each wired when the developer asks for it: the results of every evaluation run, and evaluators that run on a dataset the platform keeps. Both need the API key only.
 
-// Start: on the queue, or in this process
-$runId = $order->start(new OrderPlaced($orderId))->dispatch();
-$state = $order->start(new OrderPlaced($orderId))->run();
+### The evaluation output
 
-// Answer the event the run waits for (awaitEvent('payment.received') in a node)
-$order->signal('payment.received', ['amount' => $amount])->dispatch();
-
-// Answer the current wait of any kind, with a translator when the payload is a frontend's
-$order->submitInputs($payload, $translator)->run();
-
-// Finish a failed or dead run now, instead of waiting for the platform's retry. Null: nothing to do
-$order->recover();
-```
-
-| Call | Runs | Returns |
-|---|---|---|
-| `->dispatch()` | On the queue, in a worker | The run ID |
-| `->run()` | In this process | The `WorkflowState` |
-| `->events()` | In this process, as a stream | Neuron's own generator of events |
-
-- **`start()`** takes an event, the messages of an agent turn (`new UserMessage('…')`, or an array of messages, with `stream: true` when the provider should stream), or nothing for the workflow's own start event. A start never replaces a run: a workflow ID that already holds one throws `RunInFlightException`. Two starts queued before either ran are both accepted: the worker runs the first, and the report of the second says `refused`.
-- **`signal()` and `submitInputs()` check the answer in this request**, before anything is queued: `InputTranslationException` when no run is suspended on a wait, `WorkflowRefusedException` when the run is not at that wait. Map both to a 409 for a webhook that will call again. Nothing buffers an event that arrives before its wait.
-- **`run()` and `events()` throw what Neuron throws**: the refusal, or the exception of a node. `dispatch()` returns as soon as the queue has the message.
-- **A `CloudException` in a request** is `dispatch_failed` (your queue did not take the message) or `unknown_version` (this process runs older code than the run): answer 503. Any other reason is a programming error.
-- **`configure(fn (Workflow $workflow) => …)`** adjusts the copy that `run()` and `events()` execute in this request: a stream adapter, a channel, tools of the browser. Segments that run in a worker never see it: there the class's own hooks decide.
-
-### An agent turn streamed in a request
-
-```php
-$thread = $cloud->workflow('support-agent', $threadId);
-$thread->recover();                                   // finish a turn that failed, before the new one
-
-$thread->configure(fn (SupportAgent $agent) => $agent->setStreamAdapter(fn () => $adapter));
-
-$events = $thread->start(new UserMessage($prompt), stream: true)->events();
-$events->valid();                                     // admit now: a refusal is an HTTP status, not a frame
-
-foreach (SSEEncoder::encode($events) as $frame) {
-    echo $frame;
-    flush();
-}
-```
-
-Prime the generator with `valid()` before any output: admission is lazy, and a refusal thrown after the headers were sent cannot become a status. Protocols, adapters and channels: **neuron-streaming** and **neuron-frontend-integration**.
-
-### Versions
-
-A breaking change to a workflow that may have suspended runs (a node, event or state class renamed or reshaped, waits reordered) gets a new version; the old one stays registered until no run is open on it.
-
-```php
-$cloud->register('order-fulfilment', fn () => new OrderWorkflow(), version: 1)
-      ->register('order-fulfilment', fn () => new OrderWorkflowV2(), version: 2);   // new runs start here
-```
-
-`$result->retirable` of a sync lists the versions with no open run (`['order-fulfilment' => [1]]`); `$result->stranded` lists versions that left the code while runs of them are open.
-
-## Observability
-
-```php
-// bootstrap.php: one more call in the chain that builds the service
-    ->setDispatcher(new RedisDispatcher($redis))
-    ->enableTracing(attributes: ['deployment.environment' => 'production'])
-    ->register('order-fulfilment', fn () => new OrderWorkflow());
-```
-
-From then on every segment this process executes (in a request, in a worker, as a stream) sends one trace to the platform when it ends. Nothing else is wired: the SDK subscribes its own listener (`CloudListener`) to each workflow it builds, and names the spans after the definition. Call it in the bootstrap file, so that it is on before any `workflow()`, `handle()` or `invoke()`.
-
-- **A trace is the run.** Its trace ID comes from the run ID, so every segment of a run lands in the same trace. Spans follow the OpenTelemetry conventions for generative AI: `invoke_workflow` or `invoke_agent`, a span per node, `chat <model>` per inference, `execute_tool <tool>` per tool call, `retrieval` for RAG.
-- **Tracing sends what your application works on.** The message and the stack trace of an exception are always sent. Prompts, completions, tool arguments and tool results are sent unless you pass `captureContent: false`. Ask the developer which one they want when the data is sensitive: never decide it silently.
-- **`attributes`** are stamped on every span and are the same for every run of the process: the environment, a release. There is no per-run attribute.
-- **It is best effort.** A trace the platform did not take is logged with `error_log()` and dropped. It never changes the run, its report or what a caller receives.
-- **The trace is posted by the process that ran the segment**, with a 3 second timeout: in a web request that is one call to the platform when the segment ends.
-- **Only segments the SDK executes are traced.** A workflow you run directly is not. Events, custom listeners and logging on your own workflows: **neuron-monitoring**.
-
-## Evaluation Output
-
-`evaluationOutput()` returns an output driver for Neuron's evaluations. List it in `evaluation.php`, the file `vendor/bin/neuron evaluation` reads from the project root:
+`evaluationOutput()` returns an output driver for Neuron's evaluations. List it in `evaluation.php`, the file `vendor/bin/neuron evaluation` reads from the project root. Its `resolver` is the application's container:
 
 ```php
 // evaluation.php
 use NeuronAI\Evaluation\Output\ConsoleOutput;
 use NeuronCore\Cloud\NeuronCloud;
 
-$apiKey = getenv('NEURON_CLOUD_API_KEY');
+$container = require __DIR__ . '/bootstrap/container.php';   // however the application builds its container
 
 return [
     'output' => array_filter([
         ConsoleOutput::class,
         // Sent only where the key is set: a laptop without it still evaluates.
-        $apiKey ? (new NeuronCloud($apiKey))->evaluationOutput(environment: getenv('NEURON_CLOUD_EVALUATION_ENVIRONMENT') ?: null) : null,
+        getenv('NEURON_CLOUD_API_KEY') ? $container->get(NeuronCloud::class)->evaluationOutput(environment: getenv('NEURON_CLOUD_EVALUATION_ENVIRONMENT') ?: null) : null,
     ]),
+    // Builds every evaluator, and every output listed by its class name
+    'resolver' => fn (string $class): object => $container->get($class),
 ];
 ```
 
 - **`evaluationOutput()` returns a `CloudOutput`**, built with the API key, the platform URL and the HTTP client of the service it comes from.
-- **Only the API key is needed**: no store, no dispatcher, no registered definition. Build a `NeuronCloud` here, or require the bootstrap file when its other dependencies are available where evaluations run.
-- **Guard the key.** Without it, `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` throws a `TypeError` in an `evaluation.php` that declares `strict_types`, and the run ends with no result. Without `strict_types` it builds a service with an empty key, and the platform refuses every request.
+- **Only the API key is needed**: no store, no queue, no registered definition.
+- **Keep the guard.** Without the key, the entry of stage 0 throws, and so would `evaluation.php`: the command would end with no result at all.
 - **One message per evaluator** is sent when all evaluators are done: its class, its summary, and for every dataset item the input, the output, the scores and the failed assertions. Inputs and outputs do leave the application: that is the point of this output.
 - **`environment`** names where the evaluation ran (`ci`, `local`, a branch), or is null.
-- **It is best effort too.** A platform that is away is logged; the other outputs still run and the exit code of the command is what the assertions decide.
+- **It is best effort too.** A platform that is away is logged. The other outputs still run, and the exit code of the command is what the assertions decide.
+- **Never build `CloudOutput` with `new`**: its constructor takes a class internal to the SDK.
 
-Evaluators, datasets, assertions and the other output drivers: **neuron-evaluation**.
+Evaluators, assertions and the other output drivers: **neuron-evaluation**.
 
-## Evaluation Datasets
+### Datasets
 
-`dataset()` returns a dataset of Neuron's evaluations whose items Neuron Cloud keeps, a `CloudDataset`. An evaluator returns it from `getDataset()` in place of a `JsonDataset`, with the service it receives in its constructor:
+`dataset()` returns a dataset of Neuron's evaluations whose items Neuron Cloud keeps, a `CloudDataset`. An evaluator returns it from `getDataset()` in place of a `JsonDataset`, with the service the container injects:
 
 ```php
+use App\Agents\SupportAgent;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronAI\UniqueIdGenerator;
 use NeuronCore\Cloud\NeuronCloud;
 
 class RefundEvaluator extends BaseEvaluator
 {
-    public function __construct(protected NeuronCloud $cloud)
+    public function __construct(protected SupportAgent $agent, protected NeuronCloud $cloud)
     {
         parent::__construct();
     }
@@ -305,7 +289,10 @@ class RefundEvaluator extends BaseEvaluator
 
     public function run(array $datasetItem): mixed
     {
-        return SupportAgent::make()->chat(new UserMessage($datasetItem['input']['question']))->getMessage()->getContent();
+        return $this->agent->for(UniqueIdGenerator::generateId('eval_'))   // a thread of its own for every item
+            ->chat(new UserMessage($datasetItem['input']['question']))
+            ->getMessage()
+            ->getContent();
     }
 
     public function evaluate(mixed $output, array $datasetItem): void
@@ -315,94 +302,75 @@ class RefundEvaluator extends BaseEvaluator
 }
 ```
 
-Neuron's evaluation command builds every evaluator through the `resolver` of `evaluation.php`. Make it the application's container when it builds classes by name and holds the service, as PHP-DI does: `'resolver' => fn (string $class): object => $container->get($class)`. Without a container, `evaluation.php` builds the service and hands it over:
+The `resolver` above builds it: the container injects the agent, with its listener where stage 1 is wired and tracing is on, and the service. **Without a container**, `evaluation.php` takes the service from `bootstrap.php` and hands it over:
 
 ```php
 // evaluation.php
+use App\Agents\SupportAgent;
 use App\Evaluators\RefundEvaluator;
 use NeuronAI\Evaluation\Output\ConsoleOutput;
-use NeuronCore\Cloud\NeuronCloud;
 
-$apiKey = getenv('NEURON_CLOUD_API_KEY');
-$cloud = $apiKey ? new NeuronCloud($apiKey) : null;
+$cloud = getenv('NEURON_CLOUD_API_KEY') ? (require __DIR__ . '/bootstrap.php') : null;
 
 return [
-    'output' => array_filter([ConsoleOutput::class, $cloud?->evaluationOutput(environment: 'ci')]),
+    'output' => array_filter([ConsoleOutput::class, $cloud?->evaluationOutput(environment: getenv('NEURON_CLOUD_EVALUATION_ENVIRONMENT') ?: null)]),
     // Builds every evaluator, and every output listed by its class name
     'resolver' => fn (string $class): object => match ($class) {
-        RefundEvaluator::class => new RefundEvaluator($cloud ?? throw new RuntimeException('Set NEURON_CLOUD_API_KEY: RefundEvaluator runs on a dataset of Neuron Cloud.')),
+        RefundEvaluator::class => new RefundEvaluator(
+            SupportAgent::make(),
+            $cloud ?? throw new RuntimeException('Set NEURON_CLOUD_API_KEY: RefundEvaluator runs on a dataset of Neuron Cloud.'),
+        ),
         default => new $class(),
     },
 ];
 ```
 
 - **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there. Only the active items of the dataset are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`.
-- **Only the API key is needed**: no store, no dispatcher, no registered definition.
-- **The items are read once per evaluator**, when Neuron's runner loads the dataset: after `setUp()`, before the first item runs, in the process of the command. `--concurrency` forks after that, and the children never call the platform. `dataset()` itself reads nothing.
-- **A dataset that cannot be read stops its evaluator.** An unknown slug, a refused key, no answer within 15 seconds, or an answer that is not a dataset makes `load()` throw a `CloudException`. The command reports that evaluator as one that could not run, runs the others and exits with 1. A missing key stops it the same way, when it is built: that is what the `throw` in the resolver is for.
+- **Only the API key is needed**: no store, no queue, no registered definition.
+- **Each item runs on a copy of the agent**, bound to a new thread with `for()`. `chat()` on the injected agent itself would run every item in one conversation, or find no thread at all, and `setThreadId()` cannot move a bound agent to another thread. An agent whose class keeps conversations in a database gets in-memory stores on the copy, `->setMessageStore(new InMemoryMessageStore())->setPersistence(new InMemoryPersistence())`, so an evaluation never writes to the conversation tables.
+- **Evaluation runs are traced where stage 1 is wired and the evaluation environment sets `NEURON_CLOUD_TRACING=true`**: the agent the container injects then carries its listener. Without the agent entry of stage 1 the container builds a bare agent and the variable changes nothing; the agent the no-container resolver builds has no listener either, unless the resolver passes it through `Tracing::subscribe()`.
+- **The items are read once per evaluator**, when Neuron's runner loads the dataset: after `setUp()`, before the first item runs, in the process of the command, before `--concurrency` forks. With tracing off the children never call the platform; with a traced agent each child posts the traces of the items it runs. `dataset()` itself reads nothing.
+- **A dataset that cannot be read stops its evaluator.** An unknown slug, a refused key, no answer within 15 seconds, or an answer that is not a dataset makes `load()` throw a `CloudException`. The command reports that evaluator as one that could not run, runs the others and exits with 1. A missing key stops it the same way, when it is built: the entry of stage 0 throws, and so does the resolver without a container.
 - **An empty dataset runs nothing**, and nothing fails.
 - **`--cache` keys an item by its content**: an item changed on the platform runs again, an unchanged one is served from the cache.
 - **Never build `CloudDataset` with `new`**: its constructor takes a class internal to the SDK.
 
+## Next: Orchestration
+
+Stop after the stage the request named. Read [references/orchestration.md](references/orchestration.md) only when the developer asks for durable runs, timers, retries, scheduled starts, or runs that survive a crash, a deploy or a wait of days. It adds the signing key, a store, a queue, an endpoint, a worker and a sync to the service of stage 0, and changes how the application starts and answers the runs of a registered workflow.
+
 ## Testing
 
-`NeuronCore\Cloud\Testing` ships two fakes. `FakePlatform` is the HTTP client of the service: it records what the SDK sends and plays the platform's side of the endpoint. `FakeDispatcher` is a queue the test runs by hand.
-
-```php
-use NeuronAI\Workflow\Persistence\InMemoryPersistence;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Verb;
-
-$platform = new FakePlatform();
-$queue = new FakeDispatcher();
-$store = new InMemoryPersistence();
-
-$cloud = (new NeuronCloud('test-key', $platform->signingKey, httpClient: $platform))
-    ->setPersistence(fn () => $store)
-    ->setDispatcher($queue)
-    ->register('order-fulfilment', fn () => new OrderWorkflow());
-
-$cloud->workflow('order-fulfilment', 'order:123')->start(new OrderPlaced('123'))->dispatch();
-$queue->assertDispatched(Verb::Start, 'order:123');
-
-$queue->runAll($cloud);                    // the worker: it runs the segment and reports it
-$platform->assertReported('order:123', Outcome::Suspended);
-
-$platform->wake($cloud, 'order:123');      // the platform's wake-up, signed, through handle()
-$queue->runAll($cloud);                    // ...which a worker then executes
-```
-
-- One `InMemoryPersistence` shared through the closure is enough for a test; a test that calls `sync()` needs a real store, such as `DatabasePersistence` on SQLite.
-- `runAll()` returns what every `invoke()` returned (a `Report`) or threw (a `CloudException`), and keeps queued what a worker would try again. A segment run in the test itself with `run()` or `events()` queues its two notices: `runAll()` posts them.
-- `$platform->failNext(2, 503)` makes the next two requests fail; `$platform->deliver($cloud, [...])` sends the endpoint any message, signed.
-- Fake the model with `FakeAIProvider` (**neuron-test**): the SDK never touches the provider.
+A test builds the service on the SDK's `FakePlatform`, which answers as the platform does. `$platform->assertTraced('invoke_agent SupportAgent')` checks that a run was traced, `keepDataset($slug, $items)` gives an evaluator the items of a dataset, and `assertEvaluated(RefundEvaluator::class)` checks that the evaluation output sent an evaluator's results. A test of tracing also sets `NEURON_CLOUD_TRACING=true`, since `Tracing::subscribe()` reads it. [references/testing.md](references/testing.md) shows a traced agent, an evaluator on a dataset, and the `FakeDispatcher` of orchestration.
 
 ## Pitfalls
 
-- A registered workflow run with `->run()` or `->chat()` on the class itself → the platform never hears of it: no timer fires, no retry comes. Go through `$cloud->workflow()`.
-- A factory that reads the request, the session or `auth()` → it works in the request and fails in the worker. Build the workflow from the workflow ID.
-- Retrying a segment in the queue (`$tries`, a redelivery policy) → the same work runs twice. The platform owns retries; try again only what `invoke()` threw for.
-- `InMemoryPersistence` or `FilePersistence` in the service → `sync()` refuses it (`unsuitable_persistence`): their conditional writes do not hold across processes.
-- A lease shorter than the slowest node → a live run is taken for dead and a second worker takes it over.
-- The endpoint behind authentication, CSRF or a body-rewriting middleware → every message of the platform is answered by something else. Keep the route bare.
-- `sync()` with an `http://` URL or from a machine the platform cannot reach → refused. Use the public HTTPS address, or a tunnel in development.
-- A dispatched start for a workflow ID that already holds a run → `RunInFlightException` in the request. It never replaces a run.
-- Iterating `events()` without `valid()` first → a refusal arrives as an exception in the middle of a response.
-- `enableTracing()` with default arguments on sensitive data → prompts and tool results reach the platform. Pass `captureContent: false`; exception messages are sent either way.
-- `enableTracing()` called after `$cloud->workflow()` → that workflow object was prepared without tracing. Call it in the bootstrap file.
-- `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` unguarded in `evaluation.php` → on a machine without the key, a `TypeError` and no result where the file declares `strict_types`, and a service whose every request is refused where it does not. Build the service only when the key is set.
-- An evaluator that takes `NeuronCloud` in its constructor and no `resolver` in `evaluation.php` → "requires constructor arguments: build it with a resolver". Give it the service through the resolver.
+- `new NeuronCloud(getenv('NEURON_CLOUD_API_KEY'))` with no guard → a `TypeError` where the file declares `strict_types`, and a service whose every request is refused where it does not. Throw a message that names the variable.
+- A `NeuronCloud` built inside a class or per request → its settings differ from the container's, and tracing may be off in it. Take the shared one.
+- A queue, a store, an endpoint, a worker or a sync wired for "add Neuron Cloud" → orchestration nobody asked for, with a public URL and a process to keep alive. Stop at stage 1.
+- `enableTracing()` with default arguments on sensitive data, with no question asked → prompts and tool results reach the platform. Ask the developer; exception messages are sent either way.
+- `enableTracing()` called after `tracer()` → that listener was built with tracing off and sends nothing. Call it where the service is built.
+- An agent's entry that takes `NeuronCloud` as a parameter → the service is built for every agent, tracing off or not, and without the key the agent is not built. Go through `Tracing::subscribe()`.
+- An agent's entry that subscribes `$c->get(NeuronCloud::class)->tracer()` itself → not best effort: without the key the agent is not built, with tracing on even under the `NEURON_CLOUD_TRACING` check, and with tracing off too where there is no check. Go through `Tracing::subscribe()`.
+- `NEURON_CLOUD_TRACING=true` where `NEURON_CLOUD_API_KEY` is not set → every agent runs untraced, and one `error_log()` line per process says why. Set the key in the same environment, and read the error log once tracing is on.
+- A `Tracing::subscribe()` that catches `CloudException` only → the `RuntimeException` of the entry, the missing key, still stops the agent. Catch `Throwable`.
+- A closure shared by the agents' entries, `use ($traced)` or an arrow function that captures it → with `enableCompilation()`, PHP-DI's `build()` throws "Cannot compile closures which import variables using the `use` keyword". Call the static method.
+- `NEURON_CLOUD_TRACING=true` in the web environment only → agents run by a CLI script or a worker send nothing. Set it wherever agents run.
+- `NEURON_CLOUD_TRACING=true` where the tests run, and nothing in `phpunit.xml` → the test suite sends traces with the developer's key. Force it to `false` there.
+- `getenv()` in an application that loads `.env` with `Dotenv::createImmutable()` → the key is in `.env`, and the entry still throws; tracing never turns on. Read `$_ENV`, as the application does.
+- An agent built with `make()` outside the container → not traced. Pass it through `Tracing::subscribe()`, or take it from the container.
+- A test of tracing that turns tracing on in the service only → `Tracing::subscribe()` reads the variable as off, the agent carries no listener, and `assertTraced()` fails. Set `NEURON_CLOUD_TRACING=true` in the test.
+- `new CloudListener(...)` → its constructor takes a class internal to the SDK. Use `$cloud->tracer()`.
+- `SupportAgent::make()->chat(...)` or `$this->agent->chat(...)` in an evaluator → no thread ID; on an agent already bound (`make('support')`, a class that declares `workflowId()`), every item runs in one conversation and sees the items before it, and nothing fails; `setThreadId()` per item throws on the second. Use `$this->agent->for($threadId)`.
+- An evaluator that takes `NeuronCloud` in its constructor and no `resolver` in `evaluation.php` → "requires constructor arguments: build it with a resolver". Make the container the resolver.
 - An evaluator that catches the `CloudException` of its dataset and returns an empty list → it runs nothing, and the command passes. Let it throw.
 
 ## Related
 
-- **neuron-cloud-laravel** — the same wiring in a Laravel application, through the `neuron-core/neuron-cloud-laravel` package.
-- **neuron-workflow** — nodes, waits (`awaitEvent`, `sleepUntil`, `interrupt`), `memoize()`, persistence backends and their tables.
-- **neuron-agent** — agents, providers, tools, chat history.
-- **neuron-streaming** and **neuron-frontend-integration** — stream adapters, channels, AG-UI and Vercel clients.
+- **neuron-cloud-laravel** — the same stages in a Laravel application, through the `neuron-core/neuron-cloud-laravel` package.
+- [references/orchestration.md](references/orchestration.md) — stage 3: durable runs, the store, the queue, the endpoint, the worker, the sync.
+- [references/testing.md](references/testing.md) — `FakePlatform` for traces, evaluation results and datasets (`assertTraced()`, `assertEvaluated()`, `keepDataset()`); `FakeDispatcher` for orchestration.
+- **neuron-agent** and **neuron-workflow** — agents, providers, tools, chat history, nodes and waits.
 - **neuron-evaluation** — evaluators, datasets, assertions, output drivers.
 - **neuron-monitoring** — Neuron's events and listeners.
 - **neuron-test** — `FakeAIProvider` and the other fakes.

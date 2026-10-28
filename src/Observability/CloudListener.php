@@ -44,10 +44,12 @@ use NeuronAI\Workflow\Observability\WorkflowError;
 use NeuronAI\Workflow\Observability\WorkflowInterrupted;
 use NeuronAI\Workflow\Observability\WorkflowNodeEnd;
 use NeuronAI\Workflow\Observability\WorkflowNodeStart;
+use NeuronAI\Workflow\ExecutionContext;
 use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
 use Throwable;
+use WeakMap;
 
 use function array_map;
 use function count;
@@ -68,11 +70,24 @@ use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_UNESCAPED_UNICODE;
 
 /**
+ * Traces the runs of an agent or a workflow, and sends each to Neuron Cloud.
+ *
+ * Build it from the SDK root, and subscribe it to an agent or a workflow the
+ * application runs itself, with chat(), stream(), run() or events():
+ *
+ *   $agent->subscribe(ObservabilityEvent::class, $cloud->tracer());
+ *
  * Bridges neuron-ai's event-based observability to OpenTelemetry: pairs the
  * framework's start/stop events into spans (keyed on the emitting object or
  * class, so parallel branches cannot cross wires) and flushes one OTLP trace
  * per run segment on WorkflowEnd. Timing, hierarchy and the OTLP encoding live
  * in {@see Trace}; shipping in {@see TraceExporter}.
+ *
+ * Each run in flight has a trace of its own, kept by the run ID Neuron stamps
+ * on every event of a segment, so one listener may serve several agents: an
+ * agent whose tool runs another agent, a node that runs an agent, two streams
+ * read in turns. The WorkflowEnd of a run sends the trace of that run alone.
+ * An event that carries no run ID goes to one trace shared by all such events.
  *
  * Spans follow the OpenTelemetry GenAI semantic conventions (development
  * stability — github.com/open-telemetry/semantic-conventions-genai), so any
@@ -102,10 +117,17 @@ use const JSON_UNESCAPED_UNICODE;
  * not a failure either, so it is only an `exception` event. Listener
  * exceptions are swallowed: a tracing bug must not break the run.
  *
- * The SDK subscribes one to every workflow it builds to execute, once
- * {@see \NeuronCore\Cloud\NeuronCloud::enableTracing()} was called.
+ * It takes the settings {@see \NeuronCore\Cloud\NeuronCloud::enableTracing()}
+ * was given when it was got. One got before enableTracing() was called
+ * handles no event and sends nothing, so a line that subscribes it sends
+ * nothing where tracing is off. Where the API key may be missing, the
+ * application asks for the service only when tracing is on.
  *
- * @internal
+ * The SDK subscribes one of its own to every workflow it builds to execute,
+ * named after the definition, and a run it executes is traced by that one
+ * alone: a listener of the application on the same workflow, subscribed by
+ * the factory of the definition or by a configure() callback, leaves the run
+ * to it and sends nothing for it.
  */
 class CloudListener
 {
@@ -127,36 +149,69 @@ class CloudListener
         'grok' => 'x_ai',
     ];
 
-    /** The trace of the run in flight, null between runs. */
-    protected ?Trace $trace = null;
-
-    /** The thread of the Agent run in flight; null for a plain workflow. */
-    protected ?string $conversationId = null;
-
-    /** The provider of the Agent run in flight; null for a plain workflow. */
-    protected ?AIProviderInterface $provider = null;
+    /** The key of the run that events carrying no run ID belong to: a run ID is never empty. */
+    protected const NO_RUN = '';
 
     /**
+     * The segments a listener of the SDK traces in this process, by the
+     * execution context every event of a segment carries. A claim is made at
+     * the first event the listener hears of a segment and lasts as long as
+     * the segment: Neuron lets go of it once the segment is over, whatever
+     * its listeners heard.
+     *
+     * @var WeakMap<ExecutionContext, true>|null
+     */
+    protected static ?WeakMap $claimed = null;
+
+    /**
+     * The runs in flight, by run ID: the trace of each, and for an Agent run
+     * its thread and its provider (null for a plain workflow).
+     *
+     * @var array<string, array{trace: Trace, conversationId: ?string, provider: ?AIProviderInterface}>
+     */
+    protected array $runs = [];
+
+    /**
+     * The segments whose end this listener heard, for as long as each exists:
+     * what Neuron reports of one after its end is not traced.
+     *
+     * @var WeakMap<ExecutionContext, true>
+     */
+    protected WeakMap $ended;
+
+    /**
+     * @internal built by {@see \NeuronCore\Cloud\NeuronCloud::tracer()}, and by the SDK for a workflow it executes
+     *
+     * @param TraceExporter|null   $exporter       null: tracing is off, and the listener handles no event.
      * @param string|null          $name           The agent/workflow name spans are reported under; the class name when null.
      * @param array<string, mixed> $metadata       Run-level attributes stamped on every span.
      * @param bool                 $captureContent Ship prompts, completions, tool arguments and results
      *                                             (truncated). The conventions make content opt-in; disable
      *                                             it where it must not leave the application.
+     * @param bool                 $claimsRuns     The SDK's own: the segments it hears are left to it by every other listener.
      */
     public function __construct(
-        protected readonly TraceExporter $exporter,
+        protected readonly ?TraceExporter $exporter,
         protected readonly ?string $name = null,
         protected readonly ?string $userId = null,
         protected readonly ?string $sessionId = null,
         protected readonly array $metadata = [],
         protected readonly bool $captureContent = true,
+        protected readonly bool $claimsRuns = false,
     ) {
+        $this->ended = new WeakMap();
     }
 
     public function __invoke(ObservabilityEvent $event): void
     {
+        if ($this->exporter === null) {
+            return;
+        }
+
         try {
-            $this->handle($event);
+            if ($this->follows($event)) {
+                $this->handle($event);
+            }
         } catch (Throwable $e) {
             // The dispatcher does not guard listeners; a tracing bug must not
             // break the workflow run.
@@ -168,9 +223,9 @@ class CloudListener
     {
         match ($event::class) {
             WorkflowStart::class => $this->startRun($event),
-            WorkflowInterrupted::class => $this->trace()->markSuspended(),
+            WorkflowInterrupted::class => $this->trace($event)->markSuspended(),
             WorkflowError::class => $this->recordError($event),
-            ChannelError::class => $this->trace()->recordException($event->exception),
+            ChannelError::class => $this->trace($event)->recordException($event->exception),
             WorkflowEnd::class => $this->endRun($event),
 
             WorkflowNodeStart::class => $this->start($event, 'node', $this->shortName($event->node)),
@@ -199,7 +254,7 @@ class CloudListener
                     'gen_ai.tool.type' => 'function',
                     'gen_ai.tool.call.id' => $event->tool->getCallId(),
                     'gen_ai.tool.description' => $event->tool->getDescription(),
-                    'gen_ai.conversation.id' => $this->conversationId,
+                    'gen_ai.conversation.id' => $this->conversationId($event),
                 ] + $this->content([
                     'gen_ai.tool.call.arguments' => fn (): string => $this->json($this->truncateStrings($event->tool->getInputs())),
                 ]),
@@ -291,20 +346,21 @@ class CloudListener
      */
     protected function startRun(WorkflowStart|WorkflowError $event): void
     {
-        $this->trace()->identify($event->execution?->runId, $event->execution?->workflowId);
+        $this->trace($event)->identify($event->execution?->runId, $event->execution?->workflowId);
 
         $name = $this->name ?? ($event->source === null ? null : $this->shortName($event->source::class));
 
         if ($event->source instanceof Agent) {
+            $run = $this->runOf($event);
             // An Agent's workflow ID is its thread — a real conversation
             // identity, which is the only kind the conventions allow here.
-            $this->conversationId = $event->execution?->workflowId;
-            $this->provider = $this->providerOf($event->source);
+            $this->runs[$run]['conversationId'] = $event->execution?->workflowId;
+            $this->runs[$run]['provider'] = $this->providerOf($event->source);
 
             $this->start($event, 'agent', $this->spanName('invoke_agent', $name), [
                 'gen_ai.operation.name' => 'invoke_agent',
                 'gen_ai.agent.name' => $name,
-                'gen_ai.conversation.id' => $this->conversationId,
+                'gen_ai.conversation.id' => $this->conversationId($event),
             ]);
 
             return;
@@ -319,42 +375,52 @@ class CloudListener
     /**
      * A segment that fails while it builds its graph reports no start: the
      * error is the first thing heard of it, and opens the root span that a
-     * start would have opened. An error reported under a node opens nothing.
+     * start would have opened. An error reported under a node opens nothing,
+     * and one reported after the end of its segment is not handled at all.
      */
     protected function recordError(WorkflowError $event): void
     {
-        if ($this->trace === null && $event->source instanceof Workflow) {
+        if (!isset($this->runs[$this->runOf($event)]) && $event->source instanceof Workflow) {
             $this->startRun($event);
         }
 
-        $this->trace()->recordError($event->exception);
+        $this->trace($event)->recordError($event->exception);
     }
 
     /**
      * The state of the segment's end is the framework's word on how the run
      * ended: an error it reported on the way may have been a listener's. An
      * end with nothing heard before it has no span to fail, and sends nothing.
+     * The segment is over for this listener from then on.
      */
     protected function endRun(WorkflowEnd $event): void
     {
-        if ($event->state->getStatus() === WorkflowStatus::Failed) {
-            $this->trace?->markFailed();
+        $run = $this->runOf($event);
+
+        if ($event->execution !== null) {
+            $this->ended[$event->execution] = true;
         }
 
-        $this->flush();
+        if ($event->state->getStatus() === WorkflowStatus::Failed) {
+            ($this->runs[$run]['trace'] ?? null)?->markFailed();
+        }
+
+        $this->flush($run);
     }
 
     protected function startInference(InferenceStart $event): void
     {
+        $provider = $this->providerOfRun($event);
+
         $this->start(
             $event,
             'generation',
-            $this->spanName('chat', $this->provider?->getModel()),
+            $this->spanName('chat', $provider?->getModel()),
             [
                 'gen_ai.operation.name' => 'chat',
-                'gen_ai.provider.name' => $this->provider === null ? null : $this->providerName($this->provider),
-                'gen_ai.request.model' => $this->provider?->getModel(),
-                'gen_ai.conversation.id' => $this->conversationId,
+                'gen_ai.provider.name' => $provider === null ? null : $this->providerName($provider),
+                'gen_ai.request.model' => $provider?->getModel(),
+                'gen_ai.conversation.id' => $this->conversationId($event),
             ] + $this->content([
                 'gen_ai.input.messages' => fn (): string => $this->json([$this->messagePayload($event->message)]),
             ]),
@@ -369,7 +435,7 @@ class CloudListener
 
         $this->stop($event, [
             'gen_ai.response.finish_reasons' => $stopReason === null ? null : [$stopReason],
-        ] + $this->usageAttributes($message->getUsage(), $this->provider) + $this->content([
+        ] + $this->usageAttributes($message->getUsage(), $this->providerOfRun($event)) + $this->content([
             'gen_ai.output.messages' => fn (): string => $this->json([$this->messagePayload($message)]),
         ]));
     }
@@ -386,7 +452,7 @@ class CloudListener
         int $otelKind = Trace::KIND_INTERNAL,
         bool $forked = false,
     ): void {
-        $this->trace()->openSpan(
+        $this->trace($event)->openSpan(
             $this->spanKey($event),
             $name,
             $otelKind,
@@ -403,40 +469,104 @@ class CloudListener
      */
     protected function stop(ObservabilityEvent $event, array $attributes = [], ?string $error = null): void
     {
-        $this->trace?->closeSpan($this->spanKey($event), $attributes, $error);
+        ($this->runs[$this->runOf($event)]['trace'] ?? null)?->closeSpan($this->spanKey($event), $attributes, $error);
     }
 
     /**
-     * The trace of the run in flight, opened on the first event. Events can
+     * The run an event belongs to: the run ID Neuron stamps on every event of
+     * a segment, or the one key of the events that carry none.
+     */
+    protected function runOf(ObservabilityEvent $event): string
+    {
+        return $event->execution->runId ?? self::NO_RUN;
+    }
+
+    /**
+     * Whether this listener traces the event. A segment whose end it heard is
+     * over for it: Neuron reports a listener that threw on that end with an
+     * error after it, which neither claims the segment nor opens its run
+     * again. The SDK's own listener claims each segment it hears, for as long
+     * as the segment exists. Any other listener leaves a segment so claimed
+     * to it: it drops what it holds of the run and handles none of its
+     * events. One subscribed before the SDK's hears the first event of a
+     * segment before the claim, and its WorkflowEnd while the claim stands.
+     */
+    protected function follows(ObservabilityEvent $event): bool
+    {
+        $segment = $event->execution;
+
+        if ($segment === null) {
+            return true;
+        }
+
+        if (isset($this->ended[$segment])) {
+            return false;
+        }
+
+        $claimed = self::$claimed ??= new WeakMap();
+
+        if ($this->claimsRuns) {
+            $claimed[$segment] = true;
+
+            return true;
+        }
+
+        if (isset($claimed[$segment])) {
+            unset($this->runs[$this->runOf($event)]);
+
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * The trace of the event's run, opened on its first event. Events can
      * arrive before WorkflowStart (e.g. an agent run whose listener was
      * attached mid-flight); opening lazily means nothing is lost.
      */
-    protected function trace(): Trace
+    protected function trace(ObservabilityEvent $event): Trace
     {
-        return $this->trace ??= new Trace(
-            getenv('OTEL_SERVICE_NAME') ?: null,
-            $this->metadata + ['user.id' => $this->userId, 'session.id' => $this->sessionId],
-        );
+        return ($this->runs[$this->runOf($event)] ??= [
+            'trace' => new Trace(
+                getenv('OTEL_SERVICE_NAME') ?: null,
+                $this->metadata + ['user.id' => $this->userId, 'session.id' => $this->sessionId],
+            ),
+            'conversationId' => null,
+            'provider' => null,
+        ])['trace'];
     }
 
     /**
-     * Ship the segment's spans and reset for the next run.
+     * The thread of the event's run, when it is an Agent run.
      */
-    public function flush(): void
+    protected function conversationId(ObservabilityEvent $event): ?string
     {
-        if ($this->trace === null) {
+        return $this->runs[$this->runOf($event)]['conversationId'] ?? null;
+    }
+
+    /**
+     * The provider of the event's run, when it is an Agent run.
+     */
+    protected function providerOfRun(ObservabilityEvent $event): ?AIProviderInterface
+    {
+        return $this->runs[$this->runOf($event)]['provider'] ?? null;
+    }
+
+    /**
+     * Ship the spans of one run's segment and forget the run: the other runs
+     * in flight are untouched.
+     */
+    protected function flush(string $run): void
+    {
+        $trace = $this->runs[$run]['trace'] ?? null;
+        unset($this->runs[$run]);
+
+        if ($trace === null || $trace->isEmpty()) {
             return;
         }
 
-        $empty = $this->trace->isEmpty();
-        $trace = $this->trace->close();
-        $this->trace = null;
-        $this->conversationId = null;
-        $this->provider = null;
-
-        if (!$empty) {
-            $this->exporter->send($trace);
-        }
+        $this->exporter?->send($trace->close());
     }
 
     /**

@@ -18,17 +18,24 @@ use NeuronCore\Cloud\Runtime\Signature;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\Assert;
 
+use function array_column;
 use function array_fill;
 use function array_filter;
 use function array_map;
 use function array_shift;
+use function array_values;
 use function base64_encode;
 use function end;
+use function implode;
 use function is_array;
 use function is_string;
 use function json_encode;
 use function parse_url;
 use function random_bytes;
+use function rawurldecode;
+use function str_starts_with;
+use function strlen;
+use function substr;
 use function time;
 
 use const JSON_THROW_ON_ERROR;
@@ -37,7 +44,10 @@ use const PHP_URL_PATH;
 /**
  * Neuron Cloud as the SDK sees it over HTTP: it records what it is told and
  * answers as the platform would. Give it to NeuronCloud as its HTTP client.
- * It also plays the platform's side of the endpoint, with deliver() and wake().
+ * It takes in traces and the results of evaluations, which assertTraced()
+ * and assertEvaluated() look for, and answers the read of a dataset with the
+ * items keepDataset() gave it. It also plays the platform's side of the
+ * endpoint, with deliver() and wake().
  */
 class FakePlatform implements HttpClientInterface
 {
@@ -51,6 +61,9 @@ class FakePlatform implements HttpClientInterface
 
     protected const EVALUATIONS = '/v1/evaluations';
 
+    /** Followed by the slug of the dataset. */
+    protected const DATASETS = '/v1/datasets/';
+
     public readonly string $signingKey;
 
     /** @var array<int, array{request: HttpRequest, status: int}> every request received, with the status it was answered */
@@ -58,6 +71,9 @@ class FakePlatform implements HttpClientInterface
 
     /** @var int[] the statuses the next requests are answered with, instead of being recorded */
     protected array $failures = [];
+
+    /** @var array<string, list<array{input: mixed, expected_output: mixed}>> the items of every dataset kept, by slug, as the platform answers them */
+    protected array $datasets = [];
 
     public function __construct()
     {
@@ -70,6 +86,26 @@ class FakePlatform implements HttpClientInterface
     public function failNext(int $times = 1, int $status = 503): static
     {
         $this->failures = [...$this->failures, ...array_fill(0, $times, $status)];
+
+        return $this;
+    }
+
+    /**
+     * Keep a dataset: from now on a read of the slug is answered as the platform
+     * answers it, with these items in this order, as a list whatever their keys.
+     * Each is answered as the platform answers an item, with its input and its
+     * expected output alone: an expected output it was not given is null, and
+     * any other key is dropped. A failure failNext() queued still comes first,
+     * and a slug it was not given is answered 404.
+     *
+     * @param array<int, array<array-key, mixed>> $items each as the platform holds it: ['input' => ..., 'expected_output' => ...]
+     */
+    public function keepDataset(string $slug, array $items): static
+    {
+        $this->datasets[$slug] = array_map(
+            static fn (array $item): array => ['input' => $item['input'] ?? null, 'expected_output' => $item['expected_output'] ?? null],
+            array_values($items),
+        );
 
         return $this;
     }
@@ -147,13 +183,36 @@ class FakePlatform implements HttpClientInterface
             return $this->refusal($failure);
         }
 
-        return match ($this->path($request)) {
+        $path = $this->path($request);
+
+        return match ($path) {
             self::ANNOUNCEMENTS, self::REPORTS => new HttpResponse(200, '{"recorded":true}'),
             self::SYNC => $this->syncAnswer($request),
             // Taken in, as an OTLP collector answers an export.
             self::TRACES, self::EVALUATIONS => new HttpResponse(200, '{}'),
-            default => $this->refusal(404),
+            default => $this->datasetAnswer($path),
         };
+    }
+
+    /**
+     * The answer to the read of a dataset keepDataset() was given. Any other
+     * path, the slug of a dataset it was not given included, is answered 404.
+     */
+    protected function datasetAnswer(string $path): HttpResponse
+    {
+        // The SDK percent-encodes the slug as one segment of the path.
+        $slug = str_starts_with($path, self::DATASETS) ? rawurldecode(substr($path, strlen(self::DATASETS))) : null;
+        if ($slug === null || !isset($this->datasets[$slug])) {
+            return $this->refusal(404);
+        }
+
+        // The platform also gives the name and the description an operator chose: the fake names it by its slug.
+        return new HttpResponse(200, json_encode([
+            'slug' => $slug,
+            'name' => $slug,
+            'description' => null,
+            'items' => $this->datasets[$slug],
+        ], JSON_THROW_ON_ERROR));
     }
 
     /**
@@ -214,6 +273,28 @@ class FakePlatform implements HttpClientInterface
         return $bodies;
     }
 
+    /**
+     * @return string[] the name of the parentless span of every trace the platform took in, in order
+     */
+    protected function parentlessSpans(): array
+    {
+        $names = [];
+        foreach ($this->recorded(self::TRACES) as $trace) {
+            foreach ($trace['resourceSpans'] ?? [] as $resource) {
+                foreach ($resource['scopeSpans'] ?? [] as $scope) {
+                    foreach ($scope['spans'] ?? [] as $span) {
+                        // OTLP gives a span with no parent an empty parentSpanId, or none.
+                        if (($span['parentSpanId'] ?? '') === '') {
+                            $names[] = (string) ($span['name'] ?? '');
+                        }
+                    }
+                }
+            }
+        }
+
+        return $names;
+    }
+
     // ----------------------------------------------------------------
     // PHPUnit Assertions
     // ----------------------------------------------------------------
@@ -262,6 +343,42 @@ class FakePlatform implements HttpClientInterface
             $matching,
             "The platform recorded no '{$outcome->value}' report" . ($code === null ? '' : " with the code '{$code}'")
             . " for workflow ID '{$workflowId}'.",
+        );
+    }
+
+    /**
+     * Assert the platform took in a trace whose parentless span has this name:
+     * 'invoke_agent X' for an agent and 'invoke_workflow X' for a workflow. X is
+     * the short class name for a run the application runs with tracer(), and
+     * the definition name for a run the SDK executes ('invoke_workflow
+     * order-fulfilment', 'invoke_agent support-agent').
+     */
+    public function assertTraced(string $rootSpan): void
+    {
+        $names = $this->parentlessSpans();
+
+        Assert::assertContains(
+            $rootSpan,
+            $names,
+            "The platform took in no trace whose parentless span is '{$rootSpan}': "
+            . ($names === [] ? 'it took in none.' : "the traces it took in have the parentless spans '" . implode("', '", $names) . "'."),
+        );
+    }
+
+    /**
+     * Assert the platform took in the results of an evaluator.
+     *
+     * @param string $evaluator the class of the evaluator, as Neuron's evaluation runner names it
+     */
+    public function assertEvaluated(string $evaluator): void
+    {
+        $names = array_column($this->recorded(self::EVALUATIONS), 'name');
+
+        Assert::assertContains(
+            $evaluator,
+            $names,
+            "The platform took in no evaluation of '{$evaluator}': "
+            . ($names === [] ? 'it took in none.' : "it took in the evaluations of '" . implode("', '", $names) . "'."),
         );
     }
 }

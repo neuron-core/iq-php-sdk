@@ -30,7 +30,10 @@ use NeuronCore\Cloud\Runtime\PlatformClient;
 use NeuronCore\Cloud\Tests\Stub\CompleteNode;
 use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
+use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
 use NeuronCore\Cloud\Tests\Stub\NodeFailed;
+use NeuronCore\Cloud\Tests\Stub\Tracing\AskResearcherTool;
+use NeuronCore\Cloud\Tests\Stub\Tracing\Researcher;
 use NeuronCore\Cloud\Tests\Stub\Tracing\UnbuildableWorkflow;
 use NeuronCore\Cloud\Tests\Stub\Tracing\WeatherTool;
 use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
@@ -40,8 +43,10 @@ use NeuronCore\Cloud\Tests\Support\TestBench;
 use NeuronCore\Cloud\Tests\Support\Tracing\Otlp;
 use NeuronCore\Cloud\Tests\Support\Units\CapturesErrorLog;
 use RuntimeException;
+use WeakReference;
 
 use function array_column;
+use function array_filter;
 use function array_intersect;
 use function array_keys;
 use function array_map;
@@ -253,7 +258,7 @@ class CloudListenerTest extends CloudTestCase
         $ofANode->source = new CompleteNode($this->bench->executions);
 
         $listener($ofANode);
-        $listener->flush();
+        $listener(new WorkflowEnd(new WorkflowState()));
 
         self::assertSame([], $this->platform->received());
     }
@@ -288,6 +293,193 @@ class CloudListenerTest extends CloudTestCase
 
         self::assertCount(2, array_unique(array_map(static fn (array $trace): string => Otlp::spans($trace)[0]['traceId'], $this->traces())));
         self::assertSame([2, 2], array_map(static fn (array $trace): int => count(Otlp::spans($trace)), $this->traces()));
+    }
+
+    /**
+     * The run of the researcher starts and ends inside the tool call of the agent that asked it.
+     */
+    public function test_one_listener_on_an_agent_whose_tool_runs_another_agent_sends_a_trace_of_each_run_under_its_own_trace_id_and_thread(): void
+    {
+        [$supportRun, $researcherRun] = $this->askTheResearcher($this->listener(name: null));
+
+        $traces = $this->traces();
+        self::assertCount(2, $traces);
+        self::assertNotSame($supportRun, $researcherRun);
+        foreach ([[$traces[0], $researcherRun, 'thread:researcher'], [$traces[1], $supportRun, 'thread:support']] as [$trace, $runId, $thread]) {
+            $spans = Otlp::spans($trace);
+            self::assertSame([substr(hash('sha256', $runId), 0, 32)], array_values(array_unique(array_column($spans, 'traceId'))));
+            self::assertSame([$runId], array_values(array_unique(array_map(static fn (array $span): mixed => $span['attributes']['neuron.run.id'], $spans))));
+            self::assertSame([$thread], array_values(array_unique(array_filter(array_map(
+                static fn (array $span): mixed => $span['attributes']['gen_ai.conversation.id'] ?? null,
+                $spans,
+            )))));
+        }
+    }
+
+    public function test_the_trace_of_an_agent_whose_tool_runs_another_agent_on_the_same_listener_is_sent_whole_when_its_own_run_ends(): void
+    {
+        $this->askTheResearcher($this->listener(name: null));
+
+        [$researcher, $support] = $this->traces();
+        self::assertSame([['invoke_agent Researcher'], ['invoke_agent Agent']], [$this->rootsOf($researcher), $this->rootsOf($support)]);
+        self::assertCount(1, preg_grep('/^chat fake$/', Otlp::names($researcher)) ?: []);
+        // The answer the agent gives once the tool returned is in the trace of its run, under its root.
+        self::assertCount(2, preg_grep('/^chat fake$/', Otlp::names($support)) ?: []);
+        self::assertContains('execute_tool ask_researcher', Otlp::names($support));
+        self::assertNotContains('invoke_agent Researcher', Otlp::names($support));
+    }
+
+    public function test_one_listener_on_two_streams_read_in_turns_sends_a_trace_of_each_with_the_spans_of_its_own_run(): void
+    {
+        $listener = $this->listener();
+        $first = $this->traced(new NarratingWorkflow($this->bench->executions), $listener)
+            ->events(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+        $second = $this->traced(new NarratingWorkflow($this->bench->executions), $listener, 'order:456')
+            ->events(ExecutionRequest::start(new StartEvent(), '1-another-run'));
+
+        $first->current();
+        $second->current();
+        while ($first->valid() || $second->valid()) {
+            if ($first->valid()) {
+                $first->next();
+            }
+            if ($second->valid()) {
+                $second->next();
+            }
+        }
+
+        $traces = $this->traces();
+        self::assertCount(2, $traces);
+        foreach ([[$traces[0], self::RUN_ID, self::WORKFLOW_ID], [$traces[1], '1-another-run', 'order:456']] as [$trace, $runId, $workflowId]) {
+            $spans = Otlp::spans($trace);
+            self::assertSame(['NarrateNode', 'invoke_workflow order-fulfilment'], Otlp::names($trace));
+            self::assertSame(['invoke_workflow order-fulfilment'], $this->rootsOf($trace));
+            foreach ($spans as $span) {
+                self::assertSame(
+                    [substr(hash('sha256', $runId), 0, 32), $runId, $workflowId],
+                    [$span['traceId'], $span['attributes']['neuron.run.id'], $span['attributes']['neuron.workflow.id']],
+                );
+            }
+        }
+    }
+
+    /**
+     * A listener of the application subscribed before the one of the SDK hears the first event of the segment before
+     * the SDK claims the run, and the end of the segment while the claim stands. One subscribed after it hears every
+     * event of the run claimed.
+     */
+    public function test_listeners_of_the_application_on_a_workflow_the_sdk_traces_leave_the_run_to_it_and_send_nothing(): void
+    {
+        $workflow = (new CompletingWorkflow($this->bench->executions))->subscribe(ObservabilityEvent::class, $this->listener(name: null));
+        $workflow = $this->traced($workflow, $this->listener(claimsRuns: true))
+            ->subscribe(ObservabilityEvent::class, $this->listener(name: null));
+
+        $workflow->run(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+
+        self::assertCount(1, $this->traces());
+        self::assertSame(['CompleteNode', 'invoke_workflow order-fulfilment'], Otlp::names($this->traces()[0]));
+    }
+
+    /**
+     * The claim lasts as long as the segment: the next segment of the run is claimed again by its own listener.
+     */
+    public function test_a_listener_of_the_application_leaves_every_segment_of_a_run_to_the_sdk(): void
+    {
+        foreach ([ExecutionRequest::start(new StartEvent(), self::RUN_ID), ExecutionRequest::signal('payment.received', [])] as $request) {
+            $workflow = (new WaitingWorkflow($this->bench->executions))->subscribe(ObservabilityEvent::class, $this->listener(name: null));
+            $this->traced($workflow, $this->listener(claimsRuns: true))->run($request);
+        }
+
+        self::assertSame(
+            [['invoke_workflow order-fulfilment'], ['invoke_workflow order-fulfilment']],
+            array_map($this->rootsOf(...), $this->traces()),
+        );
+    }
+
+    /**
+     * The claim of the SDK ends with the segment it executed: a segment of the same run that it does not execute
+     * is the application's to trace.
+     */
+    public function test_a_segment_the_sdk_does_not_execute_of_a_run_it_traced_before_is_traced_by_a_listener_of_the_application(): void
+    {
+        $sdk = (new WaitingWorkflow($this->bench->executions))->subscribe(ObservabilityEvent::class, $this->listener(name: null));
+        $this->traced($sdk, $this->listener(claimsRuns: true))->run(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+
+        $this->traced(new WaitingWorkflow($this->bench->executions), $this->listener(name: null))
+            ->run(ExecutionRequest::signal('payment.received', []));
+
+        self::assertSame(
+            [['invoke_workflow order-fulfilment'], ['invoke_workflow WaitingWorkflow']],
+            array_map($this->rootsOf(...), $this->traces()),
+        );
+    }
+
+    /**
+     * Neuron reports a listener that threw on the end of a segment with an error, after the end. A configure()
+     * callback subscribes its listener after the one of the SDK, which has sent its trace by then. The claim of the
+     * SDK lasts as long as the segment, and nothing holds the segment once it is over.
+     */
+    public function test_a_listener_that_throws_at_the_end_of_a_segment_the_sdk_traced_leaves_the_next_segment_of_the_run_to_the_application(): void
+    {
+        $segment = null;
+        $this->traced(new WaitingWorkflow($this->bench->executions), $this->listener(claimsRuns: true))
+            ->subscribe(WorkflowStart::class, static function (WorkflowStart $event) use (&$segment): void {
+                $segment = WeakReference::create($event->execution);
+            })
+            ->subscribe(WorkflowEnd::class, static fn () => throw new RuntimeException('The audit log is unreachable.'))
+            ->run(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+
+        $this->traced(new WaitingWorkflow($this->bench->executions), $this->listener(name: null))
+            ->run(ExecutionRequest::signal('payment.received', []));
+
+        self::assertSame(
+            [['invoke_workflow order-fulfilment'], ['invoke_workflow WaitingWorkflow']],
+            array_map($this->rootsOf(...), $this->traces()),
+        );
+        self::assertInstanceOf(WeakReference::class, $segment);
+        self::assertNull($segment->get(), 'The segment the SDK claimed is still held.');
+    }
+
+    /**
+     * A listener the factory subscribed before the one of the SDK that throws on the end of a segment stops Neuron
+     * there: the SDK never hears that end, and sends nothing for the segment. Its claim ends with the segment all
+     * the same.
+     */
+    public function test_a_listener_that_throws_at_the_end_of_a_segment_before_the_sdk_hears_it_leaves_the_next_segment_of_the_run_to_the_application(): void
+    {
+        $segment = null;
+        $sdk = (new WaitingWorkflow($this->bench->executions))
+            ->subscribe(WorkflowStart::class, static function (WorkflowStart $event) use (&$segment): void {
+                $segment = WeakReference::create($event->execution);
+            })
+            ->subscribe(WorkflowEnd::class, static fn () => throw new RuntimeException('The audit log is unreachable.'));
+        $this->traced($sdk, $this->listener(claimsRuns: true))->run(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+
+        $this->traced(new WaitingWorkflow($this->bench->executions), $this->listener(name: null))
+            ->run(ExecutionRequest::signal('payment.received', []));
+
+        self::assertSame([['invoke_workflow WaitingWorkflow']], array_map($this->rootsOf(...), $this->traces()));
+        self::assertInstanceOf(WeakReference::class, $segment);
+        self::assertNull($segment->get(), 'The segment the SDK claimed is still held.');
+    }
+
+    /**
+     * A segment whose end the listener heard is over for it: the error Neuron reports after the end, for a listener
+     * that threw on it, opens no run that the next segment of the run would send.
+     */
+    public function test_an_error_reported_after_the_end_of_a_segment_is_in_no_trace_the_listener_sends(): void
+    {
+        $listener = $this->listener(name: null);
+
+        foreach ([ExecutionRequest::start(new StartEvent(), self::RUN_ID), ExecutionRequest::signal('payment.received', [])] as $request) {
+            $this->traced(new WaitingWorkflow($this->bench->executions), $listener)
+                ->subscribe(WorkflowEnd::class, static fn () => throw new RuntimeException('The audit log is unreachable.'))
+                ->run($request);
+        }
+
+        $traces = $this->traces();
+        self::assertSame([['invoke_workflow WaitingWorkflow'], ['invoke_workflow WaitingWorkflow']], array_map($this->rootsOf(...), $traces));
+        self::assertSame([], array_merge(...array_column(array_merge(...array_map(Otlp::spans(...), $traces)), 'events')));
     }
 
     public function test_the_trace_of_an_agent_has_a_root_span_of_the_agent_a_client_span_for_each_inference_and_a_span_for_each_tool_call(): void
@@ -401,28 +593,36 @@ class CloudListenerTest extends CloudTestCase
         $listener = $this->listener();
 
         $listener(new WorkflowNodeEnd(CompleteNode::class, new WorkflowState()));
-        $listener->flush();
+        $listener(new WorkflowEnd(new WorkflowState()));
 
         self::assertSame([], $this->platform->received());
     }
 
-    protected function listener(?string $name = 'order-fulfilment', array $metadata = [], bool $captureContent = true): CloudListener
-    {
+    /**
+     * @param bool $claimsRuns a listener as the SDK subscribes it to a workflow it executes
+     */
+    protected function listener(
+        ?string $name = 'order-fulfilment',
+        array $metadata = [],
+        bool $captureContent = true,
+        bool $claimsRuns = false,
+    ): CloudListener {
         return new CloudListener(
             new TraceExporter(new PlatformClient($this->platform, TestBench::PLATFORM_URL, TestBench::API_KEY)),
             $name,
             metadata: $metadata,
             captureContent: $captureContent,
+            claimsRuns: $claimsRuns,
         );
     }
 
     /**
      * A workflow on the store of the bench, with the listener subscribed as the SDK subscribes it.
      */
-    protected function traced(Workflow $workflow, ?CloudListener $listener = null): Workflow
+    protected function traced(Workflow $workflow, ?CloudListener $listener = null, string $workflowId = self::WORKFLOW_ID): Workflow
     {
         return $workflow
-            ->for(self::WORKFLOW_ID)
+            ->for($workflowId)
             ->setPersistence(($this->bench->persistence)())
             ->subscribe(ObservabilityEvent::class, $listener ?? $this->listener());
     }
@@ -447,6 +647,37 @@ class CloudListenerTest extends CloudTestCase
     }
 
     /**
+     * One turn of an agent whose tool asks a researcher, another agent, with the listener subscribed to both.
+     *
+     * @return array{string, string} the run ID of the agent and the run ID of the researcher
+     */
+    protected function askTheResearcher(CloudListener $listener): array
+    {
+        $researcherRun = null;
+        $researcher = Researcher::make()
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Rome is sunny.')))
+            ->setPersistence(($this->bench->persistence)())
+            ->setThreadId('thread:researcher')
+            ->subscribe(ObservabilityEvent::class, $listener)
+            ->subscribe(WorkflowStart::class, static function (WorkflowStart $event) use (&$researcherRun): void {
+                $researcherRun = $event->execution?->runId;
+            });
+        $agent = Agent::make()
+            ->setAiProvider(new FakeAIProvider(
+                new ToolCallMessage(null, [new ToolCall('ask_researcher', 'call_1', ['question' => 'What is the weather in Rome?'])]),
+                new AssistantMessage('It is sunny in Rome.'),
+            ))
+            ->addTool(new AskResearcherTool($researcher))
+            ->setPersistence(($this->bench->persistence)())
+            ->setThreadId('thread:support')
+            ->subscribe(ObservabilityEvent::class, $listener);
+
+        $state = $agent->chat(new UserMessage('What is the weather in Rome?'));
+
+        return [(string) $state->getRunId(), (string) $researcherRun];
+    }
+
+    /**
      * @return array<int, array<string, mixed>> the export requests the platform received, in order
      */
     protected function traces(): array
@@ -466,5 +697,17 @@ class CloudListenerTest extends CloudTestCase
         }
 
         self::fail('The trace has no parentless span.');
+    }
+
+    /**
+     * @param array<string, mixed> $trace
+     * @return list<string> the names of the parentless spans of the trace
+     */
+    protected function rootsOf(array $trace): array
+    {
+        return array_values(array_column(
+            array_filter(Otlp::spans($trace), static fn (array $span): bool => !isset($span['parentSpanId'])),
+            'name',
+        ));
     }
 }

@@ -34,8 +34,9 @@ final class WorkflowBuilder
     {
         $workflow = ($definition->factory)($workflowId, $runId)->for($workflowId);
 
-        // A listener holds the trace of one run, so each workflow gets its own, and only one that may execute.
-        // It is subscribed here and not in impose(), which a segment calls once more after configure().
+        // Only a workflow built to execute gets a listener, one of its own: it names its spans after the definition,
+        // and claims the segments it hears. It is subscribed here and not in impose(), which a segment calls once more
+        // after configure().
         if ($this->tracer instanceof Closure && $runId !== null) {
             $workflow->subscribe(ObservabilityEvent::class, ($this->tracer)($definition));
         }

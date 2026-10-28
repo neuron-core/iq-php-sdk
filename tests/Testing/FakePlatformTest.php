@@ -4,14 +4,30 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Tests\Testing;
 
+use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Console\Evaluation\EvaluationCommand;
+use NeuronAI\Evaluation\Config\ConfigLoader;
+use NeuronAI\Evaluation\Runner\EvaluatorResult;
+use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Testing\FakeAIProvider;
+use NeuronCore\Cloud\Code;
+use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Outcome;
 use NeuronCore\Cloud\Runtime\Signature;
 use NeuronCore\Cloud\Testing\FakePlatform;
+use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
 use NeuronCore\Cloud\Tests\Stub\Endpoint\RecordingCloud;
+use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
+use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
+use NeuronCore\Cloud\Tests\Stub\Tracing\Researcher;
 use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
 use NeuronCore\Cloud\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
@@ -21,6 +37,8 @@ use function array_map;
 use function base64_decode;
 use function count;
 use function json_decode;
+use function ob_end_clean;
+use function ob_start;
 use function strlen;
 use function substr;
 use function time;
@@ -29,7 +47,14 @@ use const JSON_THROW_ON_ERROR;
 
 class FakePlatformTest extends TestCase
 {
+    use CatchesCloudExceptions;
+
     protected const WORKFLOW_ID = 'order:123';
+
+    protected const ITEMS = [
+        ['input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
+        ['input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+    ];
 
     #[DataProvider('paths')]
     public function test_an_announcement_or_a_report_is_answered_as_recorded(string $path): void
@@ -488,6 +513,225 @@ class FakePlatformTest extends TestCase
         $platform->wake(new RecordingCloud(), self::WORKFLOW_ID);
     }
 
+    public function test_assert_traced_passes_for_a_trace_whose_parentless_span_has_the_name(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::trace('invoke_agent SupportAgent'));
+
+        $platform->assertTraced('invoke_agent SupportAgent');
+    }
+
+    public function test_assert_traced_passes_for_a_span_whose_parent_span_id_is_empty_as_otlp_allows(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::post('/v1/traces', ['resourceSpans' => [['scopeSpans' => [['spans' => [
+            ['spanId' => '00f067aa0ba902b7', 'parentSpanId' => '', 'name' => 'invoke_agent SupportAgent'],
+        ]]]]]]));
+
+        $platform->assertTraced('invoke_agent SupportAgent');
+    }
+
+    public function test_assert_traced_fails_when_no_trace_was_taken_in(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage("The platform took in no trace whose parentless span is 'invoke_agent SupportAgent': it took in none.");
+
+        (new FakePlatform())->assertTraced('invoke_agent SupportAgent');
+    }
+
+    public function test_assert_traced_fails_for_a_span_that_has_a_parent(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::trace('invoke_agent SupportAgent', 'chat openai'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage(
+            "The platform took in no trace whose parentless span is 'chat openai': the traces it took in have the parentless spans 'invoke_agent SupportAgent'.",
+        );
+
+        $platform->assertTraced('chat openai');
+    }
+
+    public function test_assert_traced_fails_for_another_parentless_span_and_names_those_it_took_in(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::trace('invoke_agent Researcher'));
+        $platform->request(self::trace('invoke_workflow order-fulfilment'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage(
+            "The platform took in no trace whose parentless span is 'invoke_agent SupportAgent': "
+            . "the traces it took in have the parentless spans 'invoke_agent Researcher', 'invoke_workflow order-fulfilment'.",
+        );
+
+        $platform->assertTraced('invoke_agent SupportAgent');
+    }
+
+    public function test_assert_traced_does_not_count_a_trace_the_platform_refused(): void
+    {
+        $platform = (new FakePlatform())->failNext();
+        self::answerOf($platform, self::trace('invoke_agent SupportAgent'));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('it took in none.');
+
+        $platform->assertTraced('invoke_agent SupportAgent');
+    }
+
+    public function test_an_agent_run_with_the_tracer_of_a_service_given_the_fake_passes_assert_traced(): void
+    {
+        $platform = new FakePlatform();
+        $cloud = self::serviceOn($platform)->enableTracing();
+
+        Researcher::make()
+            ->setAiProvider(new FakeAIProvider(new AssistantMessage('Rome is sunny.')))
+            ->subscribe(ObservabilityEvent::class, $cloud->tracer())
+            ->for('thread:1')
+            ->chat(new UserMessage('What is the weather in Rome?'));
+
+        $platform->assertTraced('invoke_agent Researcher');
+    }
+
+    public function test_assert_evaluated_passes_for_the_results_of_the_evaluator(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::evaluation(GreetingEvaluator::class));
+
+        $platform->assertEvaluated(GreetingEvaluator::class);
+    }
+
+    public function test_assert_evaluated_fails_when_no_evaluation_was_taken_in(): void
+    {
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage("The platform took in no evaluation of '" . GreetingEvaluator::class . "': it took in none.");
+
+        (new FakePlatform())->assertEvaluated(GreetingEvaluator::class);
+    }
+
+    public function test_assert_evaluated_fails_for_another_evaluator_and_names_those_it_took_in(): void
+    {
+        $platform = new FakePlatform();
+        $platform->request(self::evaluation(ProfileEvaluator::class));
+        $platform->request(self::evaluation(RefundRequestsEvaluator::class));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage(
+            "The platform took in no evaluation of '" . GreetingEvaluator::class . "': "
+            . "it took in the evaluations of '" . ProfileEvaluator::class . "', '" . RefundRequestsEvaluator::class . "'.",
+        );
+
+        $platform->assertEvaluated(GreetingEvaluator::class);
+    }
+
+    public function test_assert_evaluated_does_not_count_an_evaluation_the_platform_refused(): void
+    {
+        $platform = (new FakePlatform())->failNext();
+        self::answerOf($platform, self::evaluation(GreetingEvaluator::class));
+
+        $this->expectException(AssertionFailedError::class);
+        $this->expectExceptionMessage('it took in none.');
+
+        $platform->assertEvaluated(GreetingEvaluator::class);
+    }
+
+    /**
+     * Neuron's evaluation command runs every evaluator of a directory, then hands the report to the outputs
+     * evaluation.php lists: here the output of a service given the fake.
+     */
+    public function test_the_results_neurons_evaluation_command_sends_through_the_output_of_a_service_given_the_fake_pass_assert_evaluated(): void
+    {
+        $platform = new FakePlatform();
+        $command = new EvaluationCommand(self::configListing(self::serviceOn($platform)->evaluationOutput()));
+
+        ob_start();
+        $command->run(['neuron', __DIR__ . '/../Stub/Evaluation']);
+        ob_end_clean();
+
+        $platform->assertEvaluated(GreetingEvaluator::class);
+        $platform->assertEvaluated(ProfileEvaluator::class);
+    }
+
+    public function test_a_dataset_it_keeps_is_answered_as_the_platform_answers_it(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refund-requests', self::ITEMS);
+
+        $answer = $platform->request(HttpRequest::get('https://platform.test/v1/datasets/refund-requests'));
+
+        self::assertSame(200, $answer->statusCode);
+        self::assertSame(
+            ['slug' => 'refund-requests', 'name' => 'refund-requests', 'description' => null, 'items' => self::ITEMS],
+            $answer->json(),
+        );
+    }
+
+    /**
+     * The platform answers an item with its input and its expected output, null when it holds none, and nothing
+     * else: an evaluator reads from the fake the keys it reads from the platform, no more and no fewer.
+     */
+    public function test_an_item_is_answered_with_its_input_and_its_expected_output_alone_and_a_missing_expected_output_as_null(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refund-requests', [
+            ['input' => ['order' => 123]],
+            ['input' => ['order' => 456], 'expected_output' => ['contains' => 'declined'], 'metadata' => ['source' => 'support'], 'status' => 'archived'],
+        ]);
+
+        self::assertSame(
+            [
+                ['input' => ['order' => 123], 'expected_output' => null],
+                ['input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+            ],
+            self::serviceOn($platform)->dataset('refund-requests')->load(),
+        );
+    }
+
+    /**
+     * The platform answers the items as a list: keyed items, such as those array_filter() leaves, are not a dataset
+     * load() would refuse.
+     */
+    public function test_items_it_is_given_with_keys_are_answered_as_a_list_in_their_order(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refund-requests', [3 => self::ITEMS[0], 7 => self::ITEMS[1]]);
+
+        self::assertSame(self::ITEMS, self::serviceOn($platform)->dataset('refund-requests')->load());
+    }
+
+    public function test_a_slug_it_does_not_keep_is_answered_404(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refund-requests', self::ITEMS);
+
+        $answer = self::answerOf($platform, HttpRequest::get('https://platform.test/v1/datasets/refund-reviews'));
+
+        self::assertSame([404, ['code' => null]], [$answer->statusCode, $answer->json()]);
+    }
+
+    public function test_a_dataset_is_found_under_the_slug_the_sdk_percent_encodes(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refunds/2026 Q3', self::ITEMS);
+
+        self::assertSame(self::ITEMS, self::serviceOn($platform)->dataset('refunds/2026 Q3')->load());
+    }
+
+    public function test_neurons_runner_runs_an_evaluator_on_a_dataset_of_a_service_given_the_fake_on_the_items_it_keeps_in_order(): void
+    {
+        $platform = (new FakePlatform())->keepDataset(RefundRequestsEvaluator::DATASET, self::ITEMS);
+
+        $results = (new EvaluatorRunner())->run(new RefundRequestsEvaluator(self::serviceOn($platform)));
+
+        self::assertSame(
+            [[self::ITEMS[0], true], [self::ITEMS[1], false]],
+            array_map(static fn (EvaluatorResult $result): array => [$result->getInput(), $result->isPassed()], $results->getResults()),
+        );
+    }
+
+    public function test_fail_next_fails_the_read_of_a_dataset_it_keeps_and_the_read_after_it_is_answered(): void
+    {
+        $platform = (new FakePlatform())->keepDataset(RefundRequestsEvaluator::DATASET, self::ITEMS)->failNext();
+        $dataset = self::serviceOn($platform)->dataset(RefundRequestsEvaluator::DATASET);
+
+        self::assertSame(Code::ReportUndelivered, self::reasonThrownBy(static fn (): array => $dataset->load()));
+        self::assertSame(self::ITEMS, $dataset->load());
+    }
+
     /**
      * @return array<string, array{string}>
      */
@@ -563,6 +807,47 @@ class FakePlatformTest extends TestCase
             'code' => null,
             'run' => $run,
         ]);
+    }
+
+    /**
+     * An OTLP export of one trace, as the SDK posts it: a parentless span and a span under it.
+     */
+    protected static function trace(string $root, string $child = 'chat fake'): HttpRequest
+    {
+        return self::post('/v1/traces', ['resourceSpans' => [['scopeSpans' => [['spans' => [
+            ['spanId' => 'b7ad6b7169203331', 'parentSpanId' => '00f067aa0ba902b7', 'name' => $child],
+            ['spanId' => '00f067aa0ba902b7', 'name' => $root],
+        ]]]]]]);
+    }
+
+    /**
+     * The results of an evaluator, as the evaluation output posts them, with no item.
+     */
+    protected static function evaluation(string $evaluator): HttpRequest
+    {
+        return self::post('/v1/evaluations', ['run_id' => 'eval_1', 'name' => $evaluator, 'error' => null, 'results' => []]);
+    }
+
+    /**
+     * An evaluation.php that lists one output.
+     */
+    protected static function configListing(CloudOutput $output): ConfigLoader
+    {
+        return new class ($output) extends ConfigLoader {
+            public function __construct(protected CloudOutput $output)
+            {
+            }
+
+            public function load(): array
+            {
+                return ['output' => [$this->output]];
+            }
+        };
+    }
+
+    protected static function serviceOn(FakePlatform $platform): NeuronCloud
+    {
+        return new NeuronCloud('test-api-key', httpClient: $platform);
     }
 
     /**

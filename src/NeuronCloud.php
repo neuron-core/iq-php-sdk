@@ -127,15 +127,17 @@ class NeuronCloud
     }
 
     /**
-     * Trace every segment this process executes, and send its spans to the
+     * Trace every segment the SDK executes, and send its spans to the
      * platform when the segment ends: one OpenTelemetry trace per run, with a
-     * span for each node, inference, tool call and retrieval. Unlike the
-     * reports of a run, a trace carries what your application works on: the
-     * message and the stack trace of an exception always, and prompts,
-     * completions, tool arguments and tool results unless $captureContent is
-     * false. It is sent from the process that executed the segment, a web
-     * request included, and a trace the platform did not take is logged and
-     * dropped. Call it before workflow(), like setPersistence().
+     * span for each node, inference, tool call and retrieval. It also turns on
+     * the listeners tracer() returns from then on, for the agents and the
+     * workflows the application runs itself. Unlike the reports of a run, a
+     * trace carries what your application works on: the message and the
+     * stack trace of an exception always, and prompts, completions, tool
+     * arguments and tool results unless $captureContent is false. It is sent
+     * from the process that executed the segment, a web request included, and
+     * a trace the platform did not take is logged and dropped. Call it before
+     * workflow() and tracer(), like setPersistence().
      *
      * @param bool $captureContent false: no prompt, completion, tool argument or tool result leaves the application
      * @param array<string, mixed> $attributes stamped on every span, such as the environment of the deployment
@@ -145,6 +147,27 @@ class NeuronCloud
         $this->tracing = ['captureContent' => $captureContent, 'attributes' => $attributes];
 
         return $this;
+    }
+
+    /**
+     * A listener that traces an agent or a workflow the application runs
+     * itself, with chat(), stream(), run() or events(): subscribe it with
+     * $workflow->subscribe(ObservabilityEvent::class, $cloud->tracer()). Each
+     * run it hears sends its trace when its segment ends, as enableTracing()
+     * says, and its spans are named after the class of the agent or the
+     * workflow. It takes the settings enableTracing() was given when tracer()
+     * is called: one got before enableTracing() was called never sends
+     * anything, even once tracing is enabled later, so a line that subscribes
+     * it sends nothing where tracing is off. Where the API key may be missing,
+     * ask for the service only when tracing is on. One listener keeps the
+     * runs it hears apart, so it may serve an agent whose tool runs another
+     * agent. A run the SDK executes is traced once, by the SDK, under its
+     * definition name, even when the workflow carries this listener too.
+     * Every call returns a new listener. It needs the API key only.
+     */
+    public function tracer(): CloudListener
+    {
+        return $this->listener();
     }
 
     /**
@@ -291,16 +314,31 @@ class NeuronCloud
             return new WorkflowBuilder($persistence);
         }
 
-        $exporter = new TraceExporter($this->platform());
-        $tracing = $this->tracing;
-
         // Spans are named after the definition: it is the name the platform knows the workflow by.
-        return new WorkflowBuilder($persistence, static fn (Definition $definition): CloudListener => new CloudListener(
-            $exporter,
-            $definition->name,
-            metadata: $tracing['attributes'],
-            captureContent: $tracing['captureContent'],
-        ));
+        return new WorkflowBuilder($persistence, fn (Definition $definition): CloudListener => $this->listener($definition->name));
+    }
+
+    /**
+     * A listener with the settings enableTracing() was given, read now; with
+     * none, a listener that handles no event.
+     *
+     * @param string|null $definition the definition of a workflow the SDK executes: spans are named after it, and
+     *                                every other listener leaves the runs this one hears to it; null: a listener of
+     *                                the application, whose spans are named after the class
+     */
+    protected function listener(?string $definition = null): CloudListener
+    {
+        if ($this->tracing === null) {
+            return new CloudListener(null);
+        }
+
+        return new CloudListener(
+            new TraceExporter($this->platform()),
+            $definition,
+            metadata: $this->tracing['attributes'],
+            captureContent: $this->tracing['captureContent'],
+            claimsRuns: $definition !== null,
+        );
     }
 
     /**
