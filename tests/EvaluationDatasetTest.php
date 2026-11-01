@@ -42,8 +42,8 @@ class EvaluationDatasetTest extends TestCase
     protected const API_KEY = 'local-api-key';
 
     protected const ITEMS = [
-        ['input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
-        ['input' => ['order' => 456], 'expected_output' => ['contains' => 'Order 456']],
+        ['dataset_item_id' => 11, 'input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
+        ['dataset_item_id' => 12, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'Order 456']],
     ];
 
     protected LocalPlatform $localPlatform;

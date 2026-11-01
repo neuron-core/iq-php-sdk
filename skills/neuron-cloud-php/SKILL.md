@@ -325,14 +325,14 @@ return [
 ];
 ```
 
-- **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there. Only the active items of the dataset are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`.
+- **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there, and the `dataset_item_id` the platform uses to compare the item from one evaluation to the next. Only the active items of the dataset are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`, and read the keys you need: never spread the item into named arguments.
 - **Only the API key is needed**: no store, no queue, no registered definition.
 - **Each item runs on a copy of the agent**, bound to a new thread with `for()`. `chat()` on the injected agent itself would run every item in one conversation, or find no thread at all, and `setThreadId()` cannot move a bound agent to another thread. An agent whose class keeps conversations in a database gets in-memory stores on the copy, `->setMessageStore(new InMemoryMessageStore())->setPersistence(new InMemoryPersistence())`, so an evaluation never writes to the conversation tables.
 - **Evaluation runs are traced where stage 1 is wired and the evaluation environment sets `NEURON_CLOUD_TRACING=true`**: the agent the container injects then carries its listener. Without the agent entry of stage 1 the container builds a bare agent and the variable changes nothing; the agent the no-container resolver builds has no listener either, unless the resolver passes it through `Tracing::subscribe()`.
 - **The items are read once per evaluator**, when Neuron's runner loads the dataset: after `setUp()`, before the first item runs, in the process of the command, before `--concurrency` forks. With tracing off the children never call the platform; with a traced agent each child posts the traces of the items it runs. `dataset()` itself reads nothing.
 - **A dataset that cannot be read stops its evaluator.** An unknown slug, a refused key, no answer within 15 seconds, or an answer that is not a dataset makes `load()` throw a `CloudException`. The command reports that evaluator as one that could not run, runs the others and exits with 1. A missing key stops it the same way, when it is built: the entry of stage 0 throws, and so does the resolver without a container.
 - **An empty dataset runs nothing**, and nothing fails.
-- **`--cache` keys an item by its content**: an item changed on the platform runs again, an unchanged one is served from the cache.
+- **`--cache` keys an item by its content and its `dataset_item_id`**: an item changed on the platform or imported again runs again, an unchanged one is served from the cache.
 - **Never build `CloudDataset` with `new`**: its constructor takes a class internal to the SDK.
 
 ## Next: Orchestration

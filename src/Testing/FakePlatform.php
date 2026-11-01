@@ -21,6 +21,7 @@ use PHPUnit\Framework\Assert;
 use function array_column;
 use function array_fill;
 use function array_filter;
+use function array_keys;
 use function array_map;
 use function array_shift;
 use function array_values;
@@ -72,7 +73,7 @@ class FakePlatform implements HttpClientInterface
     /** @var int[] the statuses the next requests are answered with, instead of being recorded */
     protected array $failures = [];
 
-    /** @var array<string, list<array{input: mixed, expected_output: mixed}>> the items of every dataset kept, by slug, as the platform answers them */
+    /** @var array<string, list<array{dataset_item_id: mixed, input: mixed, expected_output: mixed}>> the items of every dataset kept, by slug, as the platform answers them */
     protected array $datasets = [];
 
     public function __construct()
@@ -93,18 +94,27 @@ class FakePlatform implements HttpClientInterface
     /**
      * Keep a dataset: from now on a read of the slug is answered as the platform
      * answers it, with these items in this order, as a list whatever their keys.
-     * Each is answered as the platform answers an item, with its input and its
-     * expected output alone: an expected output it was not given is null, and
-     * any other key is dropped. A failure failNext() queued still comes first,
-     * and a slug it was not given is answered 404.
+     * Each is answered as the platform answers an item, with its ID, its input
+     * and its expected output alone: an ID it was not given is the position of
+     * the item in the list, from 1, an expected output it was not given is null,
+     * and any other key is dropped. A failure failNext() queued still comes
+     * first, and a slug it was not given is answered 404.
      *
-     * @param array<int, array<array-key, mixed>> $items each as the platform holds it: ['input' => ..., 'expected_output' => ...]
+     * @param array<int, array<array-key, mixed>> $items each as the platform holds it: ['input' => ..., 'expected_output' => ...],
+     *        with 'dataset_item_id' when a test needs a given ID
      */
     public function keepDataset(string $slug, array $items): static
     {
+        $items = array_values($items);
+
         $this->datasets[$slug] = array_map(
-            static fn (array $item): array => ['input' => $item['input'] ?? null, 'expected_output' => $item['expected_output'] ?? null],
-            array_values($items),
+            static fn (int $position, array $item): array => [
+                'dataset_item_id' => $item['dataset_item_id'] ?? $position + 1,
+                'input' => $item['input'] ?? null,
+                'expected_output' => $item['expected_output'] ?? null,
+            ],
+            array_keys($items),
+            $items,
         );
 
         return $this;

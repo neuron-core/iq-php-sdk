@@ -3145,7 +3145,7 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
 | `error` | Why the evaluator could not run, or null. `results` is then empty |
 | `started_at`, `finished_at` | When the evaluator ran, with microseconds and the offset from UTC |
 | `summary` | Counts and rates over the items and over their assertions, times in seconds, and the statistics of the scores, overall and by label. `score_statistics` is null when no assertion gave a score |
-| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `failures` lists each failed assertion |
+| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it, with its `dataset_item_id` when it comes from a dataset of 13.5. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `failures` lists each failed assertion |
 
 Receivers ignore fields they do not know: the summary and the results follow what the framework's evaluations give, and may gain fields.
 
@@ -3171,13 +3171,14 @@ An evaluator of the application can run on a dataset that the platform keeps, in
 ```json
 {"slug": "refund-requests", "name": "Refund requests", "description": null,
  "items": [
-   {"input": {"question": "Refund order 123."}, "expected_output": {"answer": "refunded"}},
-   {"input": "Where is my order?", "expected_output": null}]}
+   {"dataset_item_id": 41, "input": {"question": "Refund order 123."}, "expected_output": {"answer": "refunded"}},
+   {"dataset_item_id": 42, "input": "Where is my order?", "expected_output": null}]}
 ```
 
 - **AUTOMATION.** The platform authenticates the path as it does a notice, and looks the slug up among the datasets of the environment of the API key. It answers `404` to a slug it does not know there.
-- **What an item holds is the platform's.** The evaluator reads the item and the SDK reads nothing of it. The platform sends the `input` and the `expected_output` an operator stored, and only the items that are active.
+- **What an item holds is the platform's.** The evaluator reads the item and the SDK reads nothing of it. The platform sends the `dataset_item_id` it gave the item, an integer that stays the same when an operator edits the item, with the `input` and the `expected_output` an operator stored. It sends only the items that are active, the oldest first.
 - **What crosses.** The request carries nothing but the slug. The answer brings data the customer stored on the platform into the application. It goes back to the platform only when the developer also lists the output of 13.3, as the `input` of each result.
+- **AUTOMATION.** A result whose `input` carries the `dataset_item_id` of an item of the environment of the API key is tied to that item, so the platform can compare it from one evaluation to the next. The platform leaves that key out of the `input` it shows for the result. An ID that is not an integer, or that names an item of another environment, ties the result to nothing and is left out the same way. A result with no ID is compared by its `input`.
 
 ---
 

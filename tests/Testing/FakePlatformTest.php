@@ -52,8 +52,8 @@ class FakePlatformTest extends TestCase
     protected const WORKFLOW_ID = 'order:123';
 
     protected const ITEMS = [
-        ['input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
-        ['input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+        ['dataset_item_id' => 11, 'input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
+        ['dataset_item_id' => 12, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
     ];
 
     #[DataProvider('paths')]
@@ -665,10 +665,10 @@ class FakePlatformTest extends TestCase
     }
 
     /**
-     * The platform answers an item with its input and its expected output, null when it holds none, and nothing
-     * else: an evaluator reads from the fake the keys it reads from the platform, no more and no fewer.
+     * The platform answers an item with its ID, its input and its expected output, null when it holds none, and
+     * nothing else: an evaluator reads from the fake the keys it reads from the platform, no more and no fewer.
      */
-    public function test_an_item_is_answered_with_its_input_and_its_expected_output_alone_and_a_missing_expected_output_as_null(): void
+    public function test_an_item_is_answered_with_its_id_its_input_and_its_expected_output_alone_a_missing_id_as_its_position_and_a_missing_expected_output_as_null(): void
     {
         $platform = (new FakePlatform())->keepDataset('refund-requests', [
             ['input' => ['order' => 123]],
@@ -677,8 +677,8 @@ class FakePlatformTest extends TestCase
 
         self::assertSame(
             [
-                ['input' => ['order' => 123], 'expected_output' => null],
-                ['input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+                ['dataset_item_id' => 1, 'input' => ['order' => 123], 'expected_output' => null],
+                ['dataset_item_id' => 2, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
             ],
             self::serviceOn($platform)->dataset('refund-requests')->load(),
         );
@@ -693,6 +693,19 @@ class FakePlatformTest extends TestCase
         $platform = (new FakePlatform())->keepDataset('refund-requests', [3 => self::ITEMS[0], 7 => self::ITEMS[1]]);
 
         self::assertSame(self::ITEMS, self::serviceOn($platform)->dataset('refund-requests')->load());
+    }
+
+    public function test_the_id_of_an_item_it_is_given_without_one_is_its_position_in_the_list_and_not_its_key(): void
+    {
+        $platform = (new FakePlatform())->keepDataset('refund-requests', [3 => ['input' => 'a'], 7 => ['input' => 'b']]);
+
+        self::assertSame(
+            [
+                ['dataset_item_id' => 1, 'input' => 'a', 'expected_output' => null],
+                ['dataset_item_id' => 2, 'input' => 'b', 'expected_output' => null],
+            ],
+            self::serviceOn($platform)->dataset('refund-requests')->load(),
+        );
     }
 
     public function test_a_slug_it_does_not_keep_is_answered_404(): void
