@@ -24,9 +24,13 @@ class ScriptedHttpClient implements HttpClientInterface
      * @param HttpResponse|Throwable $answer what every request gets: a response, or what the client throws
      * @param bool $throwsStatusErrors true: a response of 400 and above is thrown with the response attached, as
      *                                 Neuron's clients do; false: it is returned, as a client with its own policy may
+     * @param StreamInterface|null $stream what a streamed request reads; without one it fails
      */
-    public function __construct(protected HttpResponse|Throwable $answer, protected bool $throwsStatusErrors = true)
-    {
+    public function __construct(
+        protected HttpResponse|Throwable $answer,
+        protected bool $throwsStatusErrors = true,
+        protected ?StreamInterface $stream = null,
+    ) {
     }
 
     public function request(HttpRequest $request): HttpResponse
@@ -46,7 +50,9 @@ class ScriptedHttpClient implements HttpClientInterface
 
     public function stream(HttpRequest $request): StreamInterface
     {
-        throw HttpException::networkError($request, 'The scripted client has no stream.');
+        $this->received[] = $request;
+
+        return $this->stream ?? throw HttpException::networkError($request, 'The scripted client has no stream.');
     }
 
     /**

@@ -8,8 +8,14 @@ use DateTimeImmutable;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
+use NeuronAI\Evaluation\Runner\EvaluationResults;
+use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
+use NeuronAI\Evaluation\Score;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\HttpClient\HttpResponse;
+use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Providers\Gemini\Gemini;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
 use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
@@ -31,6 +37,7 @@ use function proc_open;
 use function rmdir;
 use function sort;
 use function stream_get_contents;
+use function substr;
 use function sys_get_temp_dir;
 use function uniqid;
 use function unlink;
@@ -101,6 +108,90 @@ class EvaluationOutputTest extends TestCase
         (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
 
         self::assertCount(1, $http->received());
+    }
+
+    public function test_the_output_sends_what_each_step_of_an_item_took_and_consumed_with_the_platforms_provider_name(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+        $results = new EvaluationResults([new EvaluatorResult(
+            GreetingEvaluator::class,
+            0,
+            true,
+            ['name' => 'Ada'],
+            'Hello',
+            1.5,
+            1,
+            0,
+            assertionScores: [new Score('quality', 0.9, true, 'Judge', 'Clear and polite.', 12)],
+            runTime: 1.2,
+            evaluationTime: 0.3,
+            runUsage: [new ModelUsage(Gemini::class, 'gemini-2.5-pro', 2, 100, 20, 40, 0, 5)],
+            judgeUsage: [new ModelUsage(Anthropic::class, 'claude-opus-5-5', 1, 30, 4)],
+        )], ['reads cached outputs']);
+        $at = new DateTimeImmutable();
+
+        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+            new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, $results, $at, $at)], $at, $at),
+        );
+
+        $body = $http->received()[0]->body;
+        $item = $body['results'][0];
+        self::assertSame(['reads cached outputs'], $body['summary']['warnings']);
+        self::assertSame([1.2, 0.3], [$item['run_time'], $item['evaluation_time']]);
+        self::assertSame(
+            [['provider' => 'gcp.gemini', 'model' => 'gemini-2.5-pro', 'calls' => 2, 'input_tokens' => 100, 'output_tokens' => 20, 'cached_input_tokens' => 40, 'cache_write_tokens' => 0, 'reasoning_tokens' => 5]],
+            $item['run_usage'],
+        );
+        self::assertSame('anthropic', $item['judge_usage'][0]['provider']);
+        self::assertSame([['label' => 'quality', 'value' => 0.9, 'passed' => true, 'assertion' => 'Judge', 'message' => 'Clear and polite.', 'line' => 12]], $item['scores']);
+    }
+
+    public function test_a_string_cut_in_the_middle_of_a_character_does_not_lose_the_report(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+        $at = new DateTimeImmutable();
+        $cut = substr('caffè', 0, 5);
+        $results = new EvaluationResults([new EvaluatorResult(GreetingEvaluator::class, 0, true, ['name' => $cut], $cut, 1.0, 0, 0)]);
+
+        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+            new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, $results, $at, $at)], $at, $at),
+        );
+
+        self::assertSame("caff\u{FFFD}", $http->received()[0]->body['results'][0]['output']);
+    }
+
+    public function test_the_output_sends_each_rerun_of_an_item_with_what_it_consumed(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+        $at = new DateTimeImmutable();
+        $rerun = fn (bool $passed, ?string $error = null): EvaluatorResult => new EvaluatorResult(
+            GreetingEvaluator::class,
+            0,
+            $passed,
+            [],
+            null,
+            1.0,
+            0,
+            0,
+            error: $error,
+            runTime: 0.9,
+            evaluationTime: 0.1,
+            runUsage: [new ModelUsage(Anthropic::class, 'claude-opus-5-5', 1, 10, 2)],
+            judgeUsage: [new ModelUsage(Gemini::class, 'gemini-2.5-pro', 1, 5, 1)],
+        );
+        $result = (new EvaluatorResult(GreetingEvaluator::class, 0, false, [], null, 1.0, 0, 0))->withReruns([$rerun(true), $rerun(false, 'It threw')]);
+
+        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+            new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, new EvaluationResults([$result]), $at, $at)], $at, $at),
+        );
+
+        $reruns = $http->received()[0]->body['results'][0]['reruns'];
+        self::assertSame(
+            [[true, null, 0.9, 0.1], [false, 'It threw', 0.9, 0.1]],
+            array_map(static fn (array $attempt): array => [$attempt['passed'], $attempt['error'], $attempt['run_time'], $attempt['evaluation_time']], $reruns),
+        );
+        self::assertSame('anthropic', $reruns[0]['run_usage'][0]['provider']);
+        self::assertSame('gcp.gemini', $reruns[0]['judge_usage'][0]['provider']);
     }
 
     /**

@@ -3088,7 +3088,7 @@ The names and attributes follow the OpenTelemetry semantic conventions for gener
 | `node` | The short class name of the node | 1 | One execution of a node |
 | `branch` | `branch.<id>` | 1 | One parallel branch. Spans of a branch carry `neuron.branch.id` |
 | `middleware` | `<class>.<phase>` | 1 | One phase of a middleware |
-| `generation` | `chat <model>` | 3, client | One call to a model: `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.finish_reasons`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and, when the provider reports them, `gen_ai.usage.cache_read.input_tokens` and `gen_ai.usage.reasoning.output_tokens` |
+| `generation` | `chat <model>` | 3, client | One call to a model: `gen_ai.provider.name`, `gen_ai.request.model`, `gen_ai.response.finish_reasons`, `gen_ai.usage.input_tokens`, `gen_ai.usage.output_tokens` and, when the provider reports them, `gen_ai.usage.cache_read.input_tokens`, `gen_ai.usage.cache_creation.input_tokens` and `gen_ai.usage.reasoning.output_tokens` |
 | `tool` | `execute_tool <tool>` | 1 | One tool call: `gen_ai.tool.name`, `gen_ai.tool.call.id`, `gen_ai.tool.type`, `gen_ai.tool.description` |
 | `retrieval` | `retrieval` | 3 | One retrieval: `neuron.rag.documents.count` |
 | `processor` | `rag.preprocess.<class>`, `rag.postprocess.<class>` | 1 | One step before or after a retrieval |
@@ -3120,20 +3120,27 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
              "cached_runs": 0,
              "score_statistics": {"average_score": 0.5, "min_score": 0.0, "max_score": 1.0},
              "score_statistics_by_label": {"StringContains": {"average": 0.5, "min": 0.0, "max": 1.0, "count": 2}},
-             "has_failures": true},
+             "has_failures": true, "warnings": []},
  "results": [
    {"evaluator_class": "App\\Evaluators\\RefundEvaluator", "index": 0, "passed": true,
     "input": {"question": "Refund order 123."}, "output": "Order 123 was refunded.",
-    "execution_time": 0.84, "cached_run": false, "error": null,
+    "execution_time": 0.84, "run_time": 0.8, "evaluation_time": 0.04,
+    "run_usage": [{"provider": "anthropic", "model": "claude-opus-5-5", "calls": 1, "input_tokens": 1200, "output_tokens": 80,
+                   "cached_input_tokens": 900, "cache_write_tokens": 0, "reasoning_tokens": 0}],
+    "judge_usage": [], "cached_run": false, "error": null,
     "assertions_passed": 1, "assertions_failed": 0, "assertion_scores": [1.0],
-    "scores": [{"label": "StringContains", "value": 1.0, "passed": true}], "failures": []},
+    "scores": [{"label": "StringContains", "value": 1.0, "passed": true, "assertion": "StringContains", "message": "", "line": 37}],
+    "failures": [], "reruns": []},
    {"evaluator_class": "App\\Evaluators\\RefundEvaluator", "index": 1, "passed": false,
     "input": {"question": "Where is my order?"}, "output": "I cannot help with that.",
-    "execution_time": 1.0, "cached_run": false, "error": null,
+    "execution_time": 1.0, "run_time": 0.96, "evaluation_time": 0.04, "run_usage": [], "judge_usage": [],
+    "cached_run": false, "error": null,
     "assertions_passed": 0, "assertions_failed": 1, "assertion_scores": [0.0],
-    "scores": [{"label": "StringContains", "value": 0.0, "passed": false}],
+    "scores": [{"label": "StringContains", "value": 0.0, "passed": false, "assertion": "StringContains",
+                "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37}],
     "failures": [{"evaluator_class": "App\\Evaluators\\RefundEvaluator", "assertion": "StringContains",
-                  "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37, "context": []}]}]}
+                  "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37, "context": []}],
+    "reruns": [{"passed": true, "error": null, "run_time": 0.9, "evaluation_time": 0.04, "run_usage": [], "judge_usage": []}]}]}
 ```
 
 | Field | Meaning |
@@ -3144,8 +3151,8 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
 | `environment` | What the developer named where the evaluation ran, or null |
 | `error` | Why the evaluator could not run, or null. `results` is then empty |
 | `started_at`, `finished_at` | When the evaluator ran, with microseconds and the offset from UTC |
-| `summary` | Counts and rates over the items and over their assertions, times in seconds, and the statistics of the scores, overall and by label. `score_statistics` is null when no assertion gave a score |
-| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it, with its `dataset_item_id` when it comes from a dataset of 13.5. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `failures` lists each failed assertion |
+| `summary` | Counts and rates over the items and over their assertions, times in seconds, and the statistics of the scores, overall and by label. `score_statistics` is null when no assertion gave a score. `warnings` lists what the reader should know about the run, such as cached outputs with no declared dependency |
+| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it, with its `dataset_item_id` when it comes from a dataset of 13.5. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `execution_time` is the whole item, `run_time` the evaluated code and `evaluation_time` the assertions and judges, each null when that step did not execute. `run_usage` and `judge_usage` hold one entry per provider and model with the tokens of that step: `provider` is the value of `gen_ai.provider.name`, and an empty list means nothing was measured, never that the item was free. Each entry of `scores` keeps the `assertion`, its `message`, which holds the reasoning of a judge whether it passed or not, and the `line`. `failures` lists each failed assertion. `reruns` lists the attempts made again at an item that failed: the verdict stays the one of the first run, and they count for what the item spent |
 
 Receivers ignore fields they do not know: the summary and the results follow what the framework's evaluations give, and may gain fields.
 

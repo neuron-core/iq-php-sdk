@@ -13,8 +13,10 @@ use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Score;
 use NeuronAI\Evaluation\Conversation\Trajectory;
+use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\Tools\ToolCall;
 use NeuronCore\Cloud\CloudException;
+use NeuronCore\Cloud\Observability\ProviderName;
 use NeuronCore\Cloud\Runtime\PlatformClient;
 
 use function array_map;
@@ -24,10 +26,13 @@ use function is_float;
 use function is_int;
 use function is_object;
 use function is_string;
+use function json_decode;
 use function json_encode;
 use function error_log;
 use function uniqid;
 
+use const JSON_INVALID_UTF8_SUBSTITUTE;
+use const JSON_PRESERVE_ZERO_FRACTION;
 use const JSON_THROW_ON_ERROR;
 
 /**
@@ -83,6 +88,7 @@ class CloudOutput implements EvaluationOutputInterface
                     'input' => $result->getInput(),
                     'output' => $this->formatOutput($result->getOutput()),
                     'execution_time' => $result->getExecutionTime(),
+                    ...$this->measures($result),
                     'cached_run' => $result->isCachedRun(),
                     'error' => $result->getError(),
                     'assertions_passed' => $result->getAssertionsPassed(),
@@ -93,6 +99,9 @@ class CloudOutput implements EvaluationOutputInterface
                             'label' => $score->label,
                             'value' => $score->value,
                             'passed' => $score->passed,
+                            'assertion' => $score->assertion,
+                            'message' => $score->message,
+                            'line' => $score->line,
                         ],
                         $result->getScoreRecords(),
                     ),
@@ -100,17 +109,38 @@ class CloudOutput implements EvaluationOutputInterface
                         fn (AssertionFailure $failure): array => $this->failureToArray($failure),
                         $result->getAssertionFailures(),
                     ),
+                    'reruns' => array_map(
+                        fn (EvaluatorResult $rerun): array => [
+                            'passed' => $rerun->isPassed(),
+                            'error' => $rerun->getError(),
+                            ...$this->measures($rerun),
+                        ],
+                        $result->getReruns(),
+                    ),
                 ],
                 $results->getResults(),
             ),
         ];
 
         try {
-            $this->platform->evaluation($payload);
-        } catch (CloudException $e) {
+            $this->platform->evaluation($this->withValidText($payload));
+        } catch (CloudException|JsonException $e) {
             // The cause says why no answer came: a network error, or a value JSON cannot carry.
             error_log('[NeuronCloudOutput] Failed to send evaluation: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
         }
+    }
+
+    /**
+     * A string cut in the middle of a character, by an agent or a tool, must not
+     * lose the results of every other item: JSON cannot carry it as it is.
+     *
+     * @param array<string, mixed> $payload
+     * @return array<string, mixed>
+     * @throws JsonException
+     */
+    protected function withValidText(array $payload): array
+    {
+        return json_decode(json_encode($payload, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION), true, 512, JSON_THROW_ON_ERROR);
     }
 
     /**
@@ -140,7 +170,33 @@ class CloudOutput implements EvaluationOutputInterface
             ] : null,
             'score_statistics_by_label' => $results->getScoreStatisticsByLabel(),
             'has_failures' => $report->hasFailures(),
+            'warnings' => $results->getWarnings(),
         ];
+    }
+
+    /**
+     * What one attempt at an item took. The times are null for a step that did
+     * not execute, and an empty usage means nothing was measured, never that
+     * the attempt was free: the platform prices the tokens.
+     *
+     * @return array<string, mixed>
+     */
+    protected function measures(EvaluatorResult $result): array
+    {
+        return [
+            'run_time' => $result->getRunTime(),
+            'evaluation_time' => $result->getEvaluationTime(),
+            'run_usage' => array_map($this->usageToArray(...), $result->getRunUsage()),
+            'judge_usage' => array_map($this->usageToArray(...), $result->getJudgeUsage()),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function usageToArray(ModelUsage $usage): array
+    {
+        return ['provider' => ProviderName::of($usage->provider)] + $usage->toArray();
     }
 
     /**

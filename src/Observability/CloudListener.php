@@ -24,7 +24,6 @@ use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\Chat\Messages\ToolResultMessage;
-use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Providers\AIProviderInterface;
 use NeuronAI\RAG\Document;
@@ -56,14 +55,13 @@ use function count;
 use function error_log;
 use function getenv;
 use function is_array;
+use function is_int;
 use function is_string;
 use function json_encode;
 use function mb_strlen;
 use function mb_substr;
 use function spl_object_id;
-use function str_starts_with;
 use function strrchr;
-use function strtolower;
 use function substr;
 
 use const JSON_INVALID_UTF8_SUBSTITUTE;
@@ -133,21 +131,6 @@ class CloudListener
 {
     /** Truncation limit for message/tool content copied into span attributes. */
     protected const MAX_CONTENT = 4000;
-
-    /**
-     * Framework provider classes whose lower-cased short name is not the
-     * conventions' `gen_ai.provider.name` value. Every other class name already is.
-     */
-    protected const PROVIDER_NAMES = [
-        'gemini' => 'gcp.gemini',
-        'geminivertex' => 'gcp.vertex_ai',
-        'anthropicvertex' => 'gcp.vertex_ai',
-        'azureopenai' => 'azure.ai.openai',
-        'openairesponses' => 'openai',
-        'bedrockruntime' => 'aws.bedrock',
-        'mistral' => 'mistral_ai',
-        'grok' => 'x_ai',
-    ];
 
     /** The key of the run that events carrying no run ID belong to: a run ID is never empty. */
     protected const NO_RUN = '';
@@ -418,7 +401,7 @@ class CloudListener
             $this->spanName('chat', $provider?->getModel()),
             [
                 'gen_ai.operation.name' => 'chat',
-                'gen_ai.provider.name' => $provider === null ? null : $this->providerName($provider),
+                'gen_ai.provider.name' => $provider === null ? null : ProviderName::of($provider::class),
                 'gen_ai.request.model' => $provider?->getModel(),
                 'gen_ai.conversation.id' => $this->conversationId($event),
             ] + $this->content([
@@ -435,7 +418,7 @@ class CloudListener
 
         $this->stop($event, [
             'gen_ai.response.finish_reasons' => $stopReason === null ? null : [$stopReason],
-        ] + $this->usageAttributes($message->getUsage(), $this->providerOfRun($event)) + $this->content([
+        ] + $this->usageAttributes($message) + $this->content([
             'gen_ai.output.messages' => fn (): string => $this->json([$this->messagePayload($message)]),
         ]));
     }
@@ -584,38 +567,34 @@ class CloudListener
     }
 
     /**
-     * The conventions' `gen_ai.provider.name`: a well-known value where one
-     * exists, the lower-cased class name otherwise (custom values are allowed).
-     */
-    protected function providerName(AIProviderInterface $provider): string
-    {
-        $id = strtolower($this->shortName($provider::class));
-
-        return self::PROVIDER_NAMES[$id] ?? $id;
-    }
-
-    /**
-     * The conventions require `input_tokens` to include cached tokens.
-     * Anthropic is the provider that reports them apart, so they are added
-     * back; the cached and reasoning counts ship only when reported.
+     * The conventions require `input_tokens` to include cached tokens, as
+     * Neuron's usage already does for every provider; the cached, cache write
+     * and reasoning counts ship only when reported. Neuron's usage has no
+     * field for the cache writes: they are in the metadata of the message. So
+     * is what a provider's own tool read, which is billed as input and so is
+     * added to `input_tokens`.
      *
      * @return array<string, int>
      */
-    protected function usageAttributes(?Usage $usage, ?AIProviderInterface $provider): array
+    protected function usageAttributes(Message $message): array
     {
+        $usage = $message->getUsage();
         if ($usage === null) {
             return [];
         }
 
-        $cachedApart = $provider !== null
-            && str_starts_with(strtolower($this->shortName($provider::class)), 'anthropic');
+        $toolInputs = $message->getMetadata('toolInputTokens');
 
         $attributes = [
-            'gen_ai.usage.input_tokens' => $usage->inputTokens + ($cachedApart ? $usage->cachedInputTokens : 0),
+            'gen_ai.usage.input_tokens' => $usage->inputTokens + (is_int($toolInputs) ? $toolInputs : 0),
             'gen_ai.usage.output_tokens' => $usage->outputTokens,
         ];
         if ($usage->cachedInputTokens > 0) {
             $attributes['gen_ai.usage.cache_read.input_tokens'] = $usage->cachedInputTokens;
+        }
+        $cacheWrites = $message->getMetadata('cacheWriteTokens');
+        if (is_int($cacheWrites) && $cacheWrites > 0) {
+            $attributes['gen_ai.usage.cache_creation.input_tokens'] = $cacheWrites;
         }
         if ($usage->reasoningTokens > 0) {
             $attributes['gen_ai.usage.reasoning.output_tokens'] = $usage->reasoningTokens;

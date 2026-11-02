@@ -6,11 +6,17 @@ namespace NeuronCore\Cloud\Tests\Observability;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\Message;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\Usage;
 use NeuronAI\Chat\Messages\UserMessage;
+use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Observability\ObservabilityEvent;
+use NeuronAI\Providers\AIProviderInterface;
+use NeuronAI\Providers\Anthropic\Anthropic;
+use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Events\StartEvent;
@@ -37,11 +43,13 @@ use NeuronCore\Cloud\Tests\Stub\Tracing\Researcher;
 use NeuronCore\Cloud\Tests\Stub\Tracing\UnbuildableWorkflow;
 use NeuronCore\Cloud\Tests\Stub\Tracing\WeatherTool;
 use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\Cloud\Tests\Stub\Units\ScriptedStream;
 use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
 use NeuronCore\Cloud\Tests\Support\CloudTestCase;
 use NeuronCore\Cloud\Tests\Support\TestBench;
 use NeuronCore\Cloud\Tests\Support\Tracing\Otlp;
 use NeuronCore\Cloud\Tests\Support\Units\CapturesErrorLog;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use WeakReference;
 
@@ -74,6 +82,20 @@ class CloudListenerTest extends CloudTestCase
     protected const RUN_ID = '1-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12';
 
     protected const CONTENT = ['gen_ai.input.messages', 'gen_ai.output.messages', 'gen_ai.tool.call.arguments', 'gen_ai.tool.call.result'];
+
+    protected const ANTHROPIC_MODEL = 'claude-sonnet-5-5';
+
+    /**
+     * The usage of the Messages API on a prompt mostly served from the cache:
+     * input_tokens is only the uncached remainder of it.
+     */
+    protected const ANTHROPIC_USAGE = [
+        'input_tokens' => 120,
+        'cache_creation_input_tokens' => 2000,
+        'cache_read_input_tokens' => 9000,
+        'cache_creation' => ['ephemeral_5m_input_tokens' => 2000, 'ephemeral_1h_input_tokens' => 0],
+        'output_tokens' => 48,
+    ];
 
     protected ScriptedHttpClient $platform;
 
@@ -521,6 +543,87 @@ class CloudListenerTest extends CloudTestCase
         );
     }
 
+    /**
+     * @return array<string, array{bool}>
+     */
+    public static function chatAndStream(): array
+    {
+        return ['a chat' => [false], 'a stream' => [true]];
+    }
+
+    /**
+     * Neuron adds the cache reads and writes Anthropic reports apart back into the input tokens: the span sends them
+     * as the usage of the message holds them, the usage the output of an evaluation sends for the same call.
+     */
+    #[DataProvider('chatAndStream')]
+    public function test_the_input_tokens_of_an_anthropic_inference_are_the_whole_prompt_with_each_cached_token_counted_once(bool $stream): void
+    {
+        $message = $this->inferenceWith(new Anthropic('key', self::ANTHROPIC_MODEL, httpClient: $this->anthropicApi()), $stream);
+
+        $attributes = Otlp::span($this->traces()[0], 'chat ' . self::ANTHROPIC_MODEL)['attributes'];
+        self::assertSame(
+            [120 + 2000 + 9000, 9000, 2000, 48],
+            [
+                $attributes['gen_ai.usage.input_tokens'],
+                $attributes['gen_ai.usage.cache_read.input_tokens'],
+                $attributes['gen_ai.usage.cache_creation.input_tokens'],
+                $attributes['gen_ai.usage.output_tokens'],
+            ],
+        );
+        self::assertSame(Trajectory::fromMessages([$message])->usage()->inputTokens, $attributes['gen_ai.usage.input_tokens']);
+    }
+
+    #[DataProvider('chatAndStream')]
+    public function test_an_anthropic_inference_that_wrote_nothing_to_the_cache_sends_no_cache_writes(bool $stream): void
+    {
+        $usage = ['cache_creation_input_tokens' => 0, 'cache_creation' => ['ephemeral_5m_input_tokens' => 0, 'ephemeral_1h_input_tokens' => 0]] + self::ANTHROPIC_USAGE;
+
+        $this->inferenceWith(new Anthropic('key', self::ANTHROPIC_MODEL, httpClient: $this->anthropicApi($usage)), $stream);
+
+        $attributes = Otlp::span($this->traces()[0], 'chat ' . self::ANTHROPIC_MODEL)['attributes'];
+        self::assertSame(120 + 9000, $attributes['gen_ai.usage.input_tokens']);
+        self::assertArrayNotHasKey('gen_ai.usage.cache_creation.input_tokens', $attributes);
+    }
+
+    public function test_what_a_provider_tool_read_is_sent_as_input_tokens(): void
+    {
+        $answer = (new AssistantMessage('Done.'))->setUsage(new Usage(27, 45));
+        $answer->addMetadata('toolInputTokens', 10309);
+
+        $message = $this->inferenceWith(new FakeAIProvider($answer));
+
+        $attributes = Otlp::span($this->traces()[0], 'chat fake')['attributes'];
+        self::assertSame(27 + 10309, $attributes['gen_ai.usage.input_tokens']);
+        self::assertSame(27, $message->getUsage()->inputTokens);
+    }
+
+    public function test_the_input_tokens_of_an_openai_inference_are_the_prompt_tokens_it_reports_with_the_cached_ones_in_them(): void
+    {
+        $api = new ScriptedHttpClient(new HttpResponse(200, json_encode([
+            'choices' => [['message' => ['role' => 'assistant', 'content' => 'Sunny in Rome.'], 'finish_reason' => 'stop']],
+            'usage' => [
+                'prompt_tokens' => 11120,
+                'completion_tokens' => 48,
+                'prompt_tokens_details' => ['cached_tokens' => 9000],
+                'completion_tokens_details' => ['reasoning_tokens' => 12],
+            ],
+        ], JSON_THROW_ON_ERROR)));
+
+        $this->inferenceWith(new OpenAI('key', 'gpt-5', httpClient: $api));
+
+        $attributes = Otlp::span($this->traces()[0], 'chat gpt-5')['attributes'];
+        self::assertSame(
+            [11120, 9000, 48, 12],
+            [
+                $attributes['gen_ai.usage.input_tokens'],
+                $attributes['gen_ai.usage.cache_read.input_tokens'],
+                $attributes['gen_ai.usage.output_tokens'],
+                $attributes['gen_ai.usage.reasoning.output_tokens'],
+            ],
+        );
+        self::assertArrayNotHasKey('gen_ai.usage.cache_creation.input_tokens', $attributes);
+    }
+
     public function test_a_listener_that_captures_content_sends_the_prompts_the_completions_and_what_a_tool_was_given_and_returned(): void
     {
         $this->chatAboutTheWeather($this->listener());
@@ -644,6 +747,58 @@ class CloudListenerTest extends CloudTestCase
             ->subscribe(ObservabilityEvent::class, $listener);
 
         $agent->chat(new UserMessage('What is the weather in Rome?'))->getMessage();
+    }
+
+    /**
+     * One turn of an agent on that provider.
+     *
+     * @return Message the answer of the provider
+     */
+    protected function inferenceWith(AIProviderInterface $provider, bool $stream = false): Message
+    {
+        $agent = Agent::make()
+            ->setAiProvider($provider)
+            ->setPersistence(($this->bench->persistence)())
+            ->setThreadId('thread:1')
+            ->subscribe(ObservabilityEvent::class, $this->listener());
+        $question = new UserMessage('What is the weather in Rome?');
+
+        if (!$stream) {
+            return $agent->chat($question)->getMessage();
+        }
+
+        $chunks = $agent->stream($question);
+        foreach ($chunks as $ignored) {
+        }
+
+        return $chunks->getReturn()->getMessage();
+    }
+
+    /**
+     * The Messages API answering a chat and a stream with that usage.
+     *
+     * @param array<string, mixed> $usage
+     */
+    protected function anthropicApi(array $usage = self::ANTHROPIC_USAGE): ScriptedHttpClient
+    {
+        $events = [
+            ['type' => 'message_start', 'message' => ['role' => 'assistant', 'content' => [], 'usage' => ['output_tokens' => 1] + $usage]],
+            ['type' => 'content_block_start', 'index' => 0, 'content_block' => ['type' => 'text', 'text' => '']],
+            ['type' => 'content_block_delta', 'index' => 0, 'delta' => ['type' => 'text_delta', 'text' => 'Sunny in Rome.']],
+            ['type' => 'content_block_stop', 'index' => 0],
+            ['type' => 'message_delta', 'delta' => ['stop_reason' => 'end_turn'], 'usage' => ['output_tokens' => $usage['output_tokens']]],
+            ['type' => 'message_stop'],
+        ];
+
+        return new ScriptedHttpClient(
+            new HttpResponse(200, json_encode([
+                'role' => 'assistant',
+                'content' => [['type' => 'text', 'text' => 'Sunny in Rome.']],
+                'stop_reason' => 'end_turn',
+                'usage' => $usage,
+            ], JSON_THROW_ON_ERROR)),
+            stream: new ScriptedStream(array_map(static fn (array $event): string => 'data: ' . json_encode($event, JSON_THROW_ON_ERROR), $events)),
+        );
     }
 
     /**

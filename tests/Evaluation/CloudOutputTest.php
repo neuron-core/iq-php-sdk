@@ -25,6 +25,7 @@ use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
 use function array_column;
+use function array_diff_key;
 use function array_keys;
 use function array_map;
 use function substr_count;
@@ -149,7 +150,10 @@ class CloudOutputTest extends TestCase
             ],
         );
         self::assertSame([1, false, 0, 1], [$failed['index'], $failed['passed'], $failed['assertions_passed'], $failed['assertions_failed']]);
-        self::assertSame([['label' => 'StringContains', 'value' => 0.0, 'passed' => false]], $failed['scores']);
+        self::assertSame(
+            [['label' => 'StringContains', 'value' => 0.0, 'passed' => false, 'assertion' => 'StringContains', 'message' => "Expected 'Hello, Bob!' to contain 'Zed'"]],
+            array_map(static fn (array $score): array => array_diff_key($score, ['line' => true]), $failed['scores']),
+        );
     }
 
     public function test_a_failed_assertion_is_sent_with_its_name_its_message_and_where_it_was_made(): void
