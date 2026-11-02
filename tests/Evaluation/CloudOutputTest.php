@@ -76,7 +76,7 @@ class CloudOutputTest extends TestCase
             [$sent['name'], $sent['namespace'], $sent['environment'], $sent['error'], $sent['started_at'], $sent['finished_at']],
         );
         self::assertSame(
-            ['run_id', 'name', 'namespace', 'environment', 'error', 'started_at', 'finished_at', 'summary', 'results'],
+            ['run_id', 'name', 'namespace', 'environment', 'suite_id', 'suite_size', 'branch', 'base_branch', 'commit', 'ci_url', 'error', 'started_at', 'finished_at', 'summary', 'results'],
             array_keys($sent),
         );
     }

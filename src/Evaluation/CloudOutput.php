@@ -20,6 +20,7 @@ use NeuronCore\Cloud\Observability\ProviderName;
 use NeuronCore\Cloud\Runtime\PlatformClient;
 
 use function array_map;
+use function count;
 use function is_array;
 use function is_bool;
 use function is_float;
@@ -58,17 +59,21 @@ class CloudOutput implements EvaluationOutputInterface
     public function __construct(
         protected readonly PlatformClient $platform,
         protected readonly ?string $environment = null,
+        protected readonly RunContext $context = new RunContext(),
     ) {
     }
 
     public function output(EvaluationReport $report): void
     {
-        foreach ($report->getEvaluatorReports() as $evaluatorReport) {
-            $this->outputReport($evaluatorReport);
+        $suiteId = $this->context->suiteId ?? uniqid('suite_', true);
+        $reports = $report->getEvaluatorReports();
+
+        foreach ($reports as $evaluatorReport) {
+            $this->outputReport($evaluatorReport, $suiteId, count($reports));
         }
     }
 
-    protected function outputReport(EvaluatorReport $report): void
+    protected function outputReport(EvaluatorReport $report, string $suiteId, int $suiteSize): void
     {
         $results = $report->getResults();
         $payload = [
@@ -76,6 +81,12 @@ class CloudOutput implements EvaluationOutputInterface
             'name' => $report->getEvaluatorClass(),
             'namespace' => $report->getNamespace(),
             'environment' => $this->environment,
+            'suite_id' => $suiteId,
+            'suite_size' => $suiteSize,
+            'branch' => $this->context->branch,
+            'base_branch' => $this->context->baseBranch,
+            'commit' => $this->context->commit,
+            'ci_url' => $this->context->ciUrl,
             'error' => $report->getError(),
             'started_at' => $this->timestamp($report->getStartedAt()),
             'finished_at' => $this->timestamp($report->getFinishedAt()),
@@ -113,6 +124,8 @@ class CloudOutput implements EvaluationOutputInterface
                         fn (EvaluatorResult $rerun): array => [
                             'passed' => $rerun->isPassed(),
                             'error' => $rerun->getError(),
+                            'assertions_passed' => $rerun->getAssertionsPassed(),
+                            'assertions_failed' => $rerun->getAssertionsFailed(),
                             ...$this->measures($rerun),
                         ],
                         $result->getReruns(),

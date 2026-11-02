@@ -12,6 +12,7 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronCore\Cloud\Evaluation\CloudDataset;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\Evaluation\RunContext;
 use NeuronCore\Cloud\Observability\CloudListener;
 use NeuronCore\Cloud\Observability\TraceExporter;
 use NeuronCore\Cloud\Runtime\Definition;
@@ -176,10 +177,24 @@ class NeuronCloud
      * the "output" list of evaluation.php. It needs the API key only.
      *
      * @param string|null $environment where the evaluation ran, such as "ci"
+     * @param RunContext|null $context the code and the build it ran on; null: what the environment of the process says
      */
-    public function evaluationOutput(?string $environment = null): CloudOutput
+    public function evaluationOutput(?string $environment = null, ?RunContext $context = null): CloudOutput
     {
-        return new CloudOutput($this->platform(), $environment);
+        return new CloudOutput($this->platform(), $environment, $context ?? RunContext::detect());
+    }
+
+    /**
+     * What the platform says about the evaluations of a CI build: whether they
+     * broke something new, compared with the earlier runs of the branch.
+     *
+     * @param string $suiteId the build, as {@see RunContext} names it
+     * @return array<string, mixed>
+     * @throws CloudException when the platform gave no such answer
+     */
+    public function evaluationSuite(string $suiteId): array
+    {
+        return $this->platform()->evaluationSuite($suiteId);
     }
 
     /**

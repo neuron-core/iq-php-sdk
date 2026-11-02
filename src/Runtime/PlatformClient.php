@@ -19,6 +19,7 @@ use function array_is_list;
 use function is_array;
 use function is_bool;
 use function is_int;
+use function is_string;
 use function rawurlencode;
 use function rtrim;
 
@@ -44,6 +45,9 @@ final class PlatformClient
 
     /** Followed by the slug of the dataset. */
     protected const DATASETS = '/v1/datasets/';
+
+    /** Followed by the ID of the suite. */
+    protected const EVALUATION_SUITES = '/v1/evaluations/suites/';
 
     protected const TIMEOUT_SECONDS = 3.0;
 
@@ -137,6 +141,33 @@ final class PlatformClient
     public function evaluation(array $evaluation): void
     {
         $this->hand(self::EVALUATIONS, $evaluation, self::EVALUATION_TIMEOUT_SECONDS);
+    }
+
+    /**
+     * What the platform says about the evaluators of a suite.
+     *
+     * @return array<string, mixed>
+     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
+     *                        that carries it; report_undelivered, for any other answer that is not a 2xx with a
+     *                        verdict, a 404 for a suite the platform does not know included, and when the platform
+     *                        gave none
+     */
+    public function evaluationSuite(string $suiteId): array
+    {
+        $path = self::EVALUATION_SUITES . rawurlencode($suiteId);
+        $answer = $this->send(HttpMethod::GET, $path, null, self::DATASET_TIMEOUT_SECONDS);
+
+        $fields = $this->fieldsOf($answer);
+        if ($answer->isSuccessful() && is_string($fields['verdict'] ?? null)) {
+            return $fields;
+        }
+
+        $explanation = $answer->statusCode === 404 ? ' It holds no evaluation of this suite.' : '';
+
+        throw new CloudException(
+            "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
+            $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
+        );
     }
 
     /**

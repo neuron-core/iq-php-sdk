@@ -85,7 +85,7 @@ One more value can cross: a label that code outside the SDK stored with a run re
 
 The platform keeps nothing else of what the application sends (section 7.2).
 
-The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. It can also read a dataset the platform keeps, which sends nothing but the name of the dataset. Section 13 describes all three.
+The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. It can also read a dataset the platform keeps, which sends nothing but the name of the dataset, and what an evaluation found, which sends nothing but the ID of its suite. Section 13 describes all four.
 
 ### 1.4 What protocol 1 covers
 
@@ -444,6 +444,7 @@ A person starts and ends a rotation. **OPERATOR ACTION.** The protocol requires 
 | The SDK | The answer to a sync | 15 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to a trace (section 13) | 3 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to the results of an evaluation (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
+| The SDK | The answer to the read of what an evaluation found (section 13.6) | 15 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to the read of a dataset (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
 | The platform | The answer of the endpoint to any message, a `ping` included | 10 seconds | SETTING |
 
@@ -3020,7 +3021,7 @@ The five `Simulator/` classes use no application: the test plays the application
 
 ## 13. Traces, evaluation results and datasets
 
-Three more requests can reach the platform. None is a message of protocol 1, and no rule of section 7 depends on any of them: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths. Two hand the platform what the application sends: a trace and the results of an evaluation. The third reads a dataset the platform keeps (13.5).
+Four more requests can reach the platform. None is a message of protocol 1, and no rule of section 7 depends on any of them: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths. Two hand the platform what the application sends: a trace and the results of an evaluation. The third reads a dataset the platform keeps (13.5), and the fourth what an evaluation found (13.6).
 
 ### 13.1 What a trace and the results of an evaluation have in common
 
@@ -3112,7 +3113,9 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
 
 ```json
 {"run_id": "eval_6acb600d897908.92076975",
- "name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "environment": "ci", "error": null,
+ "name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "environment": "ci",
+ "suite_id": "github-7812-1", "suite_size": 1, "branch": "fix-refunds", "base_branch": "main", "commit": "9f2c41e0",
+ "ci_url": "https://github.com/acme/shop/actions/runs/7812", "error": null,
  "started_at": "2026-10-11T10:00:00.123456+00:00", "finished_at": "2026-10-11T10:00:02.500000+00:00",
  "summary": {"total": 2, "passed": 1, "failed": 1, "success_rate": 0.5,
              "total_execution_time": 2.376544, "average_execution_time": 0.92,
@@ -3140,19 +3143,23 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
                 "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37}],
     "failures": [{"evaluator_class": "App\\Evaluators\\RefundEvaluator", "assertion": "StringContains",
                   "message": "Expected 'I cannot help with that.' to contain 'tracking'", "line": 37, "context": []}],
-    "reruns": [{"passed": true, "error": null, "run_time": 0.9, "evaluation_time": 0.04, "run_usage": [], "judge_usage": []}]}]}
+    "reruns": [{"passed": true, "error": null, "assertions_passed": 1, "assertions_failed": 0,
+                "run_time": 0.9, "evaluation_time": 0.04, "run_usage": [], "judge_usage": []}]}]}
 ```
 
 | Field | Meaning |
 |---|---|
-| `run_id` | Made for this request, `eval_` and a unique suffix. Two evaluators of one evaluation have different ones, and nothing ties them together but `started_at` and `environment` |
+| `run_id` | Made for this request, `eval_` and a unique suffix. Two evaluators of one evaluation have different ones, and `suite_id` ties them together |
 | `name` | The class of the evaluator |
 | `namespace` | The group the evaluator declares, or null |
 | `environment` | What the developer named where the evaluation ran, or null |
+| `suite_id` | Ties together the evaluators of one evaluation. In a CI build the SDK knows it names the attempt of the build, so that a later step can read the suite (13.6); otherwise it is made for the evaluation |
+| `suite_size` | How many evaluators the evaluation has, so that the platform can tell a suite that did not all arrive |
+| `branch`, `base_branch`, `commit`, `ci_url` | The code the evaluation ran on, the branch a pull request targets and the page of the build, each null when the SDK cannot tell. The platform keeps a `ci_url` only when it is an `http` or `https` URL |
 | `error` | Why the evaluator could not run, or null. `results` is then empty |
 | `started_at`, `finished_at` | When the evaluator ran, with microseconds and the offset from UTC |
 | `summary` | Counts and rates over the items and over their assertions, times in seconds, and the statistics of the scores, overall and by label. `score_statistics` is null when no assertion gave a score. `warnings` lists what the reader should know about the run, such as cached outputs with no declared dependency |
-| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it, with its `dataset_item_id` when it comes from a dataset of 13.5. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `execution_time` is the whole item, `run_time` the evaluated code and `evaluation_time` the assertions and judges, each null when that step did not execute. `run_usage` and `judge_usage` hold one entry per provider and model with the tokens of that step: `provider` is the value of `gen_ai.provider.name`, and an empty list means nothing was measured, never that the item was free. Each entry of `scores` keeps the `assertion`, its `message`, which holds the reasoning of a judge whether it passed or not, and the `line`. `failures` lists each failed assertion. `reruns` lists the attempts made again at an item that failed: the verdict stays the one of the first run, and they count for what the item spent |
+| `results` | One entry per dataset item, in order. `input` is the item as the dataset holds it, with its `dataset_item_id` when it comes from a dataset of 13.5. `output` is what the evaluated code returned: a scalar as it is, anything else as a string of JSON, and the trajectory of a conversation as an object with `type` `trajectory`, `transcript`, `turns`, `tool_calls` and `usage`. `cached_run` says that the output came from the evaluation cache. `execution_time` is the whole item, `run_time` the evaluated code and `evaluation_time` the assertions and judges, each null when that step did not execute. `run_usage` and `judge_usage` hold one entry per provider and model with the tokens of that step: `provider` is the value of `gen_ai.provider.name`, and an empty list means nothing was measured, never that the item was free. Each entry of `scores` keeps the `assertion`, its `message`, which holds the reasoning of a judge whether it passed or not, and the `line`. `failures` lists each failed assertion. `reruns` lists the attempts made again at an item that failed: the verdict stays the one of the first run, and they count for what the item spent. An attempt that made no assertion judged nothing, and does not count as passing |
 
 Receivers ignore fields they do not know: the summary and the results follow what the framework's evaluations give, and may gain fields.
 
@@ -3163,6 +3170,7 @@ Both carry the customer's data. A trace holds the message and the stack trace of
 - **AUTOMATION.** The platform authenticates both paths as it does a notice, and answers `401` with `unauthorized` to a key it does not accept.
 - **AUTOMATION.** It attaches a trace to the run its `neuron.run.id` names, in the environment of the API key, and shows it with that run. A trace whose run the platform does not know is kept on its own or dropped: it never creates a run, never opens a closed one and never changes a status.
 - **SETTING.** How long traces and evaluation results are kept, who may read them, and how large a request may be are the platform's own. A request the platform finds too large is answered with a `4xx` and is lost: the SDK does not split or retry it.
+- **AUTOMATION.** The platform compares a run with the last earlier run of the same evaluator in the same environment. A run with a `base_branch` compares with that branch, and with its own when that one has no run. Any other run compares with its own branch. Runs that name neither a branch nor a commit stand in until the evaluator has a run that names a branch. A run never compares with its own suite, and a run with a `ci_url` never with its own commit, so re-running a build does not turn a failure into a known one.
 
 ### 13.5 A dataset: `GET /v1/datasets/{slug}`
 
@@ -3186,6 +3194,41 @@ An evaluator of the application can run on a dataset that the platform keeps, in
 - **What an item holds is the platform's.** The evaluator reads the item and the SDK reads nothing of it. The platform sends the `dataset_item_id` it gave the item, an integer that stays the same when an operator edits the item, with the `input` and the `expected_output` an operator stored. It sends only the items that are active, the oldest first.
 - **What crosses.** The request carries nothing but the slug. The answer brings data the customer stored on the platform into the application. It goes back to the platform only when the developer also lists the output of 13.3, as the `input` of each result.
 - **AUTOMATION.** A result whose `input` carries the `dataset_item_id` of an item of the environment of the API key is tied to that item, so the platform can compare it from one evaluation to the next. The platform leaves that key out of the `input` it shows for the result. An ID that is not an integer, or that names an item of another environment, ties the result to nothing and is left out the same way. A result with no ID is compared by its `input`.
+
+### 13.6 What an evaluation found: `GET /v1/evaluations/suites/{suite_id}`
+
+The exit code of `neuron evaluation` fails on any failed item, because nothing on the machine remembers an earlier run. The platform does, so a later step of a CI build asks it whether the evaluators of the build broke something new. It has nothing to do with a workflow run.
+
+| | |
+|---|---|
+| Who turns it on | The developer, by running `vendor/bin/neuron-cloud-gate` in the build. **SETTING**, set in the application |
+| Request | `GET {platformUrl}/v1/evaluations/suites/{suite_id}`, with `Authorization: Bearer <API key>`, the `User-Agent` of section 3.2 and no body. `{suite_id}` is percent-encoded |
+| Answer | A `2xx` whose body is a JSON object with `verdict`: `passed`, `failed` or `incomplete` |
+| A refusal | Any other answer, and no answer within the timeout of section 3.8. `404` means the platform holds no run of the suite. The SDK sends the request once and the step ends with exit code 2, which is neither a pass nor a failure of the evaluators, as it does for `incomplete` |
+
+```json
+{"suite_id": "github-7812-1", "branch": "fix-refunds", "base_branch": "main", "commit": "9f2c41e0",
+ "ci_url": "https://github.com/acme/shop/actions/runs/7812", "verdict": "failed", "evaluators_expected": 1,
+ "evaluators": [
+   {"name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "run_id": "eval_6acb600d897908.92076975",
+    "url": "https://cloud.neuron-ai.dev/acme/apps/shop/evaluations/4/runs/91", "status": "regressed",
+    "total": 2, "passed": 1, "failed": 1, "errored": 0, "new_failures": 1, "confirmed_failures": 1, "fixed": 0,
+    "compared": 2, "checks_changed": 0, "edited": 0, "reused_output": 0, "added": 0, "removed": 0, "gap": null,
+    "baseline": {"run_id": "eval_6acb5f0c11b2a4.10293847", "branch": "main", "commit": "71ab09c2", "started_at": "2026-10-11T09:00:00.000000Z"}}],
+ "failures": [
+   {"evaluator": "App\\Evaluators\\RefundEvaluator", "index": 1, "change": "new_failure", "confirmed": true,
+    "reruns": 2, "reruns_passed": 0, "reruns_errored": 0, "input": {"question": "Where is my order?"},
+    "error": null, "reasons": ["Expected 'I cannot help with that.' to contain 'tracking'"]}],
+ "failures_total": 1}
+```
+
+| Field | Meaning |
+|---|---|
+| `verdict` | `failed` when a run of the suite is `regressed` or `not_run`, `incomplete` when fewer evaluators arrived than `suite_size` says, and `passed` otherwise. A suite that compares nothing passes, and its evaluators say why |
+| `evaluators` | Every run of the suite, as the jobs of a matrix share one. `status` is `regressed`, `not_run` when the evaluator could not run, every item threw, or it has no items or no assertions where its baseline had verdicts, `not_compared` when `gap` says why nothing compares, or `clean`. The counts say how much of it compared |
+| `failures` | Items that passed in the baseline and fail or throw now, at most 50 of `failures_total`, the confirmed ones first. `confirmed` is false for an item that passed one of its `reruns`: it is reported and it does not fail the verdict. An item nobody re-ran counts as confirmed |
+
+- **AUTOMATION.** The platform authenticates the path as it does a notice, reads only the suites of the app of the API key, and compares the runs when it is asked, so a run that arrived late changes the answer.
 
 ---
 

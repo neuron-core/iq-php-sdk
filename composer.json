@@ -10,6 +10,9 @@
         }
     ],
     "license": "MIT",
+    "bin": [
+        "bin/neuron-cloud-gate"
+    ],
     "require": {
         "php": "^8.1",
         "neuron-core/neuron-ai": "^4.1.18"

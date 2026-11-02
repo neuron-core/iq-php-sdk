@@ -253,7 +253,7 @@ return [
     'output' => array_filter([
         ConsoleOutput::class,
         // Listed only where the key is set: a machine without it still evaluates
-        getenv('NEURON_CLOUD_API_KEY') ? $container->get(NeuronCloud::class)->evaluationOutput(environment: 'ci') : null,
+        getenv('NEURON_CLOUD_API_KEY') ? $container->get(NeuronCloud::class)->evaluationOutput(environment: getenv('CI') ? 'ci' : 'local') : null,
     ]),
     // Builds every evaluator, and every output listed by its class name
     'resolver' => fn (string $class): object => $container->get($class),
@@ -264,6 +264,33 @@ return [
 - **`environment`** names where the evaluation ran, such as `ci`, or is null.
 - **It is best effort too.** A message the platform did not take is logged, the other outputs still run, and the exit code of the command is what the assertions decide.
 - **Never build `CloudOutput` with `new`**: get it from `evaluationOutput()`.
+- **The branch, the commit and the page of the build** are sent with every evaluator. GitHub Actions and GitLab CI need nothing, and elsewhere out of CI they come from git. Any other CI sets `NEURON_EVALUATION_BRANCH`, `NEURON_EVALUATION_BASE_BRANCH`, `NEURON_EVALUATION_COMMIT`, `NEURON_EVALUATION_CI_URL` and `NEURON_EVALUATION_SUITE_ID`. A pull request is compared with the branch it targets, and any other run with its own branch.
+
+### Failing a build on what is new
+
+`vendor/bin/neuron evaluation` fails on any failed item, so a suite with a known failure stays red. `vendor/bin/neuron-cloud-gate` asks the platform instead, which remembers the earlier runs of the branch, and fails the build only when something new broke:
+
+```yaml
+# GitHub Actions
+- name: Evaluations
+  env:
+    NEURON_CLOUD_API_KEY: ${{ secrets.NEURON_CLOUD_API_KEY }}
+  run: |
+    vendor/bin/neuron evaluation evaluators || [ $? -eq 1 ]
+    vendor/bin/neuron-cloud-gate
+```
+
+The first line tolerates exit code 1, a failed item, and nothing else: a crash of the command stops the build there. Both commands need the API key, and on GitLab both must run in the same job.
+
+- **It needs `NEURON_CLOUD_API_KEY`**, and `NEURON_CLOUD_PLATFORM_URL` for a platform at another address.
+- **Exit code 0** means nothing new broke, **1** that something did or an evaluator could not run, and **2** that the platform gave no answer or the results of some evaluators did not arrive. Any exit code but 0 fails the step, so a build cannot pass with no results.
+- **Turn on re-runs.** Judges disagree with themselves, so an item that fails for the first time can be noise. With `rerunFailed` on the runner in `evaluation.php`, an item that passed a re-run is reported and does not fail the build. An item nobody re-ran counts.
+- **A run with nothing to compare passes**, such as the first run of a branch with no pull request, or a run answered from the cache. The report says why.
+- **A pull request is compared with the branch it targets**, so re-running a build or pushing again does not turn a regression into a known failure. A build on `push` alone names no target: it compares with the last run of its branch, so a failure counts as new once.
+- **`NEURON_EVALUATION_SUITE_ID` must be different for every build**, as the suite of a build is what the gate reads.
+- **In a matrix, give each job a suite of its own and run the gate in it**: `NEURON_EVALUATION_SUITE_ID: ${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.php }}`. All jobs of a run share its ID otherwise, and a job whose results never arrived goes unnoticed.
+- **Keep local runs apart from CI**, or a run on your machine becomes the baseline of the next pull request: `evaluationOutput(environment: getenv('CI') ? 'ci' : 'local')`.
+- **An evaluator that stops testing fails the build**: one that has no items or makes no assertions where its baseline had verdicts counts as one that could not run.
 
 ### Datasets
 

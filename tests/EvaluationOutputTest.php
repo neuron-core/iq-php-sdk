@@ -17,6 +17,7 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\Gemini\Gemini;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\Evaluation\RunContext;
 use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
 use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
@@ -34,6 +35,7 @@ use function json_decode;
 use function mkdir;
 use function proc_close;
 use function proc_open;
+use function putenv;
 use function rmdir;
 use function sort;
 use function stream_get_contents;
@@ -146,6 +148,48 @@ class EvaluationOutputTest extends TestCase
         self::assertSame([['label' => 'quality', 'value' => 0.9, 'passed' => true, 'assertion' => 'Judge', 'message' => 'Clear and polite.', 'line' => 12]], $item['scores']);
     }
 
+    public function test_every_evaluator_of_a_report_is_sent_with_the_code_and_the_build_it_ran_on(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+        $context = new RunContext('github-7-1', 'feature', 'main', 'abc123', 'https://ci.test/7');
+
+        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput(context: $context)->output(self::reportOfTwo());
+
+        foreach ($http->received() as $request) {
+            self::assertSame(
+                ['github-7-1', 'feature', 'main', 'abc123', 'https://ci.test/7'],
+                [$request->body['suite_id'], $request->body['branch'], $request->body['base_branch'], $request->body['commit'], $request->body['ci_url']],
+            );
+        }
+        self::assertCount(2, $http->received());
+        self::assertSame(2, $http->received()[0]->body['suite_size']);
+    }
+
+    public function test_the_output_reads_the_build_from_the_environment_when_it_is_given_none(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+        putenv('NEURON_EVALUATION_SUITE_ID=nightly-3');
+
+        try {
+            (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
+        } finally {
+            putenv('NEURON_EVALUATION_SUITE_ID');
+        }
+
+        self::assertSame('nightly-3', $http->received()[0]->body['suite_id']);
+    }
+
+    public function test_evaluators_with_no_build_to_name_them_share_a_suite_of_their_own(): void
+    {
+        $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
+
+        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput(context: new RunContext())->output(self::reportOfTwo());
+
+        [$first, $second] = $http->received();
+        self::assertSame($first->body['suite_id'], $second->body['suite_id']);
+        self::assertStringStartsWith('suite_', $first->body['suite_id']);
+    }
+
     public function test_a_string_cut_in_the_middle_of_a_character_does_not_lose_the_report(): void
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
@@ -171,8 +215,8 @@ class EvaluationOutputTest extends TestCase
             [],
             null,
             1.0,
-            0,
-            0,
+            $passed ? 3 : 0,
+            1,
             error: $error,
             runTime: 0.9,
             evaluationTime: 0.1,
@@ -192,6 +236,7 @@ class EvaluationOutputTest extends TestCase
         );
         self::assertSame('anthropic', $reruns[0]['run_usage'][0]['provider']);
         self::assertSame('gcp.gemini', $reruns[0]['judge_usage'][0]['provider']);
+        self::assertSame([3, 1], [$reruns[0]['assertions_passed'], $reruns[0]['assertions_failed']]);
     }
 
     /**
@@ -246,6 +291,14 @@ class EvaluationOutputTest extends TestCase
     /**
      * The report of one evaluator, as Neuron's evaluation command builds it.
      */
+    protected static function reportOfTwo(): EvaluationReport
+    {
+        $at = new DateTimeImmutable('2026-10-11T10:00:00+00:00');
+        $report = fn (string $class): EvaluatorReport => new EvaluatorReport($class, new EvaluationResults([]), $at, $at);
+
+        return new EvaluationReport([$report(GreetingEvaluator::class), $report(ProfileEvaluator::class)], $at, $at);
+    }
+
     protected static function report(): EvaluationReport
     {
         $at = new DateTimeImmutable('2026-10-11T10:00:00+00:00');
