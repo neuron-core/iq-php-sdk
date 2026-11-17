@@ -99,7 +99,7 @@ public function test_the_refund_evaluator_passes_on_its_dataset(): void
 }
 ```
 
-- **`keepDataset()` takes the items as the platform holds them**, each `['input' => ..., 'expected_output' => ...]`, and the evaluator reads them in that order. The fake adds the `dataset_item_id` the platform sends, the position of the item from 1 unless you give one.
+- **`keepDataset()` takes the items as the platform holds them**, each `['input' => ..., 'expected_output' => ..., 'metadata' => ...]`, and the evaluator reads them in that order. The fake adds the `dataset_item_id` the platform sends, the position of the item from 1 unless you give one.
 - **A slug the fake does not keep** is answered 404, as the platform answers it: `load()` throws a `CloudException`, and the runner lets it through. So does a read after `$platform->failNext(1, 503)`: the platform away when the dataset is read.
 - **`FakeAIProvider` answers in order**, one message per inference: give it one answer per dataset item.
 - **`assertEvaluated()` takes the class of the evaluator**, as the runner names it. Whether the items passed is the runner's to say: `getPassedCount()`, as above.

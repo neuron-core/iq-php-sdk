@@ -52,8 +52,8 @@ class FakePlatformTest extends TestCase
     protected const WORKFLOW_ID = 'order:123';
 
     protected const ITEMS = [
-        ['dataset_item_id' => 11, 'input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
-        ['dataset_item_id' => 12, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+        ['dataset_item_id' => 11, 'input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123'], 'metadata' => ['source' => 'support']],
+        ['dataset_item_id' => 12, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined'], 'metadata' => null],
     ];
 
     #[DataProvider('paths')]
@@ -665,10 +665,11 @@ class FakePlatformTest extends TestCase
     }
 
     /**
-     * The platform answers an item with its ID, its input and its expected output, null when it holds none, and
-     * nothing else: an evaluator reads from the fake the keys it reads from the platform, no more and no fewer.
+     * The platform answers an item with its ID, its input, its expected output and its metadata, the last two null
+     * when it holds none, and nothing else: an evaluator reads from the fake the keys it reads from the platform, no
+     * more and no fewer.
      */
-    public function test_an_item_is_answered_with_its_id_its_input_and_its_expected_output_alone_a_missing_id_as_its_position_and_a_missing_expected_output_as_null(): void
+    public function test_an_item_is_answered_with_its_id_its_input_its_expected_output_and_its_metadata_alone_a_missing_id_as_its_position_and_a_missing_field_as_null(): void
     {
         $platform = (new FakePlatform())->keepDataset('refund-requests', [
             ['input' => ['order' => 123]],
@@ -677,8 +678,8 @@ class FakePlatformTest extends TestCase
 
         self::assertSame(
             [
-                ['dataset_item_id' => 1, 'input' => ['order' => 123], 'expected_output' => null],
-                ['dataset_item_id' => 2, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined']],
+                ['dataset_item_id' => 1, 'input' => ['order' => 123], 'expected_output' => null, 'metadata' => null],
+                ['dataset_item_id' => 2, 'input' => ['order' => 456], 'expected_output' => ['contains' => 'declined'], 'metadata' => ['source' => 'support']],
             ],
             self::serviceOn($platform)->dataset('refund-requests')->load(),
         );
@@ -701,8 +702,8 @@ class FakePlatformTest extends TestCase
 
         self::assertSame(
             [
-                ['dataset_item_id' => 1, 'input' => 'a', 'expected_output' => null],
-                ['dataset_item_id' => 2, 'input' => 'b', 'expected_output' => null],
+                ['dataset_item_id' => 1, 'input' => 'a', 'expected_output' => null, 'metadata' => null],
+                ['dataset_item_id' => 2, 'input' => 'b', 'expected_output' => null, 'metadata' => null],
             ],
             self::serviceOn($platform)->dataset('refund-requests')->load(),
         );

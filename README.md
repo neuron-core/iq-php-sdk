@@ -332,7 +332,7 @@ class RefundEvaluator extends BaseEvaluator
 }
 ```
 
-Each item is an array with the `input` and the `expected_output` you stored on the platform, and the `dataset_item_id` the platform uses to compare the item from one evaluation to the next. Read the keys you need: do not spread the item into named arguments.
+Each item is an array with the `input`, the `expected_output` and the `metadata` you stored on the platform, each any JSON value and the last two null when the item has none, and the `dataset_item_id` the platform uses to compare the item from one evaluation to the next. Read the keys you need: do not spread the item into named arguments.
 
 Neuron's evaluation command builds every evaluator through a resolver. Make that resolver the container that holds your `NeuronCloud`:
 
@@ -640,7 +640,7 @@ $platform->assertEvaluated(RefundEvaluator::class);
 
 - **`assertTraced()`** takes the name of the parentless span of a trace: `invoke_agent <name>` for an agent, `invoke_workflow <name>` for a workflow. The name is the short class name for a run your application runs with `tracer()`, as in `invoke_agent SupportAgent`, and the definition name for a run the SDK executes, as in `invoke_workflow order-fulfilment` or `invoke_agent support-agent`.
 - **`assertEvaluated()`** takes the class of the evaluator.
-- **`keepDataset()`** answers the read of its slug with the items, in order, each as the platform answers it: `['dataset_item_id' => ..., 'input' => ..., 'expected_output' => ...]`, the ID the position of the item from 1 and the expected output null where you give none, and no other key. A slug it was not given is answered 404, and `load()` throws, as against the platform.
+- **`keepDataset()`** answers the read of its slug with the items, in order, each as the platform answers it: `['dataset_item_id' => ..., 'input' => ..., 'expected_output' => ..., 'metadata' => ...]`, the ID the position of the item from 1 and the expected output and the metadata null where you give none, and no other key. A slug it was not given is answered 404, and `load()` throws, as against the platform.
 - **`failNext()` comes first.** `$platform->failNext(1, 503)` plays a platform that is away for the next request, and an assertion counts no request it refused.
 
 For orchestration, `FakeDispatcher` stands in for your queue:

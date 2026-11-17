@@ -236,7 +236,7 @@ class RefundRequestEvaluator extends BaseEvaluator
 }
 ```
 
-- **An item is an array with the `input` and the `expected_output` stored on the platform**, each whatever JSON was stored there, and the `dataset_item_id` the platform uses to compare the item from one evaluation to the next; only the active items are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`, and read the keys you need: never spread the item into named arguments. The customers and orders an item names must exist in the evaluation database, as for a JSON dataset.
+- **An item is an array with the `input`, the `expected_output` and the `metadata` stored on the platform**, each whatever JSON was stored there, null when the item has no expected output or metadata, and the `dataset_item_id` the platform uses to compare the item from one evaluation to the next; only the active items are sent. Ask the developer what an item holds, or read one, before writing `run()` and `evaluate()`, and read the keys you need: never spread the item into named arguments. The customers and orders an item names must exist in the evaluation database, as for a JSON dataset.
 - **Nothing to bind.** The container injects the package's singleton, built from `config/neuron-cloud.php`: its API key, its platform URL and, in tests, the `neuron-cloud.http` binding. Never build a `NeuronCloud` in an evaluator.
 - **The key goes in `.env.evaluation`**, as for the output. Without it the container cannot build the evaluator: `neuron:evaluate` reports it as an evaluator that could not run, with the message that names `NEURON_CLOUD_API_KEY`, runs the others and exits 1. No guard is needed, and none would help: without the platform the evaluator has nothing to run on.
 - **The items are read once per evaluator**, by the command's own process, before `--concurrency` forks: the child hooks of the command need nothing more. With tracing off the children never call the platform; with tracing on each child posts the traces of the items it runs.
@@ -318,7 +318,7 @@ public function test_the_refund_evaluator_passes_on_its_dataset(): void
 }
 ```
 
-- **`keepDataset()` takes the items as the platform holds them**, each `['input' => ..., 'expected_output' => ...]`, and the evaluator reads them in that order. The fake adds the `dataset_item_id` the platform sends, the position of the item from 1 unless you give one.
+- **`keepDataset()` takes the items as the platform holds them**, each `['input' => ..., 'expected_output' => ..., 'metadata' => ...]`, and the evaluator reads them in that order. The fake adds the `dataset_item_id` the platform sends, the position of the item from 1 unless you give one.
 - **A slug the fake does not keep** is answered 404, as the platform answers it: `load()` throws a `CloudException`, and the runner lets it through. So does a read after `$platform->failNext(1, 503)`: the platform away when the dataset is read.
 - **`FakeAIProvider` answers in order**, one message per inference: give it one answer per dataset item.
 - **`assertEvaluated()` takes the class of the evaluator**, as the runner names it. Whether the items passed is the runner's to say: `getPassedCount()`, as above.
