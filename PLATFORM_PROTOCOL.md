@@ -3257,7 +3257,7 @@ A developer moves a dataset of the application, such as a JSON file, to the plat
 ```
 
 - **AUTOMATION.** The platform authenticates the path as it does a notice, and writes only to the datasets of the environment of the API key. It creates the dataset when the environment has none with the slug, and refuses a name another dataset of the environment has. A request it refuses writes nothing.
-- **AUTOMATION.** An item whose input equals the input of an item of the dataset, whatever the order of the keys of its objects, is that item: its expected output and its metadata become the ones sent, and it keeps its `dataset_item_id`, so the evaluations that ran on it still compare with the next one. Items that share an input pair in the order they come. Any other item is added, and an item of the dataset that is not sent stays, so a request sent twice changes nothing the second time.
+- **AUTOMATION.** An item whose input equals the input of an item of the dataset, whatever the order of the keys of its objects, is that item: its expected output and its metadata become the ones sent, and it keeps its `dataset_item_id`, so the evaluations that ran on it still compare with the next one. Items that share an input pair in the order they come. Any other item is added, and an item of the dataset that is not sent stays, so a request sent twice changes nothing the second time. An archived item is matched too and stays archived, so it is still not sent to the SDK: an operator took it out of the evaluations, and sending the file again does not put it back.
 - **What crosses.** The items the developer sends, which the platform keeps as data of the customer, as it keeps the items an operator stores.
 
 ---

@@ -382,7 +382,7 @@ It prints what the platform did, such as `refund-requests: created, 12 added, 0 
 
 - **The file holds items in the shape of a dataset item**: a JSON array of objects, each with an `input` and, when it has them, an `expected_output` and `metadata`. The platform refuses a file with any other key and names the item that holds it.
 - **The platform creates the dataset when it has none** under that slug, named after `--name` or after the slug. A slug holds lowercase letters, digits and single hyphens.
-- **An item is matched by its input.** An item of the file whose input the dataset has replaces the expected output and the metadata of that item, and keeps its history of results; any other is added; an item of the dataset that the file lacks stays. Sending the same file again changes nothing.
+- **An item is matched by its input.** An item of the file whose input the dataset has replaces the expected output and the metadata of that item, and keeps its history of results; any other is added; an item of the dataset that the file lacks stays. Sending the same file again changes nothing. An item someone archived on the platform takes the file's changes and stays archived.
 - **A file of more than 1,000 items goes in several requests.** One the platform refuses stops the rest, and the ones before it stay written.
 - **It exits 0** when the platform took the items, **1** when it refused them or gave no answer, and **2** when it had nothing to send: no API key, no file, or a file that is not a JSON array. It reads the platform URL from `NEURON_CLOUD_PLATFORM_URL` when it is set.
 
