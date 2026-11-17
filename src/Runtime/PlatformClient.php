@@ -25,8 +25,8 @@ use function rtrim;
 
 /**
  * Posts the SDK's announcements and reports to the platform, publishes a
- * sync, hands it the trace of a segment or the results of an evaluation, and
- * reads a dataset it keeps, one try each.
+ * sync, hands it the trace of a segment or the results of an evaluation,
+ * reads a dataset it keeps and writes the items of one, one try each.
  *
  * @internal
  */
@@ -46,8 +46,14 @@ final class PlatformClient
     /** Followed by the slug of the dataset. */
     protected const DATASETS = '/v1/datasets/';
 
+    /** Follows the slug of a dataset whose items are written. */
+    protected const DATASET_ITEMS = '/items';
+
     /** Followed by the ID of the suite. */
     protected const EVALUATION_SUITES = '/v1/evaluations/suites/';
+
+    /** The most items one write of a dataset carries: the platform refuses more. */
+    public const UPLOAD_ITEMS = 1000;
 
     protected const TIMEOUT_SECONDS = 3.0;
 
@@ -200,6 +206,50 @@ final class PlatformClient
             "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
             $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
+    }
+
+    /**
+     * Merge items into the dataset of the environment of the API key with the slug, which the platform creates
+     * when there is none: an item whose input is the input of one of its items replaces the expected output and
+     * the metadata of that item, any other is added, and the items not sent stay.
+     *
+     * @param list<array<array-key, mixed>> $items at most {@see self::UPLOAD_ITEMS}, each with an input
+     * @param string|null $name what a dataset the request creates is called; its slug when null
+     * @return array{slug: string, created: bool, added: int, updated: int, unchanged: int}
+     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request, for a 422, whose message says what
+     *                        the platform refused, and for a 4xx that carries it; unsupported_protocol, for a 4xx
+     *                        that carries it; report_undelivered, for any other answer that is not a 2xx with the
+     *                        counts, and when the platform gave none
+     */
+    public function uploadDatasetItems(string $slug, array $items, ?string $name = null): array
+    {
+        $path = self::DATASETS . rawurlencode($slug) . self::DATASET_ITEMS;
+        $answer = $this->send(HttpMethod::POST, $path, ['name' => $name, 'items' => $items], self::DATASET_TIMEOUT_SECONDS);
+
+        $fields = $this->fieldsOf($answer);
+        if ($answer->isSuccessful() && $this->isUploadAnswer($fields)) {
+            return $fields;
+        }
+
+        $message = $fields['message'] ?? null;
+        $explanation = $answer->isSuccessful()
+            ? ' That is not what a write of a dataset answers.'
+            : (is_string($message) && $message !== '' ? " {$message}" : '');
+
+        throw new CloudException(
+            "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
+            $answer->statusCode === 422 ? Code::InvalidRequest : $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
+        );
+    }
+
+    /**
+     * @param array<string, mixed> $fields
+     * @phpstan-assert-if-true array{slug: string, created: bool, added: int, updated: int, unchanged: int} $fields
+     */
+    protected function isUploadAnswer(array $fields): bool
+    {
+        return is_string($fields['slug'] ?? null) && is_bool($fields['created'] ?? null)
+            && is_int($fields['added'] ?? null) && is_int($fields['updated'] ?? null) && is_int($fields['unchanged'] ?? null);
     }
 
     /**

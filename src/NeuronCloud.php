@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace NeuronCore\Cloud;
 
 use Closure;
+use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\HttpClient\Curl\CurlHttpClient;
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpResponse;
@@ -12,6 +13,7 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronCore\Cloud\Evaluation\CloudDataset;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\Evaluation\DatasetUpload;
 use NeuronCore\Cloud\Evaluation\RunContext;
 use NeuronCore\Cloud\Observability\CloudListener;
 use NeuronCore\Cloud\Observability\TraceExporter;
@@ -25,6 +27,8 @@ use NeuronCore\Cloud\Runtime\Runner;
 use NeuronCore\Cloud\Runtime\Signature;
 use NeuronCore\Cloud\Runtime\Sync;
 use NeuronCore\Cloud\Runtime\WorkflowBuilder;
+
+use function array_chunk;
 
 use const CURLOPT_FOLLOWLOCATION;
 
@@ -208,6 +212,33 @@ class NeuronCloud
     public function dataset(string $slug): CloudDataset
     {
         return new CloudDataset($this->platform(), $slug);
+    }
+
+    /**
+     * Send the items of a dataset of the application, such as a JsonDataset,
+     * to the dataset the platform keeps under the slug, which it creates when
+     * there is none. An item whose input the dataset has replaces the expected
+     * output and the metadata of that item, any other is added, and the items
+     * not sent stay: sending the same file again changes nothing. A dataset of
+     * more than {@see PlatformClient::UPLOAD_ITEMS} items goes in several
+     * requests, and one the platform refuses stops the rest. It needs the API
+     * key only.
+     *
+     * @param string $slug what the platform names the dataset by, in lowercase letters, digits and hyphens
+     * @param string|null $name what a dataset the upload creates is called; its slug when null
+     * @throws CloudException when the platform refuses the items or gives no answer, as PlatformClient::uploadDatasetItems()
+     */
+    public function uploadDataset(string $slug, DatasetInterface $dataset, ?string $name = null): DatasetUpload
+    {
+        $platform = $this->platform();
+        $upload = new DatasetUpload($slug);
+
+        // An empty dataset is still sent once, so that the platform creates it.
+        foreach (array_chunk($dataset->load(), PlatformClient::UPLOAD_ITEMS) ?: [[]] as $items) {
+            $upload = $upload->with($platform->uploadDatasetItems($slug, $items, $name));
+        }
+
+        return $upload;
     }
 
     /**

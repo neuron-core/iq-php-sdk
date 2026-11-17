@@ -190,6 +190,8 @@ Question 42 came on 2026-10-28, with tracing for what the application runs itsel
 
 44. **One shape for a dataset item.** Built on 2026-11-17 at your request: an item of a dataset the platform keeps holds an `input`, an `expected_output` and `metadata`, each any JSON value, the last two null when it has none (13.5 of the protocol), the keys of neuron-ai's evaluator template too, so an evaluator moves between a JSON file and a platform dataset by its `getDataset()` alone. `keepDataset()` of `FakePlatform` now answers the `metadata` beside the `expected_output`, null where a test gives none, which revises choice (k) of question 42; any other key is still dropped.
 
+45. **Sending a dataset file to the platform.** Built on 2026-11-17 at your request: `NeuronCloud::uploadDataset(string $slug, DatasetInterface $dataset, ?string $name = null): DatasetUpload` sends the items of a dataset of the application, such as a `JsonDataset`, to `POST /v1/datasets/{slug}/items` (13.7 of the protocol), and `vendor/bin/neuron-cloud-dataset <slug> <file.json> [--name=...]` does it from the command line, beside `neuron-cloud-gate`, with the same environment variables. You chose how an existing dataset takes the file: an item is matched by its input, takes the expected output and the metadata of the file and keeps its ID, any other is added, and an item the file lacks stays, so sending a file twice changes nothing. Chosen while it was built, and yours to confirm. (a) A command of the core package, not of the bridges: it needs nothing but the API key, as the gate does. (b) It sends at most 1000 items a request, the most the platform takes, in order, and stops at the first one refused; the ones before it stay written. (c) A `422` is `invalid_request`, and its exception carries the platform's message, which names the item it refused; the reads of the SDK do not, because the platform answers them no message. (d) The command reads the file before it sends anything and exits 2 for a file that is not a JSON array, like a missing key; 1 is left for the platform refusing or not answering. (e) A dataset the upload creates is named after `--name`, or after the slug. `FakePlatform` does not answer the write: a test of an upload uses an HTTP client of its own.
+
 ## 3. What ships in v1
 
 The core package (registration and App Sync, pushed by a deploy or asked for by the platform, one signed endpoint, the runner, local starts and answers, the ledger, tracing, an output for evaluation results, two test fakes, the protocol as JSON Schema) and two bridge packages, for Laravel and for Symfony.
@@ -243,6 +245,7 @@ class NeuronCloud
     public function tracer(): Observability\CloudListener;                                        // for an agent or a workflow you run yourself
     public function evaluationOutput(?string $environment = null): Evaluation\CloudOutput;        // for evaluation.php
     public function dataset(string $slug): Evaluation\CloudDataset;                               // for getDataset() of an evaluator
+    public function uploadDataset(string $slug, DatasetInterface $dataset, ?string $name = null): Evaluation\DatasetUpload; // items of a file to a platform dataset
 
     public function sync(?string $endpointUrl = null): SyncResult;                        // App Sync; null: setEndpointUrl()'s
     public function handle(string $method, array $headers, string $body): HttpResponse;   // the endpoint; never throws
@@ -354,6 +357,16 @@ class CloudDataset implements NamedDatasetInterface   // built by dataset(), nev
 {
     public function getName(): string;   // the slug, which the evaluation output sends with the results
     public function load(): array;   // called by Neuron's evaluation runner; reads the items from the platform
+}
+
+class DatasetUpload   // returned by uploadDataset()
+{
+    public readonly string $slug;
+    public readonly bool $created;   // the upload created the dataset
+    public readonly int $added;
+    public readonly int $updated;
+    public readonly int $unchanged;
+    public function summary(): string;   // "refund-requests: created, 12 added, 0 updated, 0 unchanged"
 }
 
 namespace NeuronCore\Cloud\Observability;

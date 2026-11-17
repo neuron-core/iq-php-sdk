@@ -370,6 +370,22 @@ What to expect:
 - **Only the active items of a dataset are sent.** A dataset with none runs nothing.
 - **`--cache` keys an item by its content and its `dataset_item_id`.** An item you change on the platform runs again; an unchanged one is served from the cache. An item imported again gets a new ID, so it runs again too.
 
+### Sending a dataset file to the platform
+
+A dataset you keep in a JSON file of the application goes to Neuron Cloud in one command, so that your team curates it there and your evaluators read it with `dataset()`:
+
+```bash
+NEURON_CLOUD_API_KEY=... vendor/bin/neuron-cloud-dataset refund-requests tests/datasets/refunds.json --name="Refund requests"
+```
+
+It prints what the platform did, such as `refund-requests: created, 12 added, 0 updated, 0 unchanged`. In code, `$cloud->uploadDataset('refund-requests', new JsonDataset($path), 'Refund requests')` does the same and returns those counts.
+
+- **The file holds items in the shape of a dataset item**: a JSON array of objects, each with an `input` and, when it has them, an `expected_output` and `metadata`. The platform refuses a file with any other key and names the item that holds it.
+- **The platform creates the dataset when it has none** under that slug, named after `--name` or after the slug. A slug holds lowercase letters, digits and single hyphens.
+- **An item is matched by its input.** An item of the file whose input the dataset has replaces the expected output and the metadata of that item, and keeps its history of results; any other is added; an item of the dataset that the file lacks stays. Sending the same file again changes nothing.
+- **A file of more than 1,000 items goes in several requests.** One the platform refuses stops the rest, and the ones before it stay written.
+- **It exits 0** when the platform took the items, **1** when it refused them or gave no answer, and **2** when it had nothing to send: no API key, no file, or a file that is not a JSON array. It reads the platform URL from `NEURON_CLOUD_PLATFORM_URL` when it is set.
+
 ## 4. Orchestration
 
 For advanced use, and only when you want it: tracing and evaluations need none of this. Your application keeps running every workflow in its own processes and keeps every run in its own store. Neuron Cloud keeps a list of your runs and a clock: it fires the timers your workflows wait on, retries a run after a failure or a crashed worker, and starts runs on a schedule. For these runs only coordination data reaches it: definition names, workflow and run IDs, statuses, wake-up times and the class of an exception. A trace of each segment reaches it only with tracing on (section 2).

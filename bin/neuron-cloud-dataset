@@ -1,0 +1,77 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+/*
+ * Send a JSON dataset file of the application to a dataset the platform keeps:
+ *
+ *   vendor/bin/neuron-cloud-dataset <slug> <file.json> [--name="Refund requests"]
+ *
+ * The platform creates the dataset when there is none. An item whose input the
+ * dataset has replaces the expected output and the metadata of that item, any
+ * other is added, and the items not in the file stay. It reads the API key
+ * from NEURON_CLOUD_API_KEY and the platform URL from NEURON_CLOUD_PLATFORM_URL
+ * when it is set, and exits 0 when the platform took the items, 1 when it
+ * refused them or gave no answer, and 2 when it was given nothing to send.
+ */
+
+use NeuronAI\Evaluation\Dataset\ArrayDataset;
+use NeuronAI\Evaluation\Dataset\JsonDataset;
+use NeuronCore\Cloud\NeuronCloud;
+
+$autoload = $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+
+if (!is_file($autoload)) {
+    fwrite(STDERR, "Run composer install first.\n");
+    exit(2);
+}
+
+require $autoload;
+
+$usage = "Usage: neuron-cloud-dataset <slug> <file.json> [--name=\"Display name\"]\n";
+$arguments = [];
+$name = null;
+
+foreach (array_slice($argv, 1) as $argument) {
+    if (str_starts_with($argument, '--name=')) {
+        $name = substr($argument, strlen('--name='));
+    } else {
+        $arguments[] = $argument;
+    }
+}
+
+if (count($arguments) !== 2) {
+    fwrite(STDERR, $usage);
+    exit(2);
+}
+
+[$slug, $file] = $arguments;
+
+$apiKey = getenv('NEURON_CLOUD_API_KEY');
+
+if ($apiKey === false || $apiKey === '') {
+    fwrite(STDERR, "Set NEURON_CLOUD_API_KEY: the API key of the Neuron Cloud project.\n");
+    exit(2);
+}
+
+// Read before anything is sent: a file that is not a JSON array is nothing to send.
+try {
+    $dataset = new ArrayDataset((new JsonDataset($file))->load());
+} catch (InvalidArgumentException $e) {
+    fwrite(STDERR, $e->getMessage() . PHP_EOL);
+    exit(2);
+}
+
+$platformUrl = getenv('NEURON_CLOUD_PLATFORM_URL');
+$cloud = is_string($platformUrl) && $platformUrl !== ''
+    ? new NeuronCloud($apiKey, platformUrl: $platformUrl)
+    : new NeuronCloud($apiKey);
+
+try {
+    echo $cloud->uploadDataset($slug, $dataset, $name === '' ? null : $name)->summary(), PHP_EOL;
+    exit(0);
+} catch (Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . PHP_EOL);
+    exit(1);
+}

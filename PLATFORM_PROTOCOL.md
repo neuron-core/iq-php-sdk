@@ -85,7 +85,7 @@ One more value can cross: a label that code outside the SDK stored with a run re
 
 The platform keeps nothing else of what the application sends (section 7.2).
 
-The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. It can also read a dataset the platform keeps, which sends nothing but the name of the dataset, and what an evaluation found, which sends nothing but the ID of its suite. Section 13 describes all four.
+The table holds for the messages of protocol 1. An application can turn on two more, which carry what the right column lists: the trace of each segment and the results of an evaluation. It can also read a dataset the platform keeps, which sends nothing but the name of the dataset, write the items of one, which sends the items the developer gives it, and read what an evaluation found, which sends nothing but the ID of its suite. Section 13 describes all five.
 
 ### 1.4 What protocol 1 covers
 
@@ -445,7 +445,7 @@ A person starts and ends a rotation. **OPERATOR ACTION.** The protocol requires 
 | The SDK | The answer to a trace (section 13) | 3 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to the results of an evaluation (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
 | The SDK | The answer to the read of what an evaluation found (section 13.6) | 15 seconds | FIXED BY THE PROTOCOL |
-| The SDK | The answer to the read of a dataset (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
+| The SDK | The answer to the read or the write of a dataset (section 13) | 15 seconds | FIXED BY THE PROTOCOL |
 | The platform | The answer of the endpoint to any message, a `ping` included | 10 seconds | SETTING |
 
 The platform answers a sync only after it has pinged the endpoint (section 5.1). The time that it allows that ping and the rest of its work must fit in the 15 seconds that the SDK waits: this bounds the setting.
@@ -3021,7 +3021,7 @@ The five `Simulator/` classes use no application: the test plays the application
 
 ## 13. Traces, evaluation results and datasets
 
-Four more requests can reach the platform. None is a message of protocol 1, and no rule of section 7 depends on any of them: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths. Two hand the platform what the application sends: a trace and the results of an evaluation. The third reads a dataset the platform keeps (13.5), and the fourth what an evaluation found (13.6).
+Five more requests can reach the platform. None is a message of protocol 1, and no rule of section 7 depends on any of them: a run is coordinated exactly as before whether the platform receives them, refuses them or does not serve their paths. Two hand the platform what the application sends: a trace and the results of an evaluation. The third reads a dataset the platform keeps (13.5), the fourth what an evaluation found (13.6), and the fifth writes the items of a dataset (13.7).
 
 ### 13.1 What a trace and the results of an evaluation have in common
 
@@ -3233,6 +3233,32 @@ The exit code of `neuron evaluation` fails on any failed item, because nothing o
 | `failures` | Items that passed in the baseline and fail or throw now, at most 50 of `failures_total`, the confirmed ones first. `confirmed` is false for an item that passed one of its `reruns`: it is reported and it does not fail the verdict. An item nobody re-ran counts as confirmed |
 
 - **AUTOMATION.** The platform authenticates the path as it does a notice, reads only the suites of the app of the API key, and compares the runs when it is asked, so a run that arrived late changes the answer.
+
+### 13.7 The items of a dataset: `POST /v1/datasets/{slug}/items`
+
+A developer moves a dataset of the application, such as a JSON file, to the platform, and sends it again after changing it. Like the read of a dataset, it has nothing to do with a workflow run.
+
+| | |
+|---|---|
+| Who turns it on | The developer, by running `vendor/bin/neuron-cloud-dataset` or calling `uploadDataset()`. **SETTING**, set in the application |
+| Request | `POST {platformUrl}/v1/datasets/{slug}/items`, with `Authorization: Bearer <API key>`, the `User-Agent` of section 3.2 and a JSON body: `name`, what a dataset the request creates is called, null for its slug, and `items`, a list of at most 1000 items, each an object with an `input` that is not null and, when it has them, an `expected_output` and `metadata`, each any JSON value. `{slug}` is percent-encoded as one segment of the path, and holds lowercase letters, digits and single hyphens. **FIXED BY THE PROTOCOL** |
+| Answer | A `2xx` whose body is a JSON object with the `slug`, `created`, true when the request created the dataset, and how many items were `added`, `updated` and `unchanged` |
+| A refusal | Any other answer, and no answer within the timeout of section 3.8. A `422` carries a `message` that says what the platform refused: an item with a key it does not hold or with no input, more than 1000 items, a slug of another form, or the name of another dataset of the environment. The SDK sends each request once. It sends a longer dataset in several, in order, and stops at the first one refused: the ones before it stay written |
+
+```json
+{"name": "Refund requests",
+ "items": [
+   {"input": {"question": "Refund order 123."}, "expected_output": {"answer": "refunded"}, "metadata": {"topic": "billing"}},
+   {"input": "Where is my order?"}]}
+```
+
+```json
+{"slug": "refund-requests", "created": true, "added": 2, "updated": 0, "unchanged": 0}
+```
+
+- **AUTOMATION.** The platform authenticates the path as it does a notice, and writes only to the datasets of the environment of the API key. It creates the dataset when the environment has none with the slug, and refuses a name another dataset of the environment has. A request it refuses writes nothing.
+- **AUTOMATION.** An item whose input equals the input of an item of the dataset, whatever the order of the keys of its objects, is that item: its expected output and its metadata become the ones sent, and it keeps its `dataset_item_id`, so the evaluations that ran on it still compare with the next one. Items that share an input pair in the order they come. Any other item is added, and an item of the dataset that is not sent stays, so a request sent twice changes nothing the second time.
+- **What crosses.** The items the developer sends, which the platform keeps as data of the customer, as it keeps the items an operator stores.
 
 ---
 

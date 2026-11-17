@@ -11,7 +11,8 @@
     ],
     "license": "MIT",
     "bin": [
-        "bin/neuron-cloud-gate"
+        "bin/neuron-cloud-gate",
+        "bin/neuron-cloud-dataset"
     ],
     "require": {
         "php": "^8.1",

@@ -9,6 +9,7 @@ declare(strict_types=1);
  *   /moved/...   is answered 307, to the same path without that prefix
  *   /silent/...  is never answered
  *   GET /v1/datasets/<slug> is answered with <slug>.json of the directory NEURON_CLOUD_DATASETS names, or 404
+ *   POST /v1/datasets/<slug>/items is answered as a write that created the dataset and added every item
  *   anything else is recorded
  *
  * Usage: NEURON_CLOUD_REQUEST_LOG=<file> NEURON_CLOUD_DATASETS=<directory> php -S 127.0.0.1:<port> platform-server.php
@@ -54,6 +55,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && \str_starts_with($path, '/v1/dataset
     }
 
     echo \file_get_contents($dataset);
+
+    return;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && \preg_match('#^/v1/datasets/([^/]+)/items$#', $path, $matches) === 1) {
+    $items = \json_decode((string) \file_get_contents('php://input'), true)['items'] ?? [];
+    echo \json_encode(['slug' => \rawurldecode($matches[1]), 'created' => true, 'added' => \count($items), 'updated' => 0, 'unchanged' => 0]);
 
     return;
 }
