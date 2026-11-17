@@ -368,6 +368,7 @@ What to expect:
 - **The items are read once per evaluator**, when Neuron loads the dataset: before the first item runs, and before `--concurrency` forks. Building the evaluator reads nothing.
 - **A dataset that cannot be read stops its evaluator.** For an unknown slug, a refused API key, or no answer within 15 seconds, `load()` throws a `CloudException`. Neuron's command then reports that evaluator as one that could not run, runs the others, and exits with 1. A missing API key has the same effect one step earlier, when the evaluator is built: the container throws, the bridge's included, and so does the resolver above.
 - **Only the active items of a dataset are sent.** A dataset with none runs nothing.
+- **Keep each item's `dataset_item_id`.** The platform ties every result to its item by that key, which is how it follows an edited item from one run to the next. A dataset class of your own that reshapes the items must carry the key along: a run on a platform dataset whose results come back with none gets a warning on its page.
 - **`--cache` keys an item by its content and its `dataset_item_id`.** An item you change on the platform runs again; an unchanged one is served from the cache. An item imported again gets a new ID, so it runs again too.
 
 ### Sending a dataset file to the platform
