@@ -7,6 +7,7 @@ namespace NeuronCore\Cloud\Tests\Evaluation;
 use DateTimeImmutable;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
 use NeuronAI\Evaluation\Contracts\EvaluatorInterface;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronAI\Evaluation\Output\OutputPipeline;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
 use NeuronAI\Evaluation\Runner\EvaluationResults;
@@ -16,7 +17,9 @@ use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronCore\Cloud\Evaluation\CloudOutput;
+use NeuronCore\Cloud\NeuronCloud;
 use NeuronCore\Cloud\Runtime\PlatformClient;
+use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
 use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
 use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
 use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
@@ -76,7 +79,7 @@ class CloudOutputTest extends TestCase
             [$sent['name'], $sent['namespace'], $sent['environment'], $sent['error'], $sent['started_at'], $sent['finished_at']],
         );
         self::assertSame(
-            ['run_id', 'name', 'namespace', 'environment', 'suite_id', 'suite_size', 'branch', 'base_branch', 'commit', 'ci_url', 'error', 'started_at', 'finished_at', 'summary', 'results'],
+            ['run_id', 'name', 'namespace', 'environment', 'dataset', 'suite_id', 'suite_size', 'branch', 'base_branch', 'commit', 'ci_url', 'error', 'started_at', 'finished_at', 'summary', 'results'],
             array_keys($sent),
         );
     }
@@ -88,6 +91,52 @@ class CloudOutputTest extends TestCase
         self::cloudOutput($platform)->output(self::reportOf(new GreetingEvaluator()));
 
         self::assertNull(self::sent($platform)['environment']);
+    }
+
+    public function test_an_evaluator_on_a_dataset_the_platform_keeps_is_sent_with_the_slug_of_the_dataset(): void
+    {
+        $cloud = new NeuronCloud(self::API_KEY, platformUrl: self::PLATFORM_URL, httpClient: new ScriptedHttpClient(
+            new HttpResponse(200, '{"items":[{"dataset_item_id":11,"input":{"order":123},"expected_output":{"contains":"Order 123"}}]}'),
+        ));
+        $platform = self::takingIn();
+
+        self::cloudOutput($platform)->output(self::reportOf(new RefundRequestsEvaluator($cloud)));
+
+        self::assertSame(['source' => 'platform', 'name' => RefundRequestsEvaluator::DATASET], self::sent($platform)['dataset']);
+    }
+
+    public function test_an_evaluator_on_a_dataset_of_the_application_is_sent_with_the_name_the_dataset_gives_itself(): void
+    {
+        $dataset = new class () implements NamedDatasetInterface {
+            public function load(): array
+            {
+                return [];
+            }
+
+            public function getName(): string
+            {
+                return 'tests/datasets/greetings.json';
+            }
+        };
+        $platform = self::takingIn();
+        $report = new EvaluationReport(
+            [new EvaluatorReport(GreetingEvaluator::class, new EvaluationResults([], [], $dataset), self::at(self::STARTED_AT), self::at(self::FINISHED_AT))],
+            self::at(self::STARTED_AT),
+            self::at(self::FINISHED_AT),
+        );
+
+        self::cloudOutput($platform)->output($report);
+
+        self::assertSame(['source' => 'application', 'name' => 'tests/datasets/greetings.json'], self::sent($platform)['dataset']);
+    }
+
+    public function test_an_evaluator_on_a_dataset_with_no_name_is_sent_with_no_dataset(): void
+    {
+        $platform = self::takingIn();
+
+        self::cloudOutput($platform)->output(self::reportOf(new GreetingEvaluator()));
+
+        self::assertNull(self::sent($platform)['dataset']);
     }
 
     public function test_each_message_has_a_run_id_of_its_own(): void

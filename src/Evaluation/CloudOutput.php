@@ -8,6 +8,7 @@ use DateTimeImmutable;
 use JsonException;
 use NeuronAI\Evaluation\AssertionFailure;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronAI\Evaluation\Runner\EvaluatorReport;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluationReport;
@@ -81,6 +82,7 @@ class CloudOutput implements EvaluationOutputInterface
             'name' => $report->getEvaluatorClass(),
             'namespace' => $report->getNamespace(),
             'environment' => $this->environment,
+            'dataset' => $this->dataset($report),
             'suite_id' => $suiteId,
             'suite_size' => $suiteSize,
             'branch' => $this->context->branch,
@@ -154,6 +156,24 @@ class CloudOutput implements EvaluationOutputInterface
     protected function withValidText(array $payload): array
     {
         return json_decode(json_encode($payload, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_PRESERVE_ZERO_FRACTION), true, 512, JSON_THROW_ON_ERROR);
+    }
+
+    /**
+     * The dataset the evaluator ran on: one the platform keeps, by its slug, or
+     * one of the application, by the name it gives itself. Null when the dataset
+     * has no name or never loaded.
+     *
+     * @return array{source: 'platform'|'application', name: string}|null
+     */
+    protected function dataset(EvaluatorReport $report): ?array
+    {
+        $dataset = $report->getResults()->getDataset();
+
+        return match (true) {
+            $dataset instanceof CloudDataset => ['source' => 'platform', 'name' => $dataset->getName()],
+            $dataset instanceof NamedDatasetInterface => ['source' => 'application', 'name' => $dataset->getName()],
+            default => null,
+        };
     }
 
     /**

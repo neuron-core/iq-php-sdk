@@ -3114,6 +3114,7 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
 ```json
 {"run_id": "eval_6acb600d897908.92076975",
  "name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "environment": "ci",
+ "dataset": {"source": "platform", "name": "refund-requests"},
  "suite_id": "github-7812-1", "suite_size": 1, "branch": "fix-refunds", "base_branch": "main", "commit": "9f2c41e0",
  "ci_url": "https://github.com/acme/shop/actions/runs/7812", "error": null,
  "started_at": "2026-10-11T10:00:00.123456+00:00", "finished_at": "2026-10-11T10:00:02.500000+00:00",
@@ -3153,6 +3154,7 @@ An evaluation is a run of the developer's evaluators on their datasets, on a dev
 | `name` | The class of the evaluator |
 | `namespace` | The group the evaluator declares, or null |
 | `environment` | What the developer named where the evaluation ran, or null |
+| `dataset` | The dataset the evaluator ran on, or null when the dataset has no name or could not load. `source` is `platform` for a dataset of 13.5, whose `name` is its slug, and `application` for a dataset of the application, whose `name` is the one it gives itself, such as the path of a file from the project root |
 | `suite_id` | Ties together the evaluators of one evaluation. In a CI build the SDK knows it names the attempt of the build, so that a later step can read the suite (13.6); otherwise it is made for the evaluation |
 | `suite_size` | How many evaluators the evaluation has, so that the platform can tell a suite that did not all arrive |
 | `branch`, `base_branch`, `commit`, `ci_url` | The code the evaluation ran on, the branch a pull request targets and the page of the build, each null when the SDK cannot tell. The platform keeps a `ci_url` only when it is an `http` or `https` URL |
@@ -3194,6 +3196,7 @@ An evaluator of the application can run on a dataset that the platform keeps, in
 - **What an item holds is the platform's.** The evaluator reads the item and the SDK reads nothing of it. The platform sends the `dataset_item_id` it gave the item, an integer that stays the same when an operator edits the item, with the `input` and the `expected_output` an operator stored. It sends only the items that are active, the oldest first.
 - **What crosses.** The request carries nothing but the slug. The answer brings data the customer stored on the platform into the application. It goes back to the platform only when the developer also lists the output of 13.3, as the `input` of each result.
 - **AUTOMATION.** A result whose `input` carries the `dataset_item_id` of an item of the environment of the API key is tied to that item, so the platform can compare it from one evaluation to the next. The platform leaves that key out of the `input` it shows for the result. An ID that is not an integer, or that names an item of another environment, ties the result to nothing and is left out the same way. A result with no ID is compared by its `input`.
+- **AUTOMATION.** A run whose `dataset` has the `source` `platform` is tied to the dataset of the environment of the API key that has that slug, and to none when the environment has no such dataset. A run of a dataset of the application keeps the name only.
 
 ### 13.6 What an evaluation found: `GET /v1/evaluations/suites/{suite_id}`
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace NeuronCore\Cloud\Evaluation;
 
-use NeuronAI\Evaluation\Contracts\DatasetInterface;
+use NeuronAI\Evaluation\Contracts\NamedDatasetInterface;
 use NeuronCore\Cloud\CloudException;
 use NeuronCore\Cloud\Runtime\PlatformClient;
 
@@ -24,8 +24,11 @@ use NeuronCore\Cloud\Runtime\PlatformClient;
  * --concurrency. Unlike the evaluation output it fails loud: without its items
  * there is nothing to evaluate, and Neuron's command reports the evaluator as
  * one that could not run.
+ *
+ * Its name is the slug, which the evaluation output sends with the results so
+ * that the platform ties the run to the dataset.
  */
-class CloudDataset implements DatasetInterface
+class CloudDataset implements NamedDatasetInterface
 {
     /**
      * @internal built by {@see \NeuronCore\Cloud\NeuronCloud::dataset()}
@@ -34,6 +37,11 @@ class CloudDataset implements DatasetInterface
         protected readonly PlatformClient $platform,
         protected readonly string $slug,
     ) {
+    }
+
+    public function getName(): string
+    {
+        return $this->slug;
     }
 
     /**
