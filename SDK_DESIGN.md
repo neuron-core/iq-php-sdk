@@ -3,7 +3,7 @@
 A proposal for `neuron-core/iq-php-sdk`, the package that connects Neuron AI workflows and agents to IQ. Milestones 0 to 6 of appendix D are implemented and tested. The first six are the whole core package and a platform simulator that drives it over real HTTP: the public types, the ledger, the runner, the two test fakes, the protocol schemas, the local path (`workflow()`, `start()`, `submitInputs()`, `signal()`, `recover()`, `run()`, `events()`, `dispatch()`), and the signed endpoint with App Sync (`handle()`, `sync()`). The seventh is the Laravel bridge of section 10, which is built and tested in its own repository. The Symfony bridge and everything that needs a real platform are still a proposal.
 
 - **Builds on:** [DURABLE_PLATFORM_READINESS.md](DURABLE_PLATFORM_READINESS.md) and the decisions in its section 12.
-- **Requires:** `neuron-core/neuron-ai ^4.1.19` (typed refusals, the snapshot fields, a late copy of a continuation refused as stale in every interleaving, the tag a start gives its run, and a tool call that runs at most once).
+- **Requires:** `neuron-core/neuron-ai ^4.1.26` (typed refusals, the snapshot fields, a late copy of a continuation refused as stale in every interleaving, the tag a start gives its run, a tool call that runs at most once, and the dataset an evaluation result names).
 - **Date:** 2026-10-28
 - **Reading path:** sections 1 to 8 are what you need to approve the design. Section 9 onwards and the appendices are for building it.
 
@@ -212,7 +212,7 @@ The core package (registration and App Sync, pushed by a deploy or asked for by 
 
 | Package | Namespace | Requires |
 |---|---|---|
-| `neuron-core/iq-php-sdk` | `NeuronCore\IQ\` | `php ^8.1`, `neuron-core/neuron-ai ^4.1.19`, nothing else |
+| `neuron-core/iq-php-sdk` | `NeuronCore\IQ\` | `php ^8.1`, `neuron-core/neuron-ai ^4.1.26`, nothing else |
 | `neuron-core/iq-laravel` | `NeuronCore\IQ\Laravel\` | the core, Laravel `^12.41 \|\| ^13.0` (PHP 8.2) |
 | `neuron-core/iq-symfony` | `NeuronCore\IQ\Symfony\` | the core, Symfony `^6.4` and later (PHP 8.1) |
 

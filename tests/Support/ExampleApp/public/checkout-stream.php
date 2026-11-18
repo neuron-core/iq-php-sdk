@@ -54,7 +54,9 @@ while (ob_get_level() > 0) {
 }
 
 foreach ($events as $event) {
-    echo 'data: ', $event instanceof OrderProgress ? $event->step : 'suspended', "\n\n";
+    // One write per frame: the write after a browser has left is answered by a reset, and only a write that
+    // comes after the reset fails. A frame sent in pieces could fail halfway, a frame earlier than expected.
+    echo 'data: ' . ($event instanceof OrderProgress ? $event->step : 'suspended') . "\n\n";
     flush();
 
     if (connection_aborted() === 1) {
