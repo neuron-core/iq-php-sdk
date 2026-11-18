@@ -17,6 +17,7 @@ use function is_resource;
 use function json_encode;
 use function parse_url;
 use function proc_close;
+use function proc_get_status;
 use function proc_open;
 use function proc_terminate;
 use function stream_get_contents;
@@ -51,10 +52,47 @@ final class ChatServer
     /**
      * @throws RuntimeException when the server cannot be started
      */
-    public function __construct(ChatHome $home)
+    public function __construct(protected ChatHome $home)
     {
         $this->port = self::freePort() ?? throw new RuntimeException('No free port for the chat server.');
+        $this->start();
+    }
 
+    /**
+     * Whether the process of the server has ended, given a moment to end when its connections are already
+     * closed. A PHP-FPM worker survives a request that dies of a fatal error; PHP 8.1's built-in server
+     * ends with a request that runs out of memory.
+     */
+    public function hasEnded(): bool
+    {
+        for ($try = 1; $try <= 20; $try++) {
+            if (!proc_get_status($this->process)['running']) {
+                return true;
+            }
+
+            usleep(50_000);
+        }
+
+        return false;
+    }
+
+    /**
+     * Start the server again, on the same port and the same home, once its process has ended.
+     *
+     * @throws RuntimeException when the server cannot be started
+     */
+    public function restart(): void
+    {
+        proc_close($this->process);
+        $this->start();
+    }
+
+    /**
+     * @throws RuntimeException when the server cannot be started
+     */
+    protected function start(): void
+    {
+        $home = $this->home;
         $process = proc_open(
             // Unbuffered, whatever the php.ini of the machine says: a frame leaves when it is echoed.
             [PHP_BINARY, '-d', 'output_buffering=0', '-d', 'display_errors=0', '-S', "127.0.0.1:{$this->port}", self::FRONT_CONTROLLER],

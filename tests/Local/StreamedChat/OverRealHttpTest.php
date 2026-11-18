@@ -68,6 +68,9 @@ class OverRealHttpTest extends TestCase
     /** Microseconds the model waits between two chunks when a test needs time to act: the answer then takes four seconds. */
     protected const SLOW = 200_000;
 
+    /** A decision for a thread nobody started: the endpoint refuses it with a 400 before it writes anything. */
+    protected const NOBODY_STARTED = ['threadId' => 'thread-nobody-started', 'runId' => 'run_0', 'decisions' => ['call_0' => 'approve']];
+
     protected ChatHome $home;
 
     protected ChatServer $server;
@@ -260,7 +263,7 @@ class OverRealHttpTest extends TestCase
     public function test_a_request_that_dies_of_a_fatal_error_leaves_the_run_running_under_its_lease(): void
     {
         $this->server->post($this->question(), ['lease' => 2, 'dies_after' => 3]);
-        $this->awaitTheServer();
+        $this->awaitTheEndOfTheRequestThatDied();
 
         $run = $this->home->run(self::THREAD_ID);
 
@@ -272,7 +275,7 @@ class OverRealHttpTest extends TestCase
     public function test_a_request_that_dies_of_a_fatal_error_leaves_the_announcement_in_the_queue_and_no_observe(): void
     {
         $this->server->post($this->question(), ['lease' => 2, 'dies_after' => 3]);
-        $this->awaitTheServer();
+        $this->awaitTheEndOfTheRequestThatDied();
 
         self::assertSame(['announce of the start'], Notices::describe($this->home->queue->take()));
     }
@@ -280,7 +283,7 @@ class OverRealHttpTest extends TestCase
     public function test_a_wake_finishes_the_run_of_a_request_that_died_once_its_lease_has_passed(): void
     {
         $this->server->post($this->question(), ['lease' => 1, 'dies_after' => 3]);
-        $this->awaitTheServer();
+        $this->awaitTheEndOfTheRequestThatDied();
         $this->awaitTheEndOfTheLease();
 
         $report = $this->wake();
@@ -317,7 +320,22 @@ class OverRealHttpTest extends TestCase
      */
     protected function awaitTheServer(): void
     {
-        $answer = $this->server->post(['threadId' => 'thread-nobody-started', 'runId' => 'run_0', 'decisions' => ['call_0' => 'approve']]);
+        self::assertSame(400, $this->server->post(self::NOBODY_STARTED)['status']);
+    }
+
+    /**
+     * The same, after a request that died of a fatal error. PHP 8.1's built-in server ends its own process
+     * when a request runs out of memory, where a PHP-FPM worker ends only the request: the request has ended
+     * either way, and the server is started again so that the test goes on as it would in production.
+     */
+    protected function awaitTheEndOfTheRequestThatDied(): void
+    {
+        $answer = $this->server->post(self::NOBODY_STARTED);
+
+        if ($answer['status'] === 0 && $this->server->hasEnded()) {
+            $this->server->restart();
+            $answer = $this->server->post(self::NOBODY_STARTED);
+        }
 
         self::assertSame(400, $answer['status']);
     }
