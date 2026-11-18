@@ -3076,11 +3076,12 @@ One request is one segment. What the platform can rely on:
 | The trace is the run | `traceId` is the first 32 hexadecimal characters of the SHA-256 of the run ID. Every segment of a run sends its spans under that trace ID, so the platform puts a run together by trace ID, or by `neuron.run.id` |
 | A segment never sends a span twice | Each request holds only the spans of its segment, under span IDs made for it. There is no span for the whole run |
 | Every segment has one parentless span | It is named `invoke_workflow <definition>` or, for an agent, `invoke_agent <definition>`, and it carries `neuron.run.status`: `completed`, `suspended` or `failed`, which is how that segment ended. The other spans of the segment are under it |
+| A segment after the first says so | The parentless span of every segment after the first of its run, which executes under attempt 2 or more, carries `iq.run.resumed`, the boolean `true`. The first segment leaves it out. The platform counts a run from a parentless span without it, so a run counts once however many times it resumed. The flag follows the attempt, not what reached the platform: when the first segment's trace never arrives, because its process died before the segment ended or the export failed, the segments of later attempts are all marked and the run counts no run |
 | Every span names its run | `neuron.run.id` and `neuron.workflow.id` are on every span, with the attributes the developer gave for all traces, such as `deployment.environment` |
 | A segment that never started | One that failed while it was built sends its parentless span alone, with `neuron.run.status` `failed` and the error. The SDK sends no request with no span |
-| A trace with no run ID | A listener of the application can keep from the SDK both the start of a segment and the error the framework reports when that listener fails. The spans of that segment then have a random trace ID and no `neuron.run.id`. The platform keeps or drops them; it cannot attach them to a run |
+| A trace with no run ID | A listener of the application can keep from the SDK both the start of a segment and the error the framework reports when that listener fails. The spans of that segment then have a random trace ID and no `neuron.run.id`, and none of them carries `iq.run.resumed`. The platform keeps or drops them; it cannot attach them to a run |
 
-The names and attributes follow the OpenTelemetry semantic conventions for generative AI where they have a word, and `neuron.*` where they do not.
+The names and attributes follow the OpenTelemetry semantic conventions for generative AI where they have a word, and `neuron.*` where they do not. `iq.run.resumed` is the platform's own: any sender that splits a run into segments sets it the same way.
 
 | `neuron.span.kind` | Span name | `kind` | What it measures |
 |---|---|---|---|

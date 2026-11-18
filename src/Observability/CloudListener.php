@@ -326,12 +326,18 @@ class CloudListener
      * Adopt the run's identity and open the segment's root span: an agent
      * invocation, or a workflow invocation for anything else. It has no stop
      * event — flush closes it last, after every span it wraps.
+     *
+     * The root of a segment that resumes its run carries `iq.run.resumed`, so
+     * the platform counts the run once, from its first segment. The first
+     * segment executes under attempt 1 and every later one, whatever resumed
+     * it, under a higher attempt.
      */
     protected function startRun(WorkflowStart|WorkflowError $event): void
     {
         $this->trace($event)->identify($event->execution?->runId, $event->execution?->workflowId);
 
         $name = $this->name ?? ($event->source === null ? null : $this->shortName($event->source::class));
+        $segment = ['iq.run.resumed' => ($event->execution->executionAttempt ?? 1) > 1 ? true : null];
 
         if ($event->source instanceof Agent) {
             $run = $this->runOf($event);
@@ -344,7 +350,7 @@ class CloudListener
                 'gen_ai.operation.name' => 'invoke_agent',
                 'gen_ai.agent.name' => $name,
                 'gen_ai.conversation.id' => $this->conversationId($event),
-            ]);
+            ] + $segment);
 
             return;
         }
@@ -352,7 +358,7 @@ class CloudListener
         $this->start($event, 'workflow', $this->spanName('invoke_workflow', $name), [
             'gen_ai.operation.name' => 'invoke_workflow',
             'gen_ai.workflow.name' => $name,
-        ]);
+        ] + $segment);
     }
 
     /**

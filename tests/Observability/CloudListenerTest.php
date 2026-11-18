@@ -306,6 +306,16 @@ class CloudListenerTest extends CloudTestCase
         self::assertSame([false, false], [isset($first['parentSpanId']), isset($second['parentSpanId'])]);
     }
 
+    public function test_only_the_segments_after_the_first_of_a_run_say_they_resume_it(): void
+    {
+        $this->traced(new WaitingWorkflow($this->bench->executions))->run(ExecutionRequest::start(new StartEvent(), self::RUN_ID));
+        $this->traced(new WaitingWorkflow($this->bench->executions))->run(ExecutionRequest::signal('payment.received', []));
+
+        [$first, $second] = array_map(static fn (array $trace): array => Otlp::span($trace, 'invoke_workflow order-fulfilment')['attributes'], $this->traces());
+        self::assertArrayNotHasKey('iq.run.resumed', $first);
+        self::assertTrue($second['iq.run.resumed']);
+    }
+
     public function test_a_listener_starts_a_new_trace_for_the_next_run_of_its_workflow(): void
     {
         $workflow = $this->traced(new CompletingWorkflow($this->bench->executions));
