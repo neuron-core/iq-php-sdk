@@ -1,4 +1,4 @@
-# IQ PHP SDK
+# Neuron IQ Platform PHP SDK
 
 Connect the agents and workflows of a [Neuron AI](https://github.com/neuron-core/neuron-ai) application to IQ. Your agent and workflow classes stay ordinary Neuron code: they know nothing about the SDK.
 
