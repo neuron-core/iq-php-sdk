@@ -187,7 +187,7 @@ class IQListener
 
     public function __invoke(ObservabilityEvent $event): void
     {
-        if ($this->exporter === null) {
+        if (!$this->exporter instanceof \NeuronCore\IQ\Observability\TraceExporter) {
             return;
         }
 
@@ -254,7 +254,7 @@ class IQListener
                 'retrieval',
                 'retrieval',
                 ['gen_ai.operation.name' => 'retrieval'] + $this->content([
-                    'gen_ai.retrieval.query.text' => fn (): string => $this->truncate((string) ($event->question->getContent() ?? '')),
+                    'gen_ai.retrieval.query.text' => fn (): string => $this->truncate($event->question->getContent() ?? ''),
                 ]),
                 Trace::KIND_CLIENT,
             ),
@@ -386,7 +386,7 @@ class IQListener
     {
         $run = $this->runOf($event);
 
-        if ($event->execution !== null) {
+        if ($event->execution instanceof \NeuronAI\Workflow\ExecutionContext) {
             $this->ended[$event->execution] = true;
         }
 
@@ -407,7 +407,7 @@ class IQListener
             $this->spanName('chat', $provider?->getModel()),
             [
                 'gen_ai.operation.name' => 'chat',
-                'gen_ai.provider.name' => $provider === null ? null : ProviderName::of($provider::class),
+                'gen_ai.provider.name' => $provider instanceof \NeuronAI\Providers\AIProviderInterface ? ProviderName::of($provider::class) : null,
                 'gen_ai.request.model' => $provider?->getModel(),
                 'gen_ai.conversation.id' => $this->conversationId($event),
             ] + $this->content([
@@ -484,7 +484,7 @@ class IQListener
     {
         $segment = $event->execution;
 
-        if ($segment === null) {
+        if (!$segment instanceof \NeuronAI\Workflow\ExecutionContext) {
             return true;
         }
 
@@ -585,7 +585,7 @@ class IQListener
     protected function usageAttributes(Message $message): array
     {
         $usage = $message->getUsage();
-        if ($usage === null) {
+        if (!$usage instanceof \NeuronAI\Chat\Messages\Usage) {
             return [];
         }
 

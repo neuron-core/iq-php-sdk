@@ -71,7 +71,7 @@ class SigningKeyTest extends RequestTestCase
         $answer = $this->post(self::PING, [
             'webhook-id' => self::WEBHOOK_ID,
             'webhook-timestamp' => $timestamp,
-            'webhook-signature' => self::signature((string) base64_decode(self::KEY_BYTES, true), self::WEBHOOK_ID, $timestamp, self::PING),
+            'webhook-signature' => self::signature(base64_decode(self::KEY_BYTES, true), self::WEBHOOK_ID, $timestamp, self::PING),
         ]);
 
         self::assertSame(200, $answer->statusCode);
@@ -103,15 +103,15 @@ class SigningKeyTest extends RequestTestCase
             'an empty key, read as no bytes' => ['', ''],
             'a key that is only its prefix, read as no bytes' => ['whsec_', ''],
             'a key that is only its prefix, read as it is written' => ['whsec_', 'whsec_'],
-            'a key without the whsec_ prefix, read as its base64' => [self::KEY_BYTES, (string) base64_decode(self::KEY_BYTES, true)],
+            'a key without the whsec_ prefix, read as its base64' => [self::KEY_BYTES, base64_decode(self::KEY_BYTES, true)],
             'a key without the whsec_ prefix, read as it is written' => [self::KEY_BYTES, self::KEY_BYTES],
             'a key without the whsec_ prefix, read as the base64 after its first six characters' => [
                 self::KEY_BYTES,
-                (string) base64_decode(substr(self::KEY_BYTES, 6), true),
+                base64_decode(substr(self::KEY_BYTES, 6), true),
             ],
             'a key whose prefix is in upper case, read as the base64 after its prefix' => [
                 'WHSEC_' . self::KEY_BYTES,
-                (string) base64_decode(self::KEY_BYTES, true),
+                base64_decode(self::KEY_BYTES, true),
             ],
             'a key that does not decode, read as the base64 it holds between its other characters' => [
                 'whsec_not*base64*at*all',

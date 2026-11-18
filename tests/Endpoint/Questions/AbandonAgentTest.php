@@ -23,9 +23,10 @@ use Throwable;
 use function array_keys;
 
 /**
- * The guard of an Agent stays in force under the platform's abandon: a
- * conversation that ends on a tool call nobody answered keeps its run,
- * whatever fence the abandon carries.
+ * The guard of an Agent stays in force under the platform's abandon: a run
+ * suspended on a tool call nobody answered keeps it, whatever fence the
+ * abandon carries. A failed run has no such guard, whatever its conversation
+ * ends on: Neuron answers a tool call it left as interrupted in the next turn.
  */
 class AbandonAgentTest extends QuestionsTestCase
 {
@@ -95,7 +96,7 @@ class AbandonAgentTest extends QuestionsTestCase
     }
 
     #[DataProvider('backends')]
-    public function test_a_failed_turn_whose_conversation_ends_on_a_tool_call_is_answered_409_abandon_refused_with_the_failed_run(string $backend): void
+    public function test_a_failed_turn_whose_conversation_ends_on_a_tool_call_is_discarded_and_answered_200(string $backend): void
     {
         $this->benchOn($backend);
         $this->threadWhoseApprovedToolFailed();
@@ -105,9 +106,10 @@ class AbandonAgentTest extends QuestionsTestCase
 
         self::assertSame('failed', $held['status'] ?? null);
         self::assertSame(
-            [409, ['code' => 'abandon_refused', 'run' => $held, 'claimed' => true, 'snapshotRead' => true]],
+            [200, ['run' => null, 'claimed' => true, 'snapshotRead' => true]],
             self::answered($answer),
         );
+        self::assertNull($this->storedRun(self::THREAD_ID));
     }
 
     #[DataProvider('backends')]

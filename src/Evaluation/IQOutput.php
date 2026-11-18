@@ -119,7 +119,7 @@ class IQOutput implements EvaluationOutputInterface
                         $result->getScoreRecords(),
                     ),
                     'failures' => array_map(
-                        fn (AssertionFailure $failure): array => $this->failureToArray($failure),
+                        $this->failureToArray(...),
                         $result->getAssertionFailures(),
                     ),
                     'reruns' => array_map(

@@ -256,7 +256,7 @@ class Trace
     public function close(): array
     {
         while ($this->open !== []) {
-            $this->closeSpan((string) array_key_last($this->open));
+            $this->closeSpan(array_key_last($this->open));
         }
 
         $common = $this->attributes;

@@ -23,15 +23,15 @@ class ProviderNameTest extends TestCase
     public static function classes(): array
     {
         return [
-            'a provider with a well-known name' => ['NeuronAI\Providers\Gemini\Gemini', 'gcp.gemini'],
-            'gemini on vertex' => ['NeuronAI\Providers\Gemini\GeminiVertex', 'gcp.vertex_ai'],
-            'anthropic on vertex' => ['NeuronAI\Providers\Anthropic\AnthropicVertex', 'gcp.vertex_ai'],
-            'azure' => ['NeuronAI\Providers\OpenAI\AzureOpenAI', 'azure.ai.openai'],
-            'the responses api' => ['NeuronAI\Providers\OpenAI\Responses\OpenAIResponses', 'openai'],
-            'bedrock' => ['NeuronAI\Providers\AWS\BedrockRuntime', 'aws.bedrock'],
-            'mistral' => ['NeuronAI\Providers\Mistral\Mistral', 'mistral_ai'],
-            'grok' => ['NeuronAI\Providers\XAI\Grok', 'x_ai'],
-            'a provider named after its class' => ['NeuronAI\Providers\Anthropic\Anthropic', 'anthropic'],
+            'a provider with a well-known name' => [\NeuronAI\Providers\Gemini\Gemini::class, 'gcp.gemini'],
+            'gemini on vertex' => [\NeuronAI\Providers\Gemini\GeminiVertex::class, 'gcp.vertex_ai'],
+            'anthropic on vertex' => [\NeuronAI\Providers\Anthropic\AnthropicVertex::class, 'gcp.vertex_ai'],
+            'azure' => [\NeuronAI\Providers\OpenAI\AzureOpenAI::class, 'azure.ai.openai'],
+            'the responses api' => [\NeuronAI\Providers\OpenAI\Responses\OpenAIResponses::class, 'openai'],
+            'bedrock' => [\NeuronAI\Providers\AWS\BedrockRuntime::class, 'aws.bedrock'],
+            'mistral' => [\NeuronAI\Providers\Mistral\Mistral::class, 'mistral_ai'],
+            'grok' => [\NeuronAI\Providers\XAI\Grok::class, 'x_ai'],
+            'a provider named after its class' => [\NeuronAI\Providers\Anthropic\Anthropic::class, 'anthropic'],
             'a class with no namespace' => ['LocalModel', 'localmodel'],
         ];
     }

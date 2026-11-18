@@ -11,6 +11,7 @@ use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Chat\History\InMemoryMessageStore;
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\ToolCallMessage;
+use NeuronAI\Chat\Messages\ToolResultMessage;
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Testing\FakeAIProvider;
@@ -28,6 +29,8 @@ use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
+use function end;
+
 /**
  * Neuron's own ApprovalTranslator against an agent suspended on a tool
  * approval, as the continuation of a chat turn: answered in the request, or
@@ -38,6 +41,9 @@ class ToolApprovalTest extends ContinuationTestCase
     protected const CALL_ID = 'call_refund';
 
     protected const ANSWER_OF_THE_AGENT = 'The order is refunded.';
+
+    /** What Neuron tells the model of a tool call that threw once a recovery settles it. */
+    protected const INTERRUPTED = 'it may or may not have taken effect';
 
     protected FakeAIProvider $provider;
 
@@ -143,8 +149,9 @@ class ToolApprovalTest extends ContinuationTestCase
     }
 
     #[DataProvider('backends')]
-    public function test_recover_replays_the_approval_of_a_tool_that_failed_and_ends_the_turn(string $backend): void
-    {
+    public function test_recover_answers_the_approved_tool_that_failed_as_interrupted_and_ends_the_turn_without_running_it_again(
+        string $backend,
+    ): void {
         $executions = $this->benchOn($backend)->executions;
         $thread = $this->threadWhoseApprovedToolFailed();
 
@@ -153,11 +160,12 @@ class ToolApprovalTest extends ContinuationTestCase
         self::assertInstanceOf(AgentState::class, $recovered);
         self::assertSame(WorkflowStatus::Completed, $recovered->getStatus());
         self::assertSame(self::ANSWER_OF_THE_AGENT, $recovered->getMessage()?->getContent());
-        self::assertSame(2, $executions->count(RefundTool::class));
+        self::assertSame(1, $executions->count(RefundTool::class), 'Only the execution that threw.');
+        self::assertStringContainsString(self::INTERRUPTED, $this->lastToolResultSent());
     }
 
     #[DataProvider('backends')]
-    public function test_an_approval_sent_again_once_recover_has_replayed_it_finds_no_run_to_continue(string $backend): void
+    public function test_an_approval_sent_again_once_recover_has_ended_the_turn_finds_no_run_to_continue(string $backend): void
     {
         $this->benchOn($backend);
         $thread = $this->threadWhoseApprovedToolFailed();
@@ -248,5 +256,25 @@ class ToolApprovalTest extends ContinuationTestCase
         self::assertSame(WorkflowStatus::Failed, $this->storedRun()?->status);
 
         return $thread;
+    }
+
+    /**
+     * The result of the last tool call the model was sent, as Neuron sent it.
+     */
+    protected function lastToolResultSent(): string
+    {
+        $results = [];
+
+        foreach ($this->provider->getRecorded() as $request) {
+            foreach ($request->messages as $message) {
+                if ($message instanceof ToolResultMessage) {
+                    foreach ($message->getToolCalls() as $call) {
+                        $results[] = (string) $call->getResult();
+                    }
+                }
+            }
+        }
+
+        return (string) end($results);
     }
 }

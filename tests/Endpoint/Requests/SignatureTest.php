@@ -42,7 +42,7 @@ class SignatureTest extends RequestTestCase
 
     public function test_the_signatures_of_this_suite_are_those_of_the_published_standard_webhooks_vector(): void
     {
-        $signature = self::signature((string) base64_decode('MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw', true), 'msg_p5jXN8AQM9LWM0D4loKWxJek', '1614265330', '{"test": 2432232314}');
+        $signature = self::signature(base64_decode('MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw', true), 'msg_p5jXN8AQM9LWM0D4loKWxJek', '1614265330', '{"test": 2432232314}');
 
         self::assertSame('v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=', $signature);
     }

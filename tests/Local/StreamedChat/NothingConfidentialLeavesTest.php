@@ -41,7 +41,9 @@ use const JSON_UNESCAPED_SLASHES;
  */
 class NothingConfidentialLeavesTest extends StreamedChatTestCase
 {
-    protected const APPROVED = 'call_refund_123';
+    protected const APPROVED_AND_FAILING = 'call_refund_123';
+
+    protected const APPROVED = 'call_refund_125';
 
     protected const REJECTED = 'call_refund_124';
 
@@ -156,21 +158,24 @@ class NothingConfidentialLeavesTest extends StreamedChatTestCase
 
     /**
      * Three requests of one thread. The first streams until the approval of
-     * two refunds. The second streams the decisions: one refund is approved
-     * and throws, the other is rejected with a reason. The third brings a new
-     * message: its recover() ends the failed turn where the agent's own hooks
+     * three refunds. The second streams the decisions: two refunds are
+     * approved and the first of them throws, the third is rejected with a
+     * reason. The third request brings a new message: its recover() answers
+     * the refund that threw as interrupted, runs the other approved one for
+     * the first time and ends the failed turn where the agent's own hooks
      * say, then the message is streamed to its end.
      */
     protected function playTheConversation(string $backend): TestBench
     {
         $bench = $this->application($backend, [
-            self::asksForTwoRefunds(),
-            self::says('Order 123 is refunded, order 124 is not. ' . Confidential::TOKENS, 'msg_answer'),
+            self::asksForThreeRefunds(),
+            self::says('Order 125 is refunded, order 124 is not, order 123 may be. ' . Confidential::TOKENS, 'msg_answer'),
             self::says('You are welcome. ' . Confidential::TOKENS, 'msg_next'),
         ], refundFailures: 1);
 
-        $this->browse($this->message('Refund my orders 123 and 124. ' . Confidential::MESSAGE));
+        $this->browse($this->message('Refund my orders 123, 124 and 125. ' . Confidential::MESSAGE));
         $this->browse($this->decisions([
+            self::APPROVED_AND_FAILING => 'approve',
             self::APPROVED => 'approve',
             self::REJECTED => ['reject', 'Not that one. ' . Confidential::APPROVAL],
         ]));
@@ -179,10 +184,11 @@ class NothingConfidentialLeavesTest extends StreamedChatTestCase
         return $bench;
     }
 
-    protected static function asksForTwoRefunds(): ToolCallMessage
+    protected static function asksForThreeRefunds(): ToolCallMessage
     {
-        return (new ToolCallMessage('I will refund both. ' . Confidential::TOKENS, [
-            new ToolCall('refund_order', self::APPROVED, ['order' => '123', 'note' => Confidential::TOOL_INPUT]),
+        return (new ToolCallMessage('I will refund all three. ' . Confidential::TOKENS, [
+            new ToolCall('refund_order', self::APPROVED_AND_FAILING, ['order' => '123', 'note' => Confidential::TOOL_INPUT]),
+            new ToolCall('refund_order', self::APPROVED, ['order' => '125', 'note' => Confidential::TOOL_INPUT]),
             new ToolCall('refund_order', self::REJECTED, ['order' => '124', 'note' => Confidential::TOOL_INPUT]),
         ]))->setId('msg_refunds');
     }

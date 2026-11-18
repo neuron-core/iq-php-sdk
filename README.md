@@ -15,7 +15,7 @@ All three use one service, built with your API key ([section 1](#1-the-service))
 ## Requirements
 
 - PHP 8.1 or later
-- `neuron-core/neuron-ai` 4.1.9 or later
+- `neuron-core/neuron-ai` 4.1.19 or later
 - An IQ API key
 
 Tracing and evaluations need nothing more. Orchestration adds a signing key, a shared store, a durable queue and a public HTTPS URL: [section 4](#4-orchestration) lists them.

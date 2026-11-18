@@ -110,7 +110,7 @@ class DatasetUploadTest extends TestCase
             'errors' => ['items' => ['Item 2 has the key "output".']],
         ])));
 
-        $thrown = self::thrownBy(fn () => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS)));
+        $thrown = self::thrownBy(fn (): \NeuronCore\IQ\Evaluation\DatasetUpload => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS)));
 
         self::assertSame(Code::InvalidRequest, $thrown?->reason);
         self::assertSame(
@@ -125,7 +125,7 @@ class DatasetUploadTest extends TestCase
 
         self::assertSame(
             Code::ReportUndelivered,
-            self::reasonThrownBy(fn () => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS))),
+            self::reasonThrownBy(fn (): \NeuronCore\IQ\Evaluation\DatasetUpload => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS))),
         );
     }
 

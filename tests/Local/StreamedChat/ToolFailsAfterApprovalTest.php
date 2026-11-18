@@ -9,22 +9,22 @@ use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Workflow\WorkflowStatus;
 use NeuronCore\IQ\Tests\Stub\StreamedChat\PaymentProviderDown;
 use NeuronCore\IQ\Tests\Stub\StreamedChat\RefundOrder;
-use NeuronCore\IQ\Tests\Support\StreamedChat\ChatResponse;
 use NeuronCore\IQ\Tests\Support\StreamedChat\Confidential;
 use NeuronCore\IQ\Tests\Support\StreamedChat\StreamedChatTestCase;
 use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
-use Throwable;
 
+use function array_slice;
 use function implode;
 
 /**
  * The bullet "After recover()" of example (b) of section 5 of the design. An
  * approved tool throws while the decision is streamed: the stream ends on the
  * adapter's error frame and the run is failed with the decision it had
- * accepted. The recover() of the next request replays that decision, and may
- * end the turn where the agent's own hooks say. A decision the same request
- * carries then finds no wait and is answered 400, although one was applied.
+ * accepted. The recover() of the next request does not run the tool again:
+ * Neuron runs a tool call at most once, and answers the one that threw as
+ * interrupted. The model then ends the turn where the agent's own hooks say. A
+ * decision the same request carries finds no wait and is answered 400.
  */
 class ToolFailsAfterApprovalTest extends StreamedChatTestCase
 {
@@ -35,6 +35,9 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
     protected const NEXT_QUESTION = 'And my invoice?';
 
     protected const NEXT_ANSWER = 'It is attached.';
+
+    /** What Neuron tells the model of a tool call that threw once a recovery settles it. */
+    protected const INTERRUPTED = 'The call was interrupted before its result was recorded: it may or may not have taken effect.';
 
     // ----------------------------------------------------------------
     // The request that streams the decision
@@ -124,16 +127,17 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
     }
 
     #[DataProvider('backends')]
-    public function test_the_decision_answered_400_was_applied_by_recover_which_ran_the_tool_and_ended_the_turn(string $backend): void
-    {
+    public function test_recover_ended_the_turn_before_the_decision_answered_400_and_answered_the_tool_as_interrupted_without_running_it(
+        string $backend,
+    ): void {
         $bench = $this->chatWhoseApprovedRefundFailed($backend, times: 1);
 
         $this->approval('run_3');
 
-        self::assertSame(2, $bench->executions->count(RefundOrder::class), 'The execution that threw, and the one recover() made.');
+        self::assertSame(1, $bench->executions->count(RefundOrder::class), 'Only the execution that threw.');
         self::assertNull($this->held());
         self::assertSame(
-            ['user: ' . self::QUESTION, 'assistant: Let me refund that.', 'tool: Order 123 was refunded. ' . Confidential::TOOL_RESULT, 'assistant: ' . self::ANSWER],
+            ['user: ' . self::QUESTION, 'assistant: Let me refund that.', 'tool: ' . self::INTERRUPTED, 'assistant: ' . self::ANSWER],
             $this->transcripts->of(self::THREAD_ID),
         );
     }
@@ -162,14 +166,14 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
     }
 
     #[DataProvider('backends')]
-    public function test_a_rejection_sent_after_the_failed_approval_does_not_replace_the_approval_the_run_had_accepted(string $backend): void
+    public function test_a_rejection_sent_after_the_failed_approval_is_answered_400_and_the_tool_does_not_run_again(string $backend): void
     {
         $bench = $this->chatWhoseApprovedRefundFailed($backend, times: 1);
 
         $response = $this->decisions([self::CALL_ID => 'reject'], 'run_3');
 
         self::assertSame(400, $response->status);
-        self::assertSame(2, $bench->executions->count(RefundOrder::class), 'recover() replayed the approval: the order was refunded.');
+        self::assertSame(1, $bench->executions->count(RefundOrder::class), 'recover() answered the call as interrupted.');
         self::assertNull($this->held());
     }
 
@@ -191,30 +195,32 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
     }
 
     // ----------------------------------------------------------------
-    // The tool keeps failing
+    // The tool would fail again
     // ----------------------------------------------------------------
 
     #[DataProvider('backends')]
-    public function test_the_next_request_throws_what_the_tool_throws_while_it_keeps_failing(string $backend): void
+    public function test_a_tool_that_would_fail_again_is_not_run_again_and_the_next_message_is_answered(string $backend): void
     {
-        $this->chatWhoseApprovedRefundFailed($backend, times: 2);
+        $bench = $this->chatWhoseApprovedRefundFailed($backend, times: 2);
 
-        $thrown = $this->thrownBy(fn (): ChatResponse => $this->message(self::NEXT_QUESTION, 'run_3'));
+        $response = $this->message(self::NEXT_QUESTION, 'run_3');
+        $received = $response->read();
 
-        self::assertInstanceOf(PaymentProviderDown::class, $thrown, 'recover() throws again: the mapping of the guide has no status for it.');
+        self::assertSame(200, $response->status);
+        self::assertSame(self::NEXT_ANSWER, self::textOf($received));
+        self::assertSame(1, $bench->executions->count(RefundOrder::class), 'Only the execution that threw.');
     }
 
     #[DataProvider('backends')]
-    public function test_the_thread_stays_held_by_the_failed_run_while_the_tool_keeps_failing(string $backend): void
+    public function test_the_recovery_frees_the_thread_although_the_tool_would_fail_again(string $backend): void
     {
         $this->chatWhoseApprovedRefundFailed($backend, times: 2);
 
-        $this->thrownBy(fn (): ChatResponse => $this->message(self::NEXT_QUESTION, 'run_3'));
+        $this->message(self::NEXT_QUESTION, 'run_3')->read();
 
-        $run = $this->held();
-        self::assertSame([WorkflowStatus::Failed, 3], [$run?->status, $run?->executionAttempt]);
-        self::assertSame(['announce of the wake', 'observe of the wake: failed'], $this->notices(after: 4));
-        self::assertSame(['failed'], $this->broadcast->endingsOf(self::THREAD_ID));
+        self::assertNull($this->held());
+        self::assertSame(['announce of the wake', 'observe of the wake: completed'], array_slice($this->notices(after: 4), 0, 2));
+        self::assertSame(['completed'], $this->broadcast->endingsOf(self::THREAD_ID));
     }
 
     /**
@@ -246,19 +252,5 @@ class ToolFailsAfterApprovalTest extends StreamedChatTestCase
         self::assertSame(WorkflowStatus::Failed, $this->held()?->status);
 
         return $bench;
-    }
-
-    /**
-     * @param callable(): mixed $request
-     */
-    protected function thrownBy(callable $request): ?Throwable
-    {
-        try {
-            $request();
-        } catch (Throwable $thrown) {
-            return $thrown;
-        }
-
-        return null;
     }
 }
