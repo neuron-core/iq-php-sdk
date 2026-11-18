@@ -9,3 +9,4 @@ composer.lock
 .codex
 .env
 phpunit.xml.local
+.scratch
