@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
 
 use function array_filter;
 use function hash;
@@ -23,7 +23,7 @@ use const JSON_THROW_ON_ERROR;
  * Neuron forgets a run when it completes; the ledger is what still refuses a
  * late copy of its start.
  *
- * One record per workflow ID: partition "__neuron_cloud:" followed by the
+ * One record per workflow ID: partition "__iq:" followed by the
  * SHA-256 of the workflow ID, key "starts", value a JSON object of run ID to
  * use-by time. Neuron refuses workflow IDs that begin with "__", so no
  * workflow can collide with it. This is a durable format.
@@ -32,7 +32,7 @@ use const JSON_THROW_ON_ERROR;
  */
 final class Ledger
 {
-    protected const PARTITION_PREFIX = '__neuron_cloud:';
+    protected const PARTITION_PREFIX = '__iq:';
 
     protected const KEY = 'starts';
 
@@ -54,7 +54,7 @@ final class Ledger
      * ID is claimed once and the claim is never undone.
      *
      * @param int $useBy the use-by time of the start
-     * @throws CloudException unavailable, when every try lost its write to another process; nothing was written
+     * @throws IQException unavailable, when every try lost its write to another process; nothing was written
      */
     public function claim(string $workflowId, string $runId, int $useBy): Claim
     {
@@ -86,7 +86,7 @@ final class Ledger
             }
         }
 
-        throw new CloudException(
+        throw new IQException(
             "The start ledger of workflow ID '{$workflowId}' changed " . self::TRIES . ' times in a row: nothing was claimed.',
             Code::Unavailable,
         );

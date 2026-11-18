@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local;
+namespace NeuronCore\IQ\Tests\Local;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\RunInFlightException;
@@ -11,19 +11,19 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\Local\AwaitOrderPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Local\OrderFulfilment;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\Local\AwaitOrderPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Local\OrderFulfilment;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Units\OrderPlaced;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -31,7 +31,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * fake platform and the fake queue: the checkout starts an order, the payment
  * webhook delivers its event, and a failed order is finished with recover().
  */
-class PlainPhpExampleTest extends CloudTestCase
+class PlainPhpExampleTest extends IQTestCase
 {
     protected const ORDER_ID = '123';
 
@@ -74,7 +74,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $bench = $this->shop($backend);
         $state = $this->order($bench)->start(new OrderPlaced(self::ORDER_ID))->run();
 
-        [, $report] = $bench->dispatcher->runAll($bench->cloud);
+        [, $report] = $bench->dispatcher->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([Verb::Start, Origin::APPLICATION, Outcome::Suspended], [$report->verb, $report->origin, $report->outcome]);
@@ -94,7 +94,7 @@ class PlainPhpExampleTest extends CloudTestCase
 
         self::assertSame(0, $bench->executions->total(), 'Nothing runs in the request that dispatches.');
         $bench->dispatcher->assertDispatched(Verb::Start, self::WORKFLOW_ID);
-        [$report] = $bench->dispatcher->runAll($bench->cloud);
+        [$report] = $bench->dispatcher->runAll($bench->iq);
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(Outcome::Suspended, $report->outcome);
         self::assertSame($runId, $report->run['runId']);
@@ -109,7 +109,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $bench = $this->shop($backend);
         $this->order($bench)->start(new OrderPlaced(self::ORDER_ID))->dispatch();
 
-        [$first, $second] = $bench->dispatcher->runAll($bench->cloud, 2);
+        [$first, $second] = $bench->dispatcher->runAll($bench->iq, 2);
 
         self::assertInstanceOf(Report::class, $first);
         self::assertInstanceOf(Report::class, $second);
@@ -133,7 +133,7 @@ class PlainPhpExampleTest extends CloudTestCase
             self::assertSame($runId, $refusal->runId);
         }
 
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -146,7 +146,7 @@ class PlainPhpExampleTest extends CloudTestCase
 
         self::assertSame($runId, $signalled);
         self::assertSame(0, $bench->executions->count(DeliverNode::class), 'Nothing runs in the request that dispatches.');
-        [$report] = $bench->dispatcher->runAll($bench->cloud);
+        [$report] = $bench->dispatcher->runAll($bench->iq);
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([Verb::Signal, Outcome::Suspended, 2], [$report->verb, $report->outcome, $report->executedAttempt]);
         self::assertSame('sleep_until', $report->run['wait']['type'], 'The run went on to its timer.');
@@ -161,7 +161,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $this->orderWaitingForPayment($bench);
         $this->order($bench)->signal(OrderFulfilment::EVENT, self::PAYMENT)->dispatch();
 
-        [$first, $second] = $bench->dispatcher->runAll($bench->cloud, 2);
+        [$first, $second] = $bench->dispatcher->runAll($bench->iq, 2);
 
         self::assertInstanceOf(Report::class, $first);
         self::assertInstanceOf(Report::class, $second);
@@ -176,7 +176,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $bench = $this->shop($backend);
 
         self::assertInstanceOf(InputTranslationException::class, $this->refusalOfPayment($bench));
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -185,13 +185,13 @@ class PlainPhpExampleTest extends CloudTestCase
         $bench = $this->shop($backend);
         $this->orderWaitingForPayment($bench);
         $this->order($bench)->signal(OrderFulfilment::EVENT, self::PAYMENT)->dispatch();
-        $bench->dispatcher->runAll($bench->cloud);
+        $bench->dispatcher->runAll($bench->iq);
 
         $refusal = $this->refusalOfPayment($bench);
 
         self::assertInstanceOf(WorkflowRefusedException::class, $refusal);
         self::assertSame(RefusalReason::NotAwaited, $refusal->reason);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
         self::assertSame(1, $bench->executions->count(DeliverNode::class));
     }
 
@@ -214,11 +214,11 @@ class PlainPhpExampleTest extends CloudTestCase
     {
         $bench = $this->shop($backend, failures: 1);
         $this->failTheCheckout($bench);
-        $bench->dispatcher->runAll($bench->cloud);
+        $bench->dispatcher->runAll($bench->iq);
         $bench->platform->assertReported(self::WORKFLOW_ID, Outcome::Failed);
 
         $this->order($bench)->recover();
-        [, $report] = $bench->dispatcher->runAll($bench->cloud);
+        [, $report] = $bench->dispatcher->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([Verb::Wake, Outcome::Suspended, 2], [$report->verb, $report->outcome, $report->executedAttempt]);
@@ -232,7 +232,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $this->orderWaitingForPayment($bench);
 
         self::assertNull($this->order($bench)->recover());
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
         self::assertSame(1, $bench->executions->count(AwaitOrderPaymentNode::class));
     }
 
@@ -246,7 +246,7 @@ class PlainPhpExampleTest extends CloudTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register(
+        $bench->iq->register(
             'order-fulfilment',
             static fn (): Workflow => new OrderFulfilment($executions, failures: $failures),
         );
@@ -256,7 +256,7 @@ class PlainPhpExampleTest extends CloudTestCase
 
     protected function order(TestBench $bench): ManagedWorkflow
     {
-        return $bench->cloud->workflow('order-fulfilment', self::WORKFLOW_ID);
+        return $bench->iq->workflow('order-fulfilment', self::WORKFLOW_ID);
     }
 
     /**
@@ -267,7 +267,7 @@ class PlainPhpExampleTest extends CloudTestCase
     protected function orderWaitingForPayment(TestBench $bench): string
     {
         $runId = $this->order($bench)->start(new OrderPlaced(self::ORDER_ID))->dispatch();
-        $bench->dispatcher->runAll($bench->cloud);
+        $bench->dispatcher->runAll($bench->iq);
 
         return $runId;
     }

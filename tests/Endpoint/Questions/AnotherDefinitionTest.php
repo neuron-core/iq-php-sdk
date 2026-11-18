@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\RefundTool;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\RefundTool;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -180,7 +180,7 @@ class AnotherDefinitionTest extends QuestionsTestCase
     {
         $bench = $this->ordersOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register(self::OTHER, static fn (): Workflow => new CompletingWorkflow($executions));
+        $bench->iq->register(self::OTHER, static fn (): Workflow => new CompletingWorkflow($executions));
 
         return $bench;
     }

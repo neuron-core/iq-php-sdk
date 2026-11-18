@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Support\Flows\StartTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Support\Flows\StartTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -71,7 +71,7 @@ class DispatchedStartTest extends StartTestCase
     {
         $bench = $this->benchOn($backend);
         [$executions, $transcript] = [$bench->executions, $this->transcript];
-        $bench->cloud->register('order', static fn (): Workflow => new OrderWorkflow($executions, $transcript), version: 3);
+        $bench->iq->register('order', static fn (): Workflow => new OrderWorkflow($executions, $transcript), version: 3);
 
         $runId = $this->order()->start(new OrderPlaced('777'))->dispatch();
 
@@ -205,7 +205,7 @@ class DispatchedStartTest extends StartTestCase
         $bench = $this->benchOn($backend);
         $this->order()->start(new OrderPlaced('777'))->dispatch();
 
-        [$first, $second] = $this->queue->runAll($bench->cloud, 2);
+        [$first, $second] = $this->queue->runAll($bench->iq, 2);
 
         self::assertInstanceOf(Report::class, $first);
         self::assertInstanceOf(Report::class, $second);
@@ -220,10 +220,10 @@ class DispatchedStartTest extends StartTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions));
-        $bench->cloud->workflow('greeting', self::WORKFLOW_ID)->start()->dispatch();
+        $bench->iq->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions));
+        $bench->iq->workflow('greeting', self::WORKFLOW_ID)->start()->dispatch();
 
-        [$first, $second] = $this->queue->runAll($bench->cloud, 2);
+        [$first, $second] = $this->queue->runAll($bench->iq, 2);
 
         self::assertInstanceOf(Report::class, $first);
         self::assertInstanceOf(Report::class, $second);
@@ -239,7 +239,7 @@ class DispatchedStartTest extends StartTestCase
         $this->order()->start(new OrderPlaced('777'))->dispatch();
         $late = Invocation::fromArray(['expiresAt' => time() - 1] + $this->onlyQueued()->toArray());
 
-        $report = $bench->cloud->invoke($late);
+        $report = $bench->iq->invoke($late);
 
         self::assertSame([Outcome::Rejected, Code::Expired->value], [$report->outcome, $report->code]);
         self::assertNull($report->run);
@@ -253,7 +253,7 @@ class DispatchedStartTest extends StartTestCase
         $runId = $this->order()->start(new OrderPlaced('777'))->dispatch();
         $late = Invocation::fromArray(['expiresAt' => time() - 1] + $this->onlyQueued()->toArray());
 
-        $thrown = self::thrownBy(static fn (): Report => $bench->cloud->invoke($late));
+        $thrown = self::thrownBy(static fn (): Report => $bench->iq->invoke($late));
 
         self::assertNull($thrown, 'An expired start is dealt with: no worker tries it again.');
         self::assertFalse($this->isClaimed($runId));
@@ -267,7 +267,7 @@ class DispatchedStartTest extends StartTestCase
 
         [$thrown] = $this->queue->runAll($this->workerThatAborts($abort));
 
-        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertInstanceOf(IQException::class, $thrown);
         self::assertSame($reason, $thrown->reason);
         self::assertStringContainsString($runId, $thrown->getMessage(), 'The exception names the run ID it speaks of.');
         self::assertFalse($this->isClaimed($runId));
@@ -324,7 +324,7 @@ class DispatchedStartTest extends StartTestCase
         $bench = parent::benchOn($backend);
         [$executions, $transcript] = [$bench->executions, $this->transcript];
 
-        $bench->cloud->register(
+        $bench->iq->register(
             'order',
             fn (): Workflow => $this->factoryFails
                 ? throw new FactoryFailed('The factory reached a service that is down.')
@@ -336,21 +336,21 @@ class DispatchedStartTest extends StartTestCase
     }
 
     /**
-     * The cloud of a worker that cannot run the queued start yet: one still
+     * The service of a worker that cannot run the queued start yet: one still
      * running the code of before the deploy, on the same store and queue, or
      * the current one while its factory throws.
      */
-    protected function workerThatAborts(string $abort): NeuronCloud
+    protected function workerThatAborts(string $abort): IQ
     {
         if ($abort === 'factory') {
             $this->factoryFails = true;
 
-            return $this->bench->cloud;
+            return $this->bench->iq;
         }
 
         [$executions, $transcript] = [$this->bench->executions, $this->transcript];
 
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $this->bench->platform))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $this->bench->platform))
             ->setPersistence($this->bench->persistence)
             ->setDispatcher($this->queue)
             ->register(

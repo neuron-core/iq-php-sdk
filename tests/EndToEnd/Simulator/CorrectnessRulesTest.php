@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\Simulator;
+namespace NeuronCore\IQ\Tests\EndToEnd\Simulator;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\PlayedApplication;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Shown;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\SimulatorTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\EndToEnd\PlayedApplication;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Shown;
+use NeuronCore\IQ\Tests\Support\EndToEnd\SimulatorTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;

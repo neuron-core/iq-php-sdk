@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use NeuronAI\Workflow\Workflow;

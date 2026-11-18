@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Flows;
+namespace NeuronCore\IQ\Tests\Local\Flows;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
@@ -22,15 +22,15 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Flows\RefundTool;
-use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
-use NeuronCore\Cloud\Tests\Support\Flows\FlowTestCase;
-use NeuronCore\Cloud\Tests\Support\Flows\Planted;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpWorker;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Flows\RefundTool;
+use NeuronCore\IQ\Tests\Stub\Flows\SupportAgent;
+use NeuronCore\IQ\Tests\Support\Flows\FlowTestCase;
+use NeuronCore\IQ\Tests\Support\Flows\Planted;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpWorker;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;
@@ -237,14 +237,14 @@ class AgentApprovalFlowTest extends FlowTestCase
             new AssistantMessage('Refunded. ' . Planted::REPLY),
         );
 
-        $bench->cloud->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
+        $bench->iq->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
 
         return $bench;
     }
 
     protected function thread(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow('support-agent', self::THREAD_ID);
+        return $this->bench->iq->workflow('support-agent', self::THREAD_ID);
     }
 
     /**

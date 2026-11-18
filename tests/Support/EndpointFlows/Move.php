@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 /**
  * What the simulated platform did when it was asked to advance.

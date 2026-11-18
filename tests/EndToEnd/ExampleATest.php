@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd;
+namespace NeuronCore\IQ\Tests\EndToEnd;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\DeployedShop;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Deployment;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\EndToEndTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Wait;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Confidential;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\OrderPlaced;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\PlannedFailure;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Shop;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\EndToEnd\DeployedShop;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Deployment;
+use NeuronCore\IQ\Tests\Support\EndToEnd\EndToEndTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Wait;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Confidential;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\OrderPlaced;
+use NeuronCore\IQ\Tests\Support\ExampleApp\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\ExampleApp\PlannedFailure;
+use NeuronCore\IQ\Tests\Support\ExampleApp\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Shop;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -222,7 +222,7 @@ class ExampleATest extends EndToEndTestCase
     {
         self::assertSame(
             [
-                'endpoint' => DeployedShop::PUBLIC_URL . '/neuron-cloud.php',
+                'endpoint' => DeployedShop::PUBLIC_URL . '/iq.php',
                 'definitions' => [['definition' => Shop::DEFINITION, 'version' => 1, 'leaseSeconds' => 600]],
                 'deliveriesStopped' => false,
             ],

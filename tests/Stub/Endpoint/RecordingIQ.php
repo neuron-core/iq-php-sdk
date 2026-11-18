@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Endpoint;
+namespace NeuronCore\IQ\Tests\Stub\Endpoint;
 
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 /**
- * A cloud whose endpoint only records the requests it is handed, and gives
+ * A service whose endpoint only records the requests it is handed, and gives
  * each the answer the test chose.
  */
-class RecordingCloud extends NeuronCloud
+class RecordingIQ extends IQ
 {
     /** @var array<int, array{method: string, headers: array<array-key, mixed>, body: string}> */
     protected array $handled = [];

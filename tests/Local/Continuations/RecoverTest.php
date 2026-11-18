@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use Closure;
 use DateTimeImmutable;
@@ -14,23 +14,23 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\PickyQueue;
-use NeuronCore\Cloud\Tests\Stub\Local\ReviewedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Matrix\SeverablePersistence;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\PickyQueue;
+use NeuronCore\IQ\Tests\Stub\Local\ReviewedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Matrix\SeverablePersistence;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -252,7 +252,7 @@ class RecoverTest extends ContinuationTestCase
         $queuedByRecover = null;
         $whileRunning = function () use (&$recovered, &$queuedByRecover): void {
             $queued = $this->countQueued();
-            $recovered = $this->bench->cloud->workflow('busy', self::WORKFLOW_ID)->recover();
+            $recovered = $this->bench->iq->workflow('busy', self::WORKFLOW_ID)->recover();
             $queuedByRecover = $this->queuedAfter($queued);
         };
 
@@ -344,12 +344,12 @@ class RecoverTest extends ContinuationTestCase
     {
         $executions = $this->benchOn($backend)->executions;
         $this->flakyThatFailed();
-        $this->bench->cloud->setDispatcher(new PickyQueue($this->queue, Verb::Announce));
-        $flaky = $this->bench->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $this->bench->iq->setDispatcher(new PickyQueue($this->queue, Verb::Announce));
+        $flaky = $this->bench->iq->workflow('flaky', self::WORKFLOW_ID);
 
         $thrown = self::cloudExceptionFrom(static fn (): ?WorkflowState => $flaky->recover());
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::DispatchFailed, $thrown->reason);
         self::assertSame(1, $executions->count(FlakyNode::class));
         self::assertSame([WorkflowStatus::Failed, 1], [$this->storedRun()?->status, $this->storedRun()?->executionAttempt]);
@@ -360,8 +360,8 @@ class RecoverTest extends ContinuationTestCase
     {
         $this->benchOn($backend);
         $this->flakyThatFailed();
-        $this->bench->cloud->setDispatcher(new PickyQueue($this->queue, Verb::Observe));
-        $flaky = $this->bench->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $this->bench->iq->setDispatcher(new PickyQueue($this->queue, Verb::Observe));
+        $flaky = $this->bench->iq->workflow('flaky', self::WORKFLOW_ID);
 
         $recovered = $flaky->recover();
 
@@ -379,7 +379,7 @@ class RecoverTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(static fn (): ?WorkflowState => $olderDeploy->workflow('flaky', self::WORKFLOW_ID)->recover());
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
         self::assertSame([], $this->queuedAfter($queued));
         self::assertSame(1, $executions->count(FlakyNode::class));

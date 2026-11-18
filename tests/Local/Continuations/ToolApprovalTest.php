@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
@@ -18,14 +18,14 @@ use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Continuations\RefundFailed;
-use NeuronCore\Cloud\Tests\Stub\Continuations\RefundTool;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Continuations\RefundFailed;
+use NeuronCore\IQ\Tests\Stub\Continuations\RefundTool;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

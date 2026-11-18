@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Settlement;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Settlement;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;

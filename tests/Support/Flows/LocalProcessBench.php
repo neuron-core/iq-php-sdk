@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\Concurrency\SharedPlatform;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\Concurrency\SharedPlatform;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PDO;
 use PHPUnit\Framework\Assert;
 
@@ -32,7 +32,7 @@ use function usleep;
 
 /**
  * An application whose requests and workers are separate processes on one
- * SQLite file: what they share, the NeuronCloud each of them builds, and the
+ * SQLite file: what they share, the IQ each of them builds, and the
  * processes a test spawns. Call cleanUp() in tearDown().
  */
 final class LocalProcessBench
@@ -59,8 +59,8 @@ final class LocalProcessBench
 
     public readonly Gate $gate;
 
-    /** The NeuronCloud of the test's own process, on the files every process shares. */
-    public readonly NeuronCloud $cloud;
+    /** The IQ of the test's own process, on the files every process shares. */
+    public readonly IQ $iq;
 
     protected string $directory;
 
@@ -69,7 +69,7 @@ final class LocalProcessBench
 
     public function __construct()
     {
-        $this->directory = sys_get_temp_dir() . '/neuron-cloud-' . bin2hex(random_bytes(8));
+        $this->directory = sys_get_temp_dir() . '/iq-' . bin2hex(random_bytes(8));
         mkdir($this->directory);
 
         $files = $this->files();
@@ -91,22 +91,22 @@ final class LocalProcessBench
         $this->platform = new SharedPlatform($files['platform']);
         $this->queue = new FileQueue($files['queue']);
         $this->gate = new Gate($files['gate']);
-        $this->cloud = self::application($files);
+        $this->iq = self::application($files);
     }
 
     /**
-     * The NeuronCloud every process of the application builds: its bootstrap.
+     * The IQ every process of the application builds: its bootstrap.
      *
      * @param array<string, string> $files the store, the queue, the platform, the gate and the two logs
      */
-    public static function application(array $files): NeuronCloud
+    public static function application(array $files): IQ
     {
         $executions = new ExecutionLog($files['executions']);
         $transcript = new Transcript($files['transcript']);
         $gate = new Gate($files['gate']);
         $store = $files['store'];
 
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new SharedPlatform($files['platform'])))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new SharedPlatform($files['platform'])))
             ->setPersistence(static fn (): PersistenceInterface => new DatabasePersistence(self::connect($store)))
             ->setDispatcher(new FileQueue($files['queue']))
             ->register(self::ORDER, static fn (): OrderWorkflow => new OrderWorkflow($executions, $transcript))
@@ -114,7 +114,7 @@ final class LocalProcessBench
     }
 
     /**
-     * A process that will make one call on its own NeuronCloud. It comes up and waits for its order.
+     * A process that will make one call on its own IQ. It comes up and waits for its order.
      *
      * @param array<string, mixed> $call built by ApplicationCall
      */
@@ -151,7 +151,7 @@ final class LocalProcessBench
     public function work(): void
     {
         foreach ($this->queue->take() as $message) {
-            $this->cloud->invoke($message);
+            $this->iq->invoke($message);
         }
     }
 

@@ -8,7 +8,7 @@ declare(strict_types=1);
  * example (a) does. An order that is not at that wait is a 409: the sender retries.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
@@ -25,7 +25,7 @@ $shop = require __DIR__ . '/../bootstrap.php';
 $payment = json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
 
 try {
-    $shop->cloud->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $payment['orderId']))
+    $shop->iq->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $payment['orderId']))
         ->signal(OrderWorkflow::PAYMENT_RECEIVED, ['amount' => $payment['amount'], 'reference' => $payment['reference']])
         ->dispatch();
 

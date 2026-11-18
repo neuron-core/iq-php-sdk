@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\StreamedChat;
+namespace NeuronCore\IQ\Tests\Stub\StreamedChat;
 
 use Closure;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Testing\FakeDispatcher;
 use RuntimeException;
 
 /**

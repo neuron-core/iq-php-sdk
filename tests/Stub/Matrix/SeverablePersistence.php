@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Matrix;
+namespace NeuronCore\IQ\Tests\Stub\Matrix;
 
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;

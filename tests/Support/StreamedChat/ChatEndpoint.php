@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\StreamedChat;
+namespace NeuronCore\IQ\Tests\Support\StreamedChat;
 
 use Closure;
 use Generator;
@@ -14,10 +14,10 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\SupportAgent;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\SupportAgent;
 use Throwable;
 
 use function in_array;
@@ -35,7 +35,7 @@ final class ChatEndpoint
     /**
      * @param (Closure(Throwable): void)|null $report where the application reports what failed a stream it had begun
      */
-    public function __construct(protected NeuronCloud $cloud, protected ?Closure $report = null)
+    public function __construct(protected IQ $iq, protected ?Closure $report = null)
     {
     }
 
@@ -53,7 +53,7 @@ final class ChatEndpoint
         } catch (WorkflowException $refusal) {
             // RunInFlightException: an approval is pending or a turn is executing. Any other: a stale continuation.
             return new ChatResponse(409, refusal: $refusal);
-        } catch (CloudException $refusal) {
+        } catch (IQException $refusal) {
             return in_array($refusal->reason, [Code::DispatchFailed, Code::UnknownVersion], true)
                 ? new ChatResponse(503, refusal: $refusal)
                 : throw $refusal;
@@ -66,7 +66,7 @@ final class ChatEndpoint
      */
     protected function stream(array $request): ChatResponse
     {
-        $thread = $this->cloud->workflow(self::DEFINITION, $request['threadId']);
+        $thread = $this->iq->workflow(self::DEFINITION, $request['threadId']);
         $thread->recover();
 
         $adapter = new AGUIAdapter(threadId: $request['threadId'], runId: $request['runId']);

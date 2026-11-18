@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Flows;
+namespace NeuronCore\IQ\Tests\Stub\Flows;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Flows\Transcript;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Flows\Transcript;
 
 /**
  * The workflow of the plain PHP example: its start event carries the order,

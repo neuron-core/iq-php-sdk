@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\MisroutedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\MisroutedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_key_last;
@@ -106,14 +106,14 @@ class ClaimedFieldTest extends RunnerTestCase
 
     protected function startBehindAnotherRun(): Invocation
     {
-        $this->bench->cloud->invoke($this->start('order'));
+        $this->bench->iq->invoke($this->start('order'));
 
         return $this->start('order', fields: ['runId' => '1-another-run']);
     }
 
     protected function startDeliveredBefore(): Invocation
     {
-        $this->bench->cloud->invoke($this->start('greeting'));
+        $this->bench->iq->invoke($this->start('greeting'));
 
         return $this->start('greeting');
     }
@@ -131,7 +131,7 @@ class ClaimedFieldTest extends RunnerTestCase
     protected function applicationStartNobodyHearsOf(): Invocation
     {
         $this->bench->platform->failNext();
-        $this->bench->cloud->setDispatcher(new UnreachableQueue());
+        $this->bench->iq->setDispatcher(new UnreachableQueue());
 
         return $this->start('greeting', self::APPLICATION);
     }
@@ -149,8 +149,8 @@ class ClaimedFieldTest extends RunnerTestCase
     protected function settle(Invocation $start): void
     {
         try {
-            $this->bench->cloud->invoke($start);
-        } catch (CloudException) {
+            $this->bench->iq->invoke($start);
+        } catch (IQException) {
         }
     }
 
@@ -158,7 +158,7 @@ class ClaimedFieldTest extends RunnerTestCase
     {
         $executions = $bench->executions;
 
-        $bench->cloud
+        $bench->iq
             ->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions))
             ->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1))
             ->register('misrouted', static fn (): MisroutedWorkflow => new MisroutedWorkflow($executions))

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Flows;
+namespace NeuronCore\IQ\Tests\Stub\Flows;
 
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Flows\Transcript;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Flows\Transcript;
 
 class AwaitPaymentNode extends Node
 {

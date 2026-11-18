@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\Endpoint;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Runtime\Registry;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Runtime\WorkflowBuilder;
-use NeuronCore\Cloud\Tests\Support\Runner\InspectableDispatcher;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Endpoint;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Runtime\Registry;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Runtime\WorkflowBuilder;
+use NeuronCore\IQ\Tests\Support\Runner\InspectableDispatcher;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;

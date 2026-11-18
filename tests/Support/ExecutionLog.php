@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support;
+namespace NeuronCore\IQ\Tests\Support;
 
 use function array_keys;
 use function count;

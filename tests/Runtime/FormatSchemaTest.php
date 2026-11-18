@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use JsonException;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

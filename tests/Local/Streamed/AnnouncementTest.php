@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Streamed;
+namespace NeuronCore\IQ\Tests\Local\Streamed;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\Streamed\Kind;
-use NeuronCore\Cloud\Tests\Support\Streamed\Stage;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamedTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\Streamed\Kind;
+use NeuronCore\IQ\Tests\Support\Streamed\Stage;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamedTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;

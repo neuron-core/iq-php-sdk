@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_filter;

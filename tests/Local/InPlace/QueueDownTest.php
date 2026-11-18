@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\InPlace;
+namespace NeuronCore\IQ\Tests\Local\InPlace;
 
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\InPlace\InPlaceTestCase;
-use NeuronCore\Cloud\Tests\Support\InPlace\Kind;
-use NeuronCore\Cloud\Tests\Support\InPlace\Stage;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\InPlace\InPlaceTestCase;
+use NeuronCore\IQ\Tests\Support\InPlace\Kind;
+use NeuronCore\IQ\Tests\Support\InPlace\Stage;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -35,7 +35,7 @@ class QueueDownTest extends InPlaceTestCase
 
         $played = $stage->play();
 
-        self::assertInstanceOf(CloudException::class, $played->thrown);
+        self::assertInstanceOf(IQException::class, $played->thrown);
         self::assertSame(Code::DispatchFailed, $played->thrown->reason);
     }
 

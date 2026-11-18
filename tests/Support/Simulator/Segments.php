@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Simulator;
+namespace NeuronCore\IQ\Tests\Support\Simulator;
 
 /**
  * What the application said of each segment, by invocation ID: "starting",

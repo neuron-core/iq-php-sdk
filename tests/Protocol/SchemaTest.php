@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Protocol;
+namespace NeuronCore\IQ\Tests\Protocol;
 
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -103,7 +103,7 @@ class SchemaTest extends TestCase
     public static function examples(): array
     {
         return [
-            'the sync request' => ['sync', '{"protocols": [1], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "https://shop.example.com/neuron-cloud",'
+            'the sync request' => ['sync', '{"protocols": [1], "sdk": "iq-php/1.0.0", "endpoint": "https://shop.example.com/iq",'
                 . ' "definitions": [{"definition": "order-fulfilment", "version": 2, "leaseSeconds": 600},'
                 . ' {"definition": "order-fulfilment", "version": 1, "leaseSeconds": 600}]}'],
             'the sync answer' => ['sync-answer', '{"protocol": 1, "modified": true,'
@@ -168,11 +168,11 @@ class SchemaTest extends TestCase
     public static function violations(): array
     {
         return [
-            'a sync that publishes an http endpoint' => ['sync', '{"protocols": [1], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "http://shop.example.com/neuron-cloud", "definitions": []}'],
-            'a sync that does not speak protocol 1' => ['sync', '{"protocols": [2], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "https://shop.example.com/neuron-cloud", "definitions": []}'],
+            'a sync that publishes an http endpoint' => ['sync', '{"protocols": [1], "sdk": "iq-php/1.0.0", "endpoint": "http://shop.example.com/iq", "definitions": []}'],
+            'a sync that does not speak protocol 1' => ['sync', '{"protocols": [2], "sdk": "iq-php/1.0.0", "endpoint": "https://shop.example.com/iq", "definitions": []}'],
             'a sync answer without its stranded versions' => ['sync-answer', '{"protocol": 1, "modified": true, "versions": []}'],
             'a definition name with a space' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "Order Fulfilment", "workflowId": "order:123"}'],
-            'a workflow ID that begins with two underscores' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": "__neuron_cloud:123"}'],
+            'a workflow ID that begins with two underscores' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": "__iq:123"}'],
             'a workflow ID with a control character' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": "order\u0007123"}'],
             'an empty workflow ID' => ['inspect', '{"protocol": 1, "verb": "inspect", "definition": "order-fulfilment", "workflowId": ""}'],
             'another protocol' => ['ping', '{"protocol": 2, "verb": "ping"}'],

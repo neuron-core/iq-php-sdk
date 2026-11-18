@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 use function array_map;
 use function bin2hex;
@@ -19,9 +19,9 @@ final class PlayedApplication
 {
     public const DEFINITION = 'order-fulfilment';
 
-    public const ENDPOINT = ScriptedEndpoint::PUBLIC_URL . '/neuron-cloud';
+    public const ENDPOINT = ScriptedEndpoint::PUBLIC_URL . '/iq';
 
-    public const SDK = 'neuron-cloud-php/1.0.0';
+    public const SDK = 'iq-php/1.0.0';
 
     /**
      * @param string $apiKey the key it presents; another one than the platform's plays a wrong or revoked key

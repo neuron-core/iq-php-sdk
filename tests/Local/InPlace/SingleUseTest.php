@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\InPlace;
+namespace NeuronCore\IQ\Tests\Local\InPlace;
 
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\InPlace\FailedUse;
-use NeuronCore\Cloud\Tests\Support\InPlace\InPlaceTestCase;
-use NeuronCore\Cloud\Tests\Support\InPlace\Kind;
-use NeuronCore\Cloud\Tests\Support\InPlace\Stage;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\InPlace\FailedUse;
+use NeuronCore\IQ\Tests\Support\InPlace\InPlaceTestCase;
+use NeuronCore\IQ\Tests\Support\InPlace\Kind;
+use NeuronCore\IQ\Tests\Support\InPlace\Stage;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -34,7 +34,7 @@ class SingleUseTest extends InPlaceTestCase
 
         $again = $stage->play(static fn (): WorkflowState|string => $segment->{$second}());
 
-        self::assertInstanceOf(CloudException::class, $again->thrown);
+        self::assertInstanceOf(IQException::class, $again->thrown);
         self::assertSame(Code::SegmentUsed, $again->thrown->reason);
     }
 
@@ -68,7 +68,7 @@ class SingleUseTest extends InPlaceTestCase
 
         $again = $stage->play(static fn (): WorkflowState|string => $segment->{$second}());
 
-        self::assertInstanceOf(CloudException::class, $again->thrown);
+        self::assertInstanceOf(IQException::class, $again->thrown);
         self::assertSame(Code::SegmentUsed, $again->thrown->reason);
     }
 
@@ -102,7 +102,7 @@ class SingleUseTest extends InPlaceTestCase
         $again = $stage->play($copy->run(...));
 
         self::assertSame(0, $again->bodiesRun, 'The copy executed the run ID of the start a second time.');
-        self::assertInstanceOf(CloudException::class, $again->thrown);
+        self::assertInstanceOf(IQException::class, $again->thrown);
         self::assertSame(Code::SegmentUsed, $again->thrown->reason);
     }
 

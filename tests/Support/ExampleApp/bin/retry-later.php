@@ -9,7 +9,7 @@ declare(strict_types=1);
  * Usage: php bin/retry-later.php
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 /** @var Shop $shop */
 $shop = require __DIR__ . '/../bootstrap.php';

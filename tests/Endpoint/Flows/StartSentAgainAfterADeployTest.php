@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Flows;
+namespace NeuronCore\IQ\Tests\Endpoint\Flows;
 
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Move;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlatformSimulator;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlaysOneFlow;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Shop;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Move;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlatformSimulator;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlaysOneFlow;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Shop;
 use PHPUnit\Framework\TestCase;
 
 use function array_column;
@@ -100,7 +100,7 @@ class StartSentAgainAfterADeployTest extends TestCase
 
     protected static function play(Shop $shop): void
     {
-        $platform = self::$platform = new PlatformSimulator($shop->platform, $shop->cloud, Shop::DEFINITION, Shop::WORKFLOW_ID, version: 2);
+        $platform = self::$platform = new PlatformSimulator($shop->platform, $shop->iq, Shop::DEFINITION, Shop::WORKFLOW_ID, version: 2);
 
         $shop->workersHold(1);
         $platform->start();

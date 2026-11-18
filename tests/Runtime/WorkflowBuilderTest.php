@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use Closure;
 use NeuronAI\HttpClient\HttpResponse;
@@ -13,13 +13,13 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Observability\CloudListener;
-use NeuronCore\Cloud\Observability\TraceExporter;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Runtime\WorkflowBuilder;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Stub\Units\SelfConfiguredWorkflow;
+use NeuronCore\IQ\Observability\IQListener;
+use NeuronCore\IQ\Observability\TraceExporter;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Runtime\WorkflowBuilder;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Stub\Units\SelfConfiguredWorkflow;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -241,10 +241,10 @@ class WorkflowBuilderTest extends TestCase
 
         return new WorkflowBuilder(
             fn (): PersistenceInterface => $this->sdkStore,
-            static function (Definition $definition) use (&$asked, $exporter): CloudListener {
+            static function (Definition $definition) use (&$asked, $exporter): IQListener {
                 $asked[] = $definition;
 
-                return new CloudListener($exporter, $definition->name);
+                return new IQListener($exporter, $definition->name);
             },
         );
     }

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Observability;
+namespace NeuronCore\IQ\Observability;
 
-use NeuronCore\Cloud\Runtime\Protocol;
+use NeuronCore\IQ\Runtime\Protocol;
 use Throwable;
 
 use function array_is_list;
@@ -27,14 +27,14 @@ use function substr;
  * One workflow run segment's trace under construction: the run identity, the
  * terminal status, the stack of open spans that yields the parent/child
  * hierarchy, and the finished spans. Pure state — nothing here performs I/O or
- * knows the framework's event types; {@see CloudListener} maps events onto it
+ * knows the framework's event types; {@see IQListener} maps events onto it
  * and {@see TraceExporter} ships what {@see close()} returns.
  *
  * The payload is an OpenTelemetry OTLP/JSON `ExportTraceServiceRequest`
  * (opentelemetry-proto, trace/v1): resourceSpans → scopeSpans → spans, hex
  * trace/span IDs, Unix-nanosecond timestamps as decimal strings, integer
  * enums, and typed `{key, value}` attributes — ingestible by any OTLP/HTTP
- * backend, not only Neuron Cloud. What the spans mean is the listener's job
+ * backend, not only IQ. What the spans mean is the listener's job
  * (the GenAI semantic conventions); this class only knows the wire shape.
  *
  * The trace is the run: the trace ID is derived from the framework's run ID,
@@ -62,7 +62,7 @@ class Trace
     /** W3C sampled (0x01) + "is-remote known, local parent" (0x100). */
     protected const FLAGS = 257;
 
-    protected const SCOPE = 'neuron-core/cloud-sdk';
+    protected const SCOPE = 'neuron-core/iq-php-sdk';
 
     /** 32-hex trace ID: derived from the run ID once known, random until then. */
     protected string $traceId;

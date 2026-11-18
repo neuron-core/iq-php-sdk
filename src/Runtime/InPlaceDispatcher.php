@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
 
 /**
  * With no dispatcher set, every message runs in place. That is for scripts and tests.
@@ -15,12 +15,12 @@ use NeuronCore\Cloud\NeuronCloud;
  */
 final class InPlaceDispatcher implements DispatcherInterface
 {
-    public function __construct(protected NeuronCloud $cloud)
+    public function __construct(protected IQ $iq)
     {
     }
 
     public function dispatch(Invocation $invocation): void
     {
-        $this->cloud->invoke($invocation);
+        $this->iq->invoke($invocation);
     }
 }

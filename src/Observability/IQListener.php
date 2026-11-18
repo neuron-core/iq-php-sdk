@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Observability;
+namespace NeuronCore\IQ\Observability;
 
 use LogicException;
 use NeuronAI\Agent\Agent;
@@ -68,12 +68,12 @@ use const JSON_INVALID_UTF8_SUBSTITUTE;
 use const JSON_UNESCAPED_UNICODE;
 
 /**
- * Traces the runs of an agent or a workflow, and sends each to Neuron Cloud.
+ * Traces the runs of an agent or a workflow, and sends each to IQ.
  *
  * Build it from the SDK root, and subscribe it to an agent or a workflow the
  * application runs itself, with chat(), stream(), run() or events():
  *
- *   $agent->subscribe(ObservabilityEvent::class, $cloud->tracer());
+ *   $agent->subscribe(ObservabilityEvent::class, $iq->tracer());
  *
  * Bridges neuron-ai's event-based observability to OpenTelemetry: pairs the
  * framework's start/stop events into spans (keyed on the emitting object or
@@ -89,7 +89,7 @@ use const JSON_UNESCAPED_UNICODE;
  *
  * Spans follow the OpenTelemetry GenAI semantic conventions (development
  * stability — github.com/open-telemetry/semantic-conventions-genai), so any
- * OTel backend reads them, not only Neuron Cloud:
+ * OTel backend reads them, not only IQ:
  *
  *   run of an Agent     → `invoke_agent {name}`     INTERNAL
  *   run of a Workflow   → `invoke_workflow {name}`  INTERNAL
@@ -115,7 +115,7 @@ use const JSON_UNESCAPED_UNICODE;
  * not a failure either, so it is only an `exception` event. Listener
  * exceptions are swallowed: a tracing bug must not break the run.
  *
- * It takes the settings {@see \NeuronCore\Cloud\NeuronCloud::enableTracing()}
+ * It takes the settings {@see \NeuronCore\IQ\IQ::enableTracing()}
  * was given when it was got. One got before enableTracing() was called
  * handles no event and sends nothing, so a line that subscribes it sends
  * nothing where tracing is off. Where the API key may be missing, the
@@ -127,7 +127,7 @@ use const JSON_UNESCAPED_UNICODE;
  * the factory of the definition or by a configure() callback, leaves the run
  * to it and sends nothing for it.
  */
-class CloudListener
+class IQListener
 {
     /** Truncation limit for message/tool content copied into span attributes. */
     protected const MAX_CONTENT = 4000;
@@ -163,7 +163,7 @@ class CloudListener
     protected WeakMap $ended;
 
     /**
-     * @internal built by {@see \NeuronCore\Cloud\NeuronCloud::tracer()}, and by the SDK for a workflow it executes
+     * @internal built by {@see \NeuronCore\IQ\IQ::tracer()}, and by the SDK for a workflow it executes
      *
      * @param TraceExporter|null   $exporter       null: tracing is off, and the listener handles no event.
      * @param string|null          $name           The agent/workflow name spans are reported under; the class name when null.
@@ -198,7 +198,7 @@ class CloudListener
         } catch (Throwable $e) {
             // The dispatcher does not guard listeners; a tracing bug must not
             // break the workflow run.
-            error_log('[CloudListener] ' . $e->getMessage());
+            error_log('[IQListener] ' . $e->getMessage());
         }
     }
 

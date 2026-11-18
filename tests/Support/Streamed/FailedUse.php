@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 /**
  * The ways the only use of a prepared segment can fail when a stream is involved.

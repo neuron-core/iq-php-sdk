@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Flows;
+namespace NeuronCore\IQ\Tests\Local\Flows;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\Flows\ApplicationCall;
-use NeuronCore\Cloud\Tests\Support\Flows\LocalProcessBench;
-use NeuronCore\Cloud\Tests\Support\Flows\LocalProcessTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Flows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\Flows\ApplicationCall;
+use NeuronCore\IQ\Tests\Support\Flows\LocalProcessBench;
+use NeuronCore\IQ\Tests\Support\Flows\LocalProcessTestCase;
+use NeuronCore\IQ\Verb;
 
 use function array_column;
 use function array_diff;
@@ -93,7 +93,7 @@ class ConcurrentAnswersTest extends LocalProcessTestCase
      */
     protected function requestsAnswerAtOnce(string $workflowId): array
     {
-        $this->bench->cloud->workflow(LocalProcessBench::ORDER, $workflowId)->start(new OrderPlaced($workflowId))->run();
+        $this->bench->iq->workflow(LocalProcessBench::ORDER, $workflowId)->start(new OrderPlaced($workflowId))->run();
         $this->bench->work();
 
         return $this->bench->atOnce(...array_map(

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Tracing;
+namespace NeuronCore\IQ\Tests\Stub\Tracing;
 
 use NeuronAI\Agent\Agent;
 

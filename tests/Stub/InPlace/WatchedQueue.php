@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\InPlace;
+namespace NeuronCore\IQ\Tests\Stub\InPlace;
 
 use Closure;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Testing\FakeDispatcher;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * The fake queue with a test at its door: it sees each message before the

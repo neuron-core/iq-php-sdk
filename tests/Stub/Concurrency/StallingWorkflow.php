@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Concurrency;
+namespace NeuronCore\IQ\Tests\Stub\Concurrency;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * Commits one step, then stays inside the body of its second node until the

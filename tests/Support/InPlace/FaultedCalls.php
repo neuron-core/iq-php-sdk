@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\InPlace;
+namespace NeuronCore\IQ\Tests\Support\InPlace;
 
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Stub\Matrix\EndingNode;
-use NeuronCore\Cloud\Tests\Stub\Matrix\OpeningNode;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreOperation;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Stub\Matrix\EndingNode;
+use NeuronCore\IQ\Tests\Stub\Matrix\OpeningNode;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreOperation;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function count;
 use function is_array;

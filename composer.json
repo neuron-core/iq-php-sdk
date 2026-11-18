@@ -1,6 +1,6 @@
 {
-    "name": "neuron-core/cloud-sdk",
-    "description": "PHP SDK connecting Neuron AI workflows to the Neuron Cloud platform for durable orchestration.",
+    "name": "neuron-core/iq-php-sdk",
+    "description": "PHP SDK connecting Neuron AI workflows to the IQ platform for durable orchestration.",
     "type": "library",
     "minimum-stability": "stable",
     "authors": [
@@ -11,8 +11,8 @@
     ],
     "license": "MIT",
     "bin": [
-        "bin/neuron-cloud-gate",
-        "bin/neuron-cloud-dataset"
+        "bin/iq-gate",
+        "bin/iq-dataset"
     ],
     "require": {
         "php": "^8.1",
@@ -58,12 +58,12 @@
     },
     "autoload": {
         "psr-4": {
-            "NeuronCore\\Cloud\\": "src/"
+            "NeuronCore\\IQ\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "NeuronCore\\Cloud\\Tests\\": "tests/"
+            "NeuronCore\\IQ\\Tests\\": "tests/"
         }
     },
     "config": {

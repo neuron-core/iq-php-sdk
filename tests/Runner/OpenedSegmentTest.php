@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -30,7 +30,7 @@ class OpenedSegmentTest extends RunnerTestCase
     {
         $bench = $this->benchWithAuditedFlaky($backend, failures: 1);
 
-        $report = $bench->cloud->invoke($this->start('audited'));
+        $report = $bench->iq->invoke($this->start('audited'));
 
         self::assertSame(Outcome::Failed, $report->outcome);
         self::assertSame(NodeFailed::class, $report->errorClass);
@@ -43,7 +43,7 @@ class OpenedSegmentTest extends RunnerTestCase
     {
         $bench = $this->benchWithAuditedFlaky($backend, failures: 0);
 
-        $report = $bench->cloud->invoke($this->start('audited'));
+        $report = $bench->iq->invoke($this->start('audited'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $report->executedAttempt);
@@ -53,9 +53,9 @@ class OpenedSegmentTest extends RunnerTestCase
     public function test_an_application_wake_whose_node_fails_is_reported_as_failed_and_not_thrown_although_a_listener_throws(string $backend): void
     {
         $bench = $this->benchWithAuditedFlaky($backend, failures: 2);
-        $failed = $bench->cloud->invoke($this->start('audited'));
+        $failed = $bench->iq->invoke($this->start('audited'));
 
-        $report = $bench->cloud->invoke($this->wake('audited', $failed, self::APPLICATION));
+        $report = $bench->iq->invoke($this->wake('audited', $failed, self::APPLICATION));
 
         self::assertSame(Outcome::Failed, $report->outcome);
         self::assertSame(2, $report->executedAttempt);
@@ -67,7 +67,7 @@ class OpenedSegmentTest extends RunnerTestCase
     {
         $bench = $this->benchWithNodeThatLetsEscape($backend, RefusalReason::RunInFlight);
 
-        $report = $bench->cloud->invoke($this->start('escaping'));
+        $report = $bench->iq->invoke($this->start('escaping'));
 
         self::assertSame(Outcome::Failed, $report->outcome);
         self::assertNull($report->code);
@@ -82,7 +82,7 @@ class OpenedSegmentTest extends RunnerTestCase
     {
         $bench = $this->benchWithNodeThatLetsEscape($backend, RefusalReason::Conflict);
 
-        $report = $bench->cloud->invoke($this->start('escaping'));
+        $report = $bench->iq->invoke($this->start('escaping'));
 
         self::assertSame(Outcome::Failed, $report->outcome);
         self::assertSame(WorkflowRefusedException::class, $report->errorClass, 'A second try would be refused, as a run in flight.');
@@ -94,9 +94,9 @@ class OpenedSegmentTest extends RunnerTestCase
     public function test_a_conflict_that_escapes_from_the_node_of_a_wake_is_a_failure_of_the_run_and_is_not_tried_again(string $backend): void
     {
         $bench = $this->benchWithNodeThatLetsEscape($backend, RefusalReason::Conflict);
-        $failed = $bench->cloud->invoke($this->start('escaping'));
+        $failed = $bench->iq->invoke($this->start('escaping'));
 
-        $report = $bench->cloud->invoke($this->wake('escaping', $failed));
+        $report = $bench->iq->invoke($this->wake('escaping', $failed));
 
         self::assertSame(Outcome::Failed, $report->outcome, 'A second try would be refused, as a stale attempt.');
         self::assertSame(WorkflowRefusedException::class, $report->errorClass);
@@ -114,7 +114,7 @@ class OpenedSegmentTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register('audited', static fn (): FlakyWorkflow => (new FlakyWorkflow($executions, $failures))->subscribe(
+        $bench->iq->register('audited', static fn (): FlakyWorkflow => (new FlakyWorkflow($executions, $failures))->subscribe(
             WorkflowEnd::class,
             static function (): never {
                 throw new RuntimeException('The audit log is unreachable.');
@@ -132,7 +132,7 @@ class OpenedSegmentTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register('escaping', static fn (): BusyWorkflow => new BusyWorkflow($executions, static function () use ($reason): void {
+        $bench->iq->register('escaping', static fn (): BusyWorkflow => new BusyWorkflow($executions, static function () use ($reason): void {
             throw new WorkflowRefusedException('Neuron refused the workflow this node called.', $reason);
         }));
 

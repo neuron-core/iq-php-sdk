@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Streamed;
+namespace NeuronCore\IQ\Tests\Local\Streamed;
 
 use Closure;
 use Generator;
@@ -12,14 +12,14 @@ use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Support\Streamed\FirstStep;
-use NeuronCore\Cloud\Tests\Support\Streamed\Holder;
-use NeuronCore\Cloud\Tests\Support\Streamed\Kind;
-use NeuronCore\Cloud\Tests\Support\Streamed\Stage;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamedTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Support\Streamed\FirstStep;
+use NeuronCore\IQ\Tests\Support\Streamed\Holder;
+use NeuronCore\IQ\Tests\Support\Streamed\Kind;
+use NeuronCore\IQ\Tests\Support\Streamed\Stage;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamedTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 

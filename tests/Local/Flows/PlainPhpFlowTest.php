@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Flows;
+namespace NeuronCore\IQ\Tests\Local\Flows;
 
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShippingFailed;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\Flows\Planted;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpTestCase;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpWorker;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\ShippingFailed;
+use NeuronCore\IQ\Tests\Stub\Flows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\Flows\Planted;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpTestCase;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpWorker;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub;
+namespace NeuronCore\IQ\Tests\Stub;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 class DeliverNode extends Node
 {

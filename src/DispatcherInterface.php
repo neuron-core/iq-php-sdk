@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 interface DispatcherInterface
 {

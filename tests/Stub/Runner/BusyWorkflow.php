@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Runner;
+namespace NeuronCore\IQ\Tests\Stub\Runner;
 
 use Closure;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * Completes in a single segment, and lets a test act while that segment is executing.

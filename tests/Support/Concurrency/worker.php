@@ -3,23 +3,23 @@
 declare(strict_types=1);
 
 /*
- * One queue worker in a process of its own. It rebuilds the NeuronCloud of the bench that spawned it from its
+ * One queue worker in a process of its own. It rebuilds the IQ of the bench that spawned it from its
  * only argument, says "ready", waits on its standard input for the instant to act at, gives its invocation to
  * invoke() and prints the report that came back.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\DyingPersistence;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\StallingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Concurrency\DyingPersistence;
+use NeuronCore\IQ\Tests\Stub\Concurrency\StallingWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function dirname;
 use function fgets;
@@ -47,7 +47,7 @@ if ($job['diesAfterClaim']) {
     $store = new DyingPersistence($store);
 }
 
-$cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new SharedPlatform($job['platform'])))
+$iq = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new SharedPlatform($job['platform'])))
     ->setPersistence(static fn (): PersistenceInterface => $store)
     ->register(
         ProcessBench::COMPLETING,
@@ -79,4 +79,4 @@ if ($instant === false) {
 }
 usleep((int) max(0, ((float) $instant - microtime(true)) * 1_000_000));
 
-echo json_encode($cloud->invoke(Invocation::fromArray($job['invocation']))->toArray(), JSON_THROW_ON_ERROR), "\n";
+echo json_encode($iq->invoke(Invocation::fromArray($job['invocation']))->toArray(), JSON_THROW_ON_ERROR), "\n";

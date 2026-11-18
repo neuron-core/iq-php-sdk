@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Matrix;
+namespace NeuronCore\IQ\Tests\Stub\Matrix;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * A run in two nodes. The first one stops the run in a chosen way before it

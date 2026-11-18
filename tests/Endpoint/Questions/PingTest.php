@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -30,7 +30,7 @@ class PingTest extends QuestionsTestCase
     public function test_a_ping_is_answered_by_an_endpoint_that_was_given_no_persistence_no_dispatcher_and_no_definition(): void
     {
         $platform = $this->benchOn(TestBench::IN_MEMORY)->platform;
-        $bare = new NeuronCloud(TestBench::API_KEY, $platform->signingKey);
+        $bare = new IQ(TestBench::API_KEY, $platform->signingKey);
 
         $answer = $platform->deliver($bare, ['verb' => 'ping']);
 

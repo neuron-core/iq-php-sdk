@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use ReflectionClass;

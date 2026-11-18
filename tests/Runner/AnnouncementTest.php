@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -36,7 +36,7 @@ class AnnouncementTest extends RunnerTestCase
             }
         });
 
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
         self::assertCount(1, $announcedBeforeTheClaim);
         self::assertSame(self::RUN_ID, $announcedBeforeTheClaim[0]['runId']);
@@ -48,7 +48,7 @@ class AnnouncementTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench, leaseTimeout: 120);
 
-        $bench->cloud->invoke($this->start('order'));
+        $bench->iq->invoke($this->start('order'));
 
         $announcement = $this->announcementsSent()[0];
         unset($announcement['at']);
@@ -70,9 +70,9 @@ class AnnouncementTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench);
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
 
-        $bench->cloud->invoke($this->answer('order', $started, ['amount' => 100]));
+        $bench->iq->invoke($this->answer('order', $started, ['amount' => 100]));
 
         $announcement = $this->announcementsSent()[1];
         self::assertSame('answer', $announcement['verb']);
@@ -87,7 +87,7 @@ class AnnouncementTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $bench->platform->failNext();
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -103,7 +103,7 @@ class AnnouncementTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $bench->platform->failNext(1, 401);
 
-        $report = $bench->cloud->invoke($this->start('greeting', self::APPLICATION));
+        $report = $bench->iq->invoke($this->start('greeting', self::APPLICATION));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -116,9 +116,9 @@ class AnnouncementTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $bench->platform->failNext();
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
-        $delivered = $this->queue->runAll($bench->cloud);
+        $delivered = $this->queue->runAll($bench->iq);
 
         self::assertCount(1, $delivered);
         self::assertInstanceOf(Report::class, $delivered[0]);
@@ -184,7 +184,7 @@ class AnnouncementTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->platformAndQueueRefuseTheAnnouncement($bench);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertTrue($report->claimed);
@@ -196,7 +196,7 @@ class AnnouncementTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench);
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
         $this->platformAndQueueRefuseTheAnnouncement($bench);
 
         $thrown = $this->thrownBy($this->answer('order', $started, ['amount' => 100]));
@@ -254,7 +254,7 @@ class AnnouncementTest extends RunnerTestCase
     {
         $executions = $bench->executions;
 
-        $bench->cloud->register(
+        $bench->iq->register(
             'order',
             static fn (): WaitingWorkflow => new WaitingWorkflow($executions),
             leaseTimeout: $leaseTimeout,
@@ -267,7 +267,7 @@ class AnnouncementTest extends RunnerTestCase
     protected function platformAndQueueRefuseTheAnnouncement(TestBench $bench): void
     {
         $bench->platform->failNext();
-        $bench->cloud->setDispatcher(new UnreachableQueue());
+        $bench->iq->setDispatcher(new UnreachableQueue());
     }
 
     /**
@@ -276,7 +276,7 @@ class AnnouncementTest extends RunnerTestCase
     protected function queuedAnnouncement(TestBench $bench): Invocation
     {
         $bench->platform->failNext();
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
         return $this->queue->dispatched()[0];
     }

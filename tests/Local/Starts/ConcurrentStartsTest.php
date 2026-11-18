@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Support\Flows\ApplicationCall;
-use NeuronCore\Cloud\Tests\Support\Flows\LocalProcessBench;
-use NeuronCore\Cloud\Tests\Support\Flows\LocalProcessTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Support\Flows\ApplicationCall;
+use NeuronCore\IQ\Tests\Support\Flows\LocalProcessBench;
+use NeuronCore\IQ\Tests\Support\Flows\LocalProcessTestCase;
+use NeuronCore\IQ\Verb;
 
 use function array_column;
 use function array_count_values;
@@ -176,7 +176,7 @@ class ConcurrentStartsTest extends LocalProcessTestCase
         string $workflowId = self::WORKFLOW_ID,
     ): Invocation {
         $this->bench->work();
-        $this->bench->cloud->workflow($definition, $workflowId)->start(new OrderPlaced($orderId))->dispatch();
+        $this->bench->iq->workflow($definition, $workflowId)->start(new OrderPlaced($orderId))->dispatch();
         [$queued] = $this->bench->queue->take();
 
         return $queued;

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\InPlace;
+namespace NeuronCore\IQ\Tests\Support\InPlace;
 
 /**
  * A start run in place while a run held the workflow ID.

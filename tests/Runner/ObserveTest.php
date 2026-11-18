@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -31,7 +31,7 @@ class ObserveTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $started = $this->orderSuspended($bench);
 
-        $report = $bench->cloud->invoke($this->observeOf($this->start('order')));
+        $report = $bench->iq->invoke($this->observeOf($this->start('order')));
 
         self::assertSame(Outcome::Observed, $report->outcome);
         self::assertSame('inv_start', $report->invocationId, 'The report speaks for the segment, not for the observe.');
@@ -50,7 +50,7 @@ class ObserveTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->orderSuspended($bench);
 
-        $report = $bench->cloud->invoke($this->observeOf($this->start('order')));
+        $report = $bench->iq->invoke($this->observeOf($this->start('order')));
 
         self::assertTrue($report->claimed);
         self::assertTrue($this->reportsSent()[1]['claimed']);
@@ -61,7 +61,7 @@ class ObserveTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->observeOf($this->start('greeting')));
+        $report = $bench->iq->invoke($this->observeOf($this->start('greeting')));
 
         self::assertSame(Outcome::Observed, $report->outcome);
         self::assertFalse($report->claimed);
@@ -77,9 +77,9 @@ class ObserveTest extends RunnerTestCase
         $started = $this->orderSuspended($bench);
 
         $reports = [
-            $bench->cloud->invoke($this->observeOf($this->wake('order', $started))),
-            $bench->cloud->invoke($this->observeOf($this->answer('order', $started, ['amount' => 100]))),
-            $bench->cloud->invoke($this->observeOf($this->signal('order', $started, WaitingWorkflow::EVENT))),
+            $bench->iq->invoke($this->observeOf($this->wake('order', $started))),
+            $bench->iq->invoke($this->observeOf($this->answer('order', $started, ['amount' => 100]))),
+            $bench->iq->invoke($this->observeOf($this->signal('order', $started, WaitingWorkflow::EVENT))),
         ];
 
         foreach ($reports as $report) {
@@ -96,7 +96,7 @@ class ObserveTest extends RunnerTestCase
         $this->orderSuspended($bench);
         $this->failStoreOn('get', self::WORKFLOW_ID);
 
-        $report = $bench->cloud->invoke($this->observeOf($this->start('order')));
+        $report = $bench->iq->invoke($this->observeOf($this->start('order')));
 
         self::assertSame(Outcome::Observed, $report->outcome);
         self::assertFalse($report->snapshotRead);
@@ -113,7 +113,7 @@ class ObserveTest extends RunnerTestCase
         $this->orderSuspended($bench);
         $this->failStoreOn('get', $this->ledgerPartition());
 
-        $report = $bench->cloud->invoke($this->observeOf($this->start('order')));
+        $report = $bench->iq->invoke($this->observeOf($this->start('order')));
 
         self::assertSame(Outcome::Observed, $report->outcome);
         self::assertFalse($report->snapshotRead);
@@ -128,10 +128,10 @@ class ObserveTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         // The platform is down for the whole segment: its announcement and its report wait in the queue.
         $bench->platform->failNext(2);
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
         $this->failStoreOn('get', self::WORKFLOW_ID);
 
-        $delivered = $this->queue->runAll($bench->cloud);
+        $delivered = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $delivered[1]);
         self::assertSame(Outcome::Completed, $delivered[1]->outcome);
@@ -139,7 +139,7 @@ class ObserveTest extends RunnerTestCase
         self::assertFalse($delivered[1]->snapshotRead);
         self::assertNull($delivered[1]->run);
         self::assertNull($delivered[1]->claimed);
-        self::assertSame([], $this->queue->runAll($bench->cloud), 'The observe is not tried again: the platform recorded its report.');
+        self::assertSame([], $this->queue->runAll($bench->iq), 'The observe is not tried again: the platform recorded its report.');
         $bench->platform->assertReported(self::WORKFLOW_ID, Outcome::Completed);
     }
 
@@ -201,11 +201,11 @@ class ObserveTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         // The platform is down for the whole segment and stays down for the first try of each notice.
         $bench->platform->failNext(4);
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
-        $thrown = $this->queue->runAll($bench->cloud)[1];
+        $thrown = $this->queue->runAll($bench->iq)[1];
 
-        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertInstanceOf(IQException::class, $thrown);
         self::assertSame(Code::ReportUndelivered, $thrown->reason);
         self::assertSame([Outcome::Completed, 1], [$thrown->report?->outcome, $thrown->report?->executedAttempt]);
     }
@@ -215,13 +215,13 @@ class ObserveTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $unreachable = HttpException::networkError(HttpRequest::post(TestBench::PLATFORM_URL), 'Connection refused');
-        $cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new ScriptedHttpClient($unreachable)))
+        $iq = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new ScriptedHttpClient($unreachable)))
             ->setPersistence($bench->persistence)
             ->register('greeting', static fn (): Workflow => new Workflow());
 
         try {
-            $cloud->invoke($this->observeOf($this->start('greeting')));
-        } catch (CloudException $thrown) {
+            $iq->invoke($this->observeOf($this->start('greeting')));
+        } catch (IQException $thrown) {
             self::assertSame(Code::ReportUndelivered, $thrown->reason);
             self::assertSame('The platform gave no answer to ' . self::REPORTS . '.', $thrown->getMessage());
             self::assertSame($unreachable, $thrown->getPrevious(), 'What kept the report from the platform is lost with the report.');
@@ -268,8 +268,8 @@ class ObserveTest extends RunnerTestCase
     protected function orderSuspended(TestBench $bench): Report
     {
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
 
-        return $bench->cloud->invoke($this->start('order'));
+        return $bench->iq->invoke($this->start('order'));
     }
 }

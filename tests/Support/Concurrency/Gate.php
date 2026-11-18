@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
 use function file_exists;
 use function touch;

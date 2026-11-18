@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use Generator;
@@ -17,7 +17,7 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\Code;
 use Throwable;
 use WeakReference;
 

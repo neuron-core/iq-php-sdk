@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Local;
+namespace NeuronCore\IQ\Tests\Stub\Local;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentRunOptions;
 use NeuronAI\Agent\Events\AgentStartEvent;
-use NeuronCore\Cloud\Tests\Stub\Units\BriefingStartEvent;
+use NeuronCore\IQ\Tests\Stub\Units\BriefingStartEvent;
 
 /**
  * An agent whose startEvent() hook declares a class and options of its own

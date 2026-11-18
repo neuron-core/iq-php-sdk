@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use Closure;
 use NeuronAI\Workflow\Executor\WorkflowControl;
@@ -11,16 +11,16 @@ use NeuronAI\Workflow\Persistence\PhpSerializer;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Continuations\OutpacedPersistence;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Matrix\SeverablePersistence;
-use NeuronCore\Cloud\Tests\Stub\RacingPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Continuations\OutpacedPersistence;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Matrix\SeverablePersistence;
+use NeuronCore\IQ\Tests\Stub\RacingPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -158,7 +158,7 @@ class RecoverRaceTest extends ContinuationTestCase
     /**
      * The process that calls recover(): every store it builds is $store.
      */
-    protected function processOn(PersistenceInterface $store): NeuronCloud
+    protected function processOn(PersistenceInterface $store): IQ
     {
         $executions = $this->bench->executions;
 

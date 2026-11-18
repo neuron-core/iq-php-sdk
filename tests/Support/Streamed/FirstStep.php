@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 use Generator;
 

@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Flows\StartTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Flows\StartTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function in_array;
@@ -123,7 +123,7 @@ class DispatchedStartRefusalTest extends StartTestCase
         $executions = $this->bench->executions;
         $secondRequest = $holder === 'overdue' ? $this->dispatchOnceTheLeaseHasPassed(...) : $this->dispatch(...);
 
-        $this->bench->cloud->register('job', static fn (): Workflow => match ($holder) {
+        $this->bench->iq->register('job', static fn (): Workflow => match ($holder) {
             'suspended' => new WaitingWorkflow($executions),
             'failed' => new FlakyWorkflow($executions),
             'executing', 'overdue' => new BusyWorkflow($executions, $secondRequest),
@@ -144,7 +144,7 @@ class DispatchedStartRefusalTest extends StartTestCase
 
     protected function job(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow('job', self::WORKFLOW_ID);
+        return $this->bench->iq->workflow('job', self::WORKFLOW_ID);
     }
 
     /**

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use Closure;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -252,7 +252,7 @@ class SignatureTest extends RequestTestCase
             'a timestamp out of the window' => $this->post($body, $stale),
             'a timestamp that is not a number' => $this->post($body, ['webhook-timestamp' => 'now'] + $signed),
         ];
-        $this->cloud = $this->deploymentHolding(null);
+        $this->iq = $this->deploymentHolding(null);
         $problems['an endpoint that holds no key'] = $this->post($body, $signed);
 
         $answers = array_map(

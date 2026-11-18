@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use DateTimeImmutable;
 use NeuronAI\Agent\Agent;
@@ -19,33 +19,33 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\BriefingAgent;
-use NeuronCore\Cloud\Tests\Stub\Local\OrderFulfilment;
-use NeuronCore\Cloud\Tests\Stub\Local\PaidAmountTranslator;
-use NeuronCore\Cloud\Tests\Stub\Local\ReviewedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Units\BriefingStartEvent;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Units\UnreadableOrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\BriefingAgent;
+use NeuronCore\IQ\Tests\Stub\Local\OrderFulfilment;
+use NeuronCore\IQ\Tests\Stub\Local\PaidAmountTranslator;
+use NeuronCore\IQ\Tests\Stub\Local\ReviewedWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Units\BriefingStartEvent;
+use NeuronCore\IQ\Tests\Stub\Units\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Units\UnreadableOrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -66,9 +66,9 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_a_name_that_is_not_registered_is_refused_as_unknown_definition(): void
     {
-        $cloud = $this->benchOn(TestBench::IN_MEMORY)->cloud;
+        $iq = $this->benchOn(TestBench::IN_MEMORY)->iq;
 
-        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $cloud->workflow('never-registered', self::WORKFLOW_ID));
+        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $iq->workflow('never-registered', self::WORKFLOW_ID));
 
         self::assertSame(Code::UnknownDefinition, $reason);
     }
@@ -76,9 +76,9 @@ class ManagedWorkflowTest extends LocalTestCase
     #[DataProvider('workflowIdsTheProtocolCannotCarry')]
     public function test_a_workflow_id_the_protocol_cannot_carry_is_refused_as_invalid_request(string $workflowId): void
     {
-        $cloud = $this->benchWith('greeting')->cloud;
+        $iq = $this->benchWith('greeting')->iq;
 
-        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $cloud->workflow('greeting', $workflowId));
+        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $iq->workflow('greeting', $workflowId));
 
         self::assertSame(Code::InvalidRequest, $reason);
     }
@@ -98,7 +98,7 @@ class ManagedWorkflowTest extends LocalTestCase
         $bench = $this->benchWith('greeting');
         $workflowId = str_repeat('é', 255);
 
-        $thread = $bench->cloud->workflow('greeting', $workflowId);
+        $thread = $bench->iq->workflow('greeting', $workflowId);
 
         self::assertInstanceOf(ManagedWorkflow::class, $thread);
         self::assertNull((new Workflow())->for($workflowId)->setPersistence(($bench->persistence)())->inspect());
@@ -106,7 +106,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_configure_returns_the_instance_it_was_called_on(): void
     {
-        $thread = $this->benchWith('greeting')->cloud->workflow('greeting', self::WORKFLOW_ID);
+        $thread = $this->benchWith('greeting')->iq->workflow('greeting', self::WORKFLOW_ID);
 
         self::assertSame($thread, $thread->configure(static function (): void {
         }));
@@ -116,16 +116,16 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('greeting');
         $executions = $bench->executions;
-        $bench->cloud->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
+        $bench->iq->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
 
-        $runId = $bench->cloud->workflow('greeting', self::WORKFLOW_ID)->start()->dispatch();
+        $runId = $bench->iq->workflow('greeting', self::WORKFLOW_ID)->start()->dispatch();
 
         self::assertMatchesRegularExpression(self::MINTED_ON_VERSION_2, $runId);
     }
 
     public function test_every_start_mints_a_run_id_of_its_own(): void
     {
-        $thread = $this->benchWith('greeting')->cloud->workflow('greeting', self::WORKFLOW_ID);
+        $thread = $this->benchWith('greeting')->iq->workflow('greeting', self::WORKFLOW_ID);
 
         self::assertNotSame($thread->start()->dispatch(), $thread->start()->dispatch());
     }
@@ -134,7 +134,7 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('order');
 
-        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
+        $bench->iq->workflow('order', self::WORKFLOW_ID)->start()->run();
 
         self::assertSame('order', (new WorkflowEngine(($bench->persistence)()))->inspect(self::WORKFLOW_ID)?->tag);
     }
@@ -144,13 +144,13 @@ class ManagedWorkflowTest extends LocalTestCase
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $executions = $bench->executions;
         $received = [];
-        $bench->cloud->register('greeting', static function (string $workflowId, ?string $runId) use ($executions, &$received): Workflow {
+        $bench->iq->register('greeting', static function (string $workflowId, ?string $runId) use ($executions, &$received): Workflow {
             $received[] = [$workflowId, $runId];
 
             return new CompletingWorkflow($executions);
         });
 
-        $state = $bench->cloud->workflow('greeting', self::WORKFLOW_ID)->start()->run();
+        $state = $bench->iq->workflow('greeting', self::WORKFLOW_ID)->start()->run();
 
         self::assertSame([[self::WORKFLOW_ID, $state->getRunId()]], $received);
     }
@@ -159,7 +159,7 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('greeting');
 
-        $state = $bench->cloud->workflow('greeting', self::WORKFLOW_ID)->start()->run();
+        $state = $bench->iq->workflow('greeting', self::WORKFLOW_ID)->start()->run();
 
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -169,7 +169,7 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('order-fulfilment');
 
-        $state = $bench->cloud->workflow('order-fulfilment', self::WORKFLOW_ID)->start(new OrderPlaced('order:777'))->run();
+        $state = $bench->iq->workflow('order-fulfilment', self::WORKFLOW_ID)->start(new OrderPlaced('order:777'))->run();
 
         self::assertSame('order:777', $state->get('orderId'));
     }
@@ -177,7 +177,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_a_start_whose_event_no_node_handles_is_refused_as_invalid_start_before_anything_is_queued(): void
     {
         $bench = $this->benchWith('greeting');
-        $thread = $bench->cloud->workflow('greeting', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('greeting', self::WORKFLOW_ID);
 
         $reason = self::reasonThrownBy(static fn (): PendingSegment => $thread->start(new PaymentSettled()));
 
@@ -189,8 +189,8 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_what_a_hook_of_the_workflow_throws_is_thrown_from_start_as_it_is(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('unreadable', static fn (): Workflow => new UnreadableOrderWorkflow());
-        $thread = $bench->cloud->workflow('unreadable', self::WORKFLOW_ID);
+        $bench->iq->register('unreadable', static fn (): Workflow => new UnreadableOrderWorkflow());
+        $thread = $bench->iq->workflow('unreadable', self::WORKFLOW_ID);
 
         $this->expectExceptionObject(new RuntimeException('The orders table cannot be read.'));
 
@@ -202,7 +202,7 @@ class ManagedWorkflowTest extends LocalTestCase
         $provider = new FakeAIProvider(new AssistantMessage('Refunded.'));
         $bench = $this->benchWithAgent($provider);
 
-        $state = $bench->cloud->workflow('assistant', self::WORKFLOW_ID)->start(new UserMessage('Refund order 123.'))->run();
+        $state = $bench->iq->workflow('assistant', self::WORKFLOW_ID)->start(new UserMessage('Refund order 123.'))->run();
 
         self::assertSame(WorkflowStatus::Completed, $state->getStatus());
         $provider->assertCallCount(1);
@@ -216,7 +216,7 @@ class ManagedWorkflowTest extends LocalTestCase
         $bench = $this->benchWithAgent($provider);
         $conversation = [new UserMessage('Hello.'), new AssistantMessage('How can I help?'), new UserMessage('Refund order 123.')];
 
-        $bench->cloud->workflow('assistant', self::WORKFLOW_ID)->start($conversation, stream: true)->run();
+        $bench->iq->workflow('assistant', self::WORKFLOW_ID)->start($conversation, stream: true)->run();
 
         $provider->assertSent(static fn (RequestRecord $request): bool => $request->method === 'stream');
     }
@@ -224,9 +224,9 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_messages_are_set_on_a_copy_of_the_event_the_start_event_hook_of_the_agent_builds(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('briefing', static fn (): Agent => (new BriefingAgent())->setAiProvider(new FakeAIProvider()));
+        $bench->iq->register('briefing', static fn (): Agent => (new BriefingAgent())->setAiProvider(new FakeAIProvider()));
 
-        $bench->cloud->workflow('briefing', self::WORKFLOW_ID)->start(new UserMessage('Brief me.'), stream: true)->dispatch();
+        $bench->iq->workflow('briefing', self::WORKFLOW_ID)->start(new UserMessage('Brief me.'), stream: true)->dispatch();
 
         $event = unserialize((string) base64_decode((string) $this->queue->dispatched()[0]->event, true));
         self::assertInstanceOf(BriefingStartEvent::class, $event);
@@ -237,7 +237,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_messages_given_to_a_workflow_that_is_not_an_agent_are_an_invalid_start(): void
     {
-        $thread = $this->benchWith('greeting')->cloud->workflow('greeting', self::WORKFLOW_ID);
+        $thread = $this->benchWith('greeting')->iq->workflow('greeting', self::WORKFLOW_ID);
 
         $reason = self::reasonThrownBy(static fn (): PendingSegment => $thread->start(new UserMessage('Hello.')));
 
@@ -248,7 +248,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_an_agent_started_with_no_message_is_an_invalid_start(?array $input): void
     {
         $provider = new FakeAIProvider();
-        $thread = $this->benchWithAgent($provider)->cloud->workflow('assistant', self::WORKFLOW_ID);
+        $thread = $this->benchWithAgent($provider)->iq->workflow('assistant', self::WORKFLOW_ID);
 
         $reason = self::reasonThrownBy(static fn (): PendingSegment => $thread->start($input));
 
@@ -259,7 +259,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_an_answer_for_a_workflow_id_no_run_holds_is_an_input_translation_exception(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
 
         $this->expectException(InputTranslationException::class);
 
@@ -268,7 +268,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_an_answer_for_a_run_that_is_not_suspended_is_an_input_translation_exception(): void
     {
-        $thread = $this->benchWith('flaky')->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $this->benchWith('flaky')->iq->workflow('flaky', self::WORKFLOW_ID);
         $this->failAStart($thread);
 
         $this->expectException(InputTranslationException::class);
@@ -279,10 +279,10 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_an_answer_for_a_run_that_failed_with_its_answered_wait_still_attached_is_an_input_translation_exception(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('review', static fn (): Workflow => new ReviewedWorkflow(static function (): never {
+        $bench->iq->register('review', static fn (): Workflow => new ReviewedWorkflow(static function (): never {
             throw new NodeFailed('The review could not be filed.');
         }));
-        $thread = $bench->cloud->workflow('review', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('review', self::WORKFLOW_ID);
         $thread->start()->run();
         try {
             $thread->submitInputs(['approved' => true])->run();
@@ -298,7 +298,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_an_answer_run_in_place_resumes_the_wait_with_its_payload(): void
     {
         $bench = $this->benchWith('order');
-        $thread = $bench->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
 
         $state = $thread->submitInputs(self::PAYMENT)->run();
@@ -310,7 +310,7 @@ class ManagedWorkflowTest extends LocalTestCase
     #[DataProvider('continuationsRunInPlace')]
     public function test_a_continuation_run_in_place_executes_the_workflow_the_configure_callback_adjusted(string $verb): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
         $configured = [];
         $thread->configure(static function (Workflow $workflow) use (&$configured): void {
@@ -325,7 +325,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_an_answer_is_translated_against_the_wait_the_run_is_suspended_on(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
         $translator = new PaidAmountTranslator();
 
@@ -338,9 +338,9 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_what_the_translator_refuses_is_thrown_and_nothing_is_queued(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->dispatch();
-        $this->queue->runAll($this->bench->cloud);
+        $this->queue->runAll($this->bench->iq);
         $queued = $this->verbsQueued();
 
         try {
@@ -356,9 +356,9 @@ class ManagedWorkflowTest extends LocalTestCase
     #[DataProvider('payloadsNeuronCannotHold')]
     public function test_a_payload_that_is_not_json_compatible_is_refused_before_anything_is_queued(string $verb, array $payload): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->dispatch();
-        $this->queue->runAll($this->bench->cloud);
+        $this->queue->runAll($this->bench->iq);
         $queued = $this->verbsQueued();
 
         try {
@@ -373,7 +373,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_an_answer_the_wait_rejects_is_refused_as_not_awaited_before_anything_is_queued(): void
     {
-        $thread = $this->benchWith('order', deliveryAt: new DateTimeImmutable('+1 hour'))->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order', deliveryAt: new DateTimeImmutable('+1 hour'))->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
         $thread->signal(WaitingWorkflow::EVENT, self::PAYMENT)->run();
         $queued = $this->verbsQueued();
@@ -390,7 +390,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_an_answer_carries_the_run_id_and_the_attempt_the_snapshot_showed(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $started = $thread->start()->run();
 
         $runId = $thread->submitInputs(self::PAYMENT)->dispatch();
@@ -407,10 +407,10 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('order');
         $executions = $bench->executions;
-        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
-        $bench->cloud->register('order', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
+        $bench->iq->workflow('order', self::WORKFLOW_ID)->start()->run();
+        $bench->iq->register('order', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
 
-        $state = $bench->cloud->workflow('order', self::WORKFLOW_ID)->submitInputs(self::PAYMENT)->run();
+        $state = $bench->iq->workflow('order', self::WORKFLOW_ID)->submitInputs(self::PAYMENT)->run();
 
         self::assertSame(self::PAYMENT, $state->get('payment'));
         self::assertSame(1, $executions->count(DeliverNode::class));
@@ -421,9 +421,9 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): Workflow => new WaitingWorkflow($executions), version: 2);
-        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
-        $oldDeploy = (new NeuronCloud(TestBench::API_KEY, httpClient: $bench->platform))
+        $bench->iq->register('order', static fn (): Workflow => new WaitingWorkflow($executions), version: 2);
+        $bench->iq->workflow('order', self::WORKFLOW_ID)->start()->run();
+        $oldDeploy = (new IQ(TestBench::API_KEY, httpClient: $bench->platform))
             ->setPersistence($bench->persistence)
             ->setDispatcher($this->queue)
             ->register('order', static fn (): Workflow => new WaitingWorkflow($executions), version: 1);
@@ -438,8 +438,8 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('order');
         $executions = $bench->executions;
-        $bench->cloud->workflow('order', self::WORKFLOW_ID)->start()->run();
-        $billing = $bench->cloud
+        $bench->iq->workflow('order', self::WORKFLOW_ID)->start()->run();
+        $billing = $bench->iq
             ->register('billing', static fn (): Workflow => new WaitingWorkflow($executions))
             ->workflow('billing', self::WORKFLOW_ID);
 
@@ -454,10 +454,10 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('order');
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
+        $bench->iq->register('order', static fn (): Workflow => new CompletingWorkflow($executions), version: 2);
         (new WaitingWorkflow($executions))->for(self::WORKFLOW_ID)->setPersistence(($bench->persistence)())->run();
 
-        $state = $bench->cloud->workflow('order', self::WORKFLOW_ID)->submitInputs(self::PAYMENT)->run();
+        $state = $bench->iq->workflow('order', self::WORKFLOW_ID)->submitInputs(self::PAYMENT)->run();
 
         self::assertSame(self::PAYMENT, $state->get('payment'));
         self::assertSame(1, $executions->count(DeliverNode::class));
@@ -465,7 +465,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_a_signal_for_a_workflow_id_no_run_holds_is_an_input_translation_exception(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
 
         $this->expectException(InputTranslationException::class);
 
@@ -474,7 +474,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_a_signal_the_run_waits_for_carries_its_name_its_payload_and_the_fence_of_the_snapshot(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $started = $thread->start()->run();
 
         $thread->signal(WaitingWorkflow::EVENT, self::PAYMENT)->dispatch();
@@ -488,7 +488,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_a_signal_with_another_name_than_the_awaited_one_is_refused_as_not_awaited(): void
     {
-        $thread = $this->benchWith('order')->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order')->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
 
         self::assertSame(RefusalReason::NotAwaited, $this->refusalOf($thread, 'shipment.delayed'));
@@ -496,7 +496,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_a_signal_for_a_run_that_waits_for_a_timer_is_refused_as_not_awaited(): void
     {
-        $thread = $this->benchWith('order', deliveryAt: new DateTimeImmutable('+1 hour'))->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $this->benchWith('order', deliveryAt: new DateTimeImmutable('+1 hour'))->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
         $thread->signal(WaitingWorkflow::EVENT, self::PAYMENT)->run();
 
@@ -505,7 +505,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_recover_returns_null_and_queues_nothing_when_no_run_holds_the_workflow_id(): void
     {
-        $thread = $this->benchWith('flaky')->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $this->benchWith('flaky')->iq->workflow('flaky', self::WORKFLOW_ID);
 
         self::assertNull($thread->recover());
         self::assertSame([], $this->queue->dispatched());
@@ -514,7 +514,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_recover_leaves_a_suspended_run_alone(): void
     {
         $bench = $this->benchWith('order');
-        $thread = $bench->cloud->workflow('order', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('order', self::WORKFLOW_ID);
         $thread->start()->run();
         $queued = $this->verbsQueued();
 
@@ -526,7 +526,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_recover_finishes_a_failed_run_in_this_process_and_returns_its_state(): void
     {
         $bench = $this->benchWith('flaky');
-        $thread = $bench->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('flaky', self::WORKFLOW_ID);
         $this->failAStart($thread);
 
         $state = $thread->recover();
@@ -540,8 +540,8 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('flaky');
         $executions = $bench->executions;
-        $this->failAStart($bench->cloud->workflow('flaky', self::WORKFLOW_ID));
-        $greeting = $bench->cloud
+        $this->failAStart($bench->iq->workflow('flaky', self::WORKFLOW_ID));
+        $greeting = $bench->iq
             ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions))
             ->workflow('greeting', self::WORKFLOW_ID);
 
@@ -553,7 +553,7 @@ class ManagedWorkflowTest extends LocalTestCase
 
     public function test_recover_runs_a_wake_fenced_with_the_attempt_it_read_between_an_announcement_and_an_observe(): void
     {
-        $thread = $this->benchWith('flaky')->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $this->benchWith('flaky')->iq->workflow('flaky', self::WORKFLOW_ID);
         $this->failAStart($thread);
 
         $state = $thread->recover();
@@ -570,7 +570,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_recover_throws_what_a_node_that_fails_again_throws(): void
     {
         $bench = $this->benchWith('flaky', failures: 2);
-        $thread = $bench->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('flaky', self::WORKFLOW_ID);
         $this->failAStart($thread);
 
         try {
@@ -586,7 +586,7 @@ class ManagedWorkflowTest extends LocalTestCase
     public function test_recover_leaves_the_configure_callback_uncalled(): void
     {
         $calls = 0;
-        $thread = $this->benchWith('flaky')->cloud->workflow('flaky', self::WORKFLOW_ID)->configure(static function () use (&$calls): void {
+        $thread = $this->benchWith('flaky')->iq->workflow('flaky', self::WORKFLOW_ID)->configure(static function () use (&$calls): void {
             $calls++;
         });
         $this->failAStart($thread);
@@ -602,15 +602,15 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         $bench = $this->benchWith('flaky', $failures);
         $executions = $bench->executions;
-        $thread = $bench->cloud->workflow('flaky', self::WORKFLOW_ID);
+        $thread = $bench->iq->workflow('flaky', self::WORKFLOW_ID);
         $this->failAStart($thread);
         // The run ID reaches the factory when the wake of recover() is built: after its snapshot, before Neuron admits it.
-        $bench->cloud->register('flaky', static function (string $workflowId, ?string $runId) use ($bench, $executions, $failures): Workflow {
+        $bench->iq->register('flaky', static function (string $workflowId, ?string $runId) use ($bench, $executions, $failures): Workflow {
             static $rivalActed = false;
 
             if (!$rivalActed && $runId !== null) {
                 $rivalActed = true;
-                $bench->cloud->invoke(new Invocation('inv_rival', Verb::Wake, Origin::PLATFORM, 'flaky', $workflowId, $runId, 1));
+                $bench->iq->invoke(new Invocation('inv_rival', Verb::Wake, Origin::PLATFORM, 'flaky', $workflowId, $runId, 1));
             }
 
             return new FlakyWorkflow($executions, $failures);
@@ -639,12 +639,12 @@ class ManagedWorkflowTest extends LocalTestCase
                 usleep(50_000);
             }
 
-            $recovered = $bench->cloud->workflow('slow', self::WORKFLOW_ID)->recover();
+            $recovered = $bench->iq->workflow('slow', self::WORKFLOW_ID)->recover();
         };
-        $bench->cloud->register('slow', static fn (): Workflow => new BusyWorkflow($executions, $outlivesItsLease), leaseTimeout: 1);
+        $bench->iq->register('slow', static fn (): Workflow => new BusyWorkflow($executions, $outlivesItsLease), leaseTimeout: 1);
 
         try {
-            $bench->cloud->workflow('slow', self::WORKFLOW_ID)->start()->run();
+            $bench->iq->workflow('slow', self::WORKFLOW_ID)->start()->run();
             self::fail('The worker taken for dead committed its segment.');
         } catch (WorkflowRefusedException) {
             // Its run was finished by recover(): Neuron refuses the write of the segment that lost it.
@@ -663,12 +663,12 @@ class ManagedWorkflowTest extends LocalTestCase
         $queuedByRecover = null;
         $whileRunning = function () use ($bench, &$recovered, &$queuedByRecover): void {
             $queued = $this->verbsQueued();
-            $recovered = $bench->cloud->workflow('busy', self::WORKFLOW_ID)->recover();
+            $recovered = $bench->iq->workflow('busy', self::WORKFLOW_ID)->recover();
             $queuedByRecover = [$queued, $this->verbsQueued()];
         };
-        $bench->cloud->register('busy', static fn (): Workflow => new BusyWorkflow($executions, $whileRunning));
+        $bench->iq->register('busy', static fn (): Workflow => new BusyWorkflow($executions, $whileRunning));
 
-        $state = $bench->cloud->workflow('busy', self::WORKFLOW_ID)->start()->run();
+        $state = $bench->iq->workflow('busy', self::WORKFLOW_ID)->start()->run();
 
         self::assertNull($recovered);
         self::assertSame([[Verb::Announce], [Verb::Announce]], $queuedByRecover);
@@ -683,7 +683,7 @@ class ManagedWorkflowTest extends LocalTestCase
     {
         return [
             'an empty one' => [''],
-            'one that begins with two underscores' => ['__neuron_cloud:order'],
+            'one that begins with two underscores' => ['__iq:order'],
             'one of 256 characters' => [str_repeat('a', 256)],
             'one with a control character' => ["order:\n123"],
             'one that ends with a line feed' => ["order:123\n"],
@@ -754,7 +754,7 @@ class ManagedWorkflowTest extends LocalTestCase
             'order-fulfilment' => static fn (): Workflow => new OrderFulfilment($executions, $deliveryAt),
             'flaky' => static fn (): Workflow => new FlakyWorkflow($executions, $failures),
         ];
-        $bench->cloud->register($name, $factories[$name]);
+        $bench->iq->register($name, $factories[$name]);
 
         return $bench;
     }
@@ -765,7 +765,7 @@ class ManagedWorkflowTest extends LocalTestCase
     protected function benchWithAgent(FakeAIProvider $provider): TestBench
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('assistant', static fn (): Agent => Agent::make()->setAiProvider($provider));
+        $bench->iq->register('assistant', static fn (): Agent => Agent::make()->setAiProvider($provider));
 
         return $bench;
     }

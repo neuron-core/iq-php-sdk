@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Requests;
+namespace NeuronCore\IQ\Tests\Support\Requests;
 
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Assert;
 
 use function array_keys;

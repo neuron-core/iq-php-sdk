@@ -1,6 +1,6 @@
 # Durable Platform Readiness
 
-Can the Neuron AI Workflow engine be driven by an external orchestration platform ("Neuron Cloud"), the way Temporal, Restate and Inngest drive their frameworks? This document maps what Neuron already provides, what is missing, and what the architecture gains and costs.
+Can the Neuron AI Workflow engine be driven by an external orchestration platform ("IQ"), the way Temporal, Restate and Inngest drive their frameworks? This document maps what Neuron already provides, what is missing, and what the architecture gains and costs.
 
 - **Analysed:** `neuron-core/neuron-ai` 4.1.2 as installed in `vendor/`. Its `src/Workflow` is identical to the local `../neuron-ai` checkout (branch `4.x`, commit `a533d8e2`).
 - **Method:** reading the source and its tests. Nothing was executed.
@@ -103,7 +103,7 @@ Every durable platform has two halves: an SDK inside your process and a server s
 
 ### Side by side
 
-| | Temporal | Restate | Inngest | DBOS + Conductor | Neuron + Neuron Cloud |
+| | Temporal | Restate | Inngest | DBOS + Conductor | Neuron + IQ |
 |---|---|---|---|---|---|
 | Transport | Worker pulls (gRPC long-poll) | Server pushes (HTTP/2 stream) | Server pushes (HTTP request) | Worker dials out (WebSocket) | To be designed. The engine is transport-neutral |
 | Journal and state live in | The platform | The platform | The platform | Your Postgres | Your database or Redis |
@@ -117,9 +117,9 @@ Every durable platform has two halves: an SDK inside your process and a server s
 
 Temporal, Restate and Inngest keep the journal on the platform. That puts the platform on the data path: it sees every input and result, every step costs a network round trip, and nothing runs while it is unreachable. In exchange the platform can do everything alone: show each step, retry any step, pin code versions.
 
-DBOS and Neuron keep the journal in the application's database. The platform shrinks to the control path: it decides when a run should continue and tells the application, which does the rest locally. Neuron Cloud would follow this model.
+DBOS and Neuron keep the journal in the application's database. The platform shrinks to the control path: it decides when a run should continue and tells the application, which does the rest locally. IQ would follow this model.
 
-One difference from DBOS matters. The DBOS library runs sleeps, queues and schedules inside the application process. Neuron's core has no scheduler, and a suspended run holds no process at all. `sleepUntil()` and `awaitEvent()` describe a wait and stop. Something outside has to call back at the right moment. That "something" is exactly the job Neuron Cloud would take.
+One difference from DBOS matters. The DBOS library runs sleeps, queues and schedules inside the application process. Neuron's core has no scheduler, and a suspended run holds no process at all. `sleepUntil()` and `awaitEvent()` describe a wait and stop. Something outside has to call back at the right moment. That "something" is exactly the job IQ would take.
 
 ## 4. Neuron's durable model
 
@@ -251,7 +251,7 @@ Every arrow into `running` raises the execution attempt by one. Without retentio
 
 ```mermaid
 sequenceDiagram
-    participant C as Neuron Cloud
+    participant C as IQ
     participant S as SDK in your app
     participant E as Workflow engine
     participant D as Your database
@@ -304,7 +304,7 @@ Most rows have a dedicated test in `tests/Workflow/`: `WorkflowDuplicateRequestT
 
 ## 7. Readiness map
 
-Status values: **Ready** (usable as it is), **SDK** (needs an adapter in this package), **Platform** (to be built in Neuron Cloud), **Gap** (missing in the core; numbers refer to section 9.2).
+Status values: **Ready** (usable as it is), **SDK** (needs an adapter in this package), **Platform** (to be built in IQ), **Gap** (missing in the core; numbers refer to section 9.2).
 
 ### Durability
 
@@ -374,7 +374,7 @@ Status values: **Ready** (usable as it is), **SDK** (needs an adapter in this pa
 
 **6. Workflow authors face few rules.** Completed steps are read back, never re-derived, so there is no general determinism constraint on workflow code. An old run replays its completed steps from their records and meets changed code only from where it stopped, so adding nodes and events downstream is safe. The limits are listed under G7.
 
-**7. It works without the platform.** A Neuron application is durable on its own; the cloud adds scheduling, recovery and operations. A platform outage delays wake-ups but does not stop running segments or lose progress. This is also the adoption path: the open-source framework is useful alone and the platform is an upgrade, which is the model DBOS follows with Conductor.
+**7. It works without the platform.** A Neuron application is durable on its own; IQ adds scheduling, recovery and operations. A platform outage delays wake-ups but does not stop running segments or lose progress. This is also the adoption path: the open-source framework is useful alone and the platform is an upgrade, which is the model DBOS follows with Conductor.
 
 **8. Agents inherit all of it.** `Agent` and `RAG` are compositions of Workflow. Inference and tool calls are already memoized, tool approval is already an interruption, and output streaming goes through channels that a resumed segment can use from any worker. The platform does not need to proxy streams.
 
@@ -396,7 +396,7 @@ These follow from the architecture. They cannot be removed, only designed around
 
 **S4. "Data stays local" has one edge: inputs that originate at the platform.** State, steps and memos never leave. But if the platform triggers a start from an API call or a cron, or routes an external event to a waiting run, that input passes through it. The same applies to the full JSON envelope of an interruption: for an `ApprovalRequest` it includes the human-facing message and the tool actions. The SDK must send only the coordination fields (ID, type, event name, deadline). Section 12 lists the options for payloads.
 
-**S5. A thin platform is easier to replace.** Because the engine does the hard part, a determined user can drive it with cron and a queue. The value of Neuron Cloud has to come from what is tedious to build and run well: reliable wake-ups at scale, retries and flow control, visibility, alerting, and developer experience.
+**S5. A thin platform is easier to replace.** Because the engine does the hard part, a determined user can drive it with cron and a queue. The value of IQ has to come from what is tedious to build and run well: reliable wake-ups at scale, retries and flow control, visibility, alerting, and developer experience.
 
 **S6. The application must be reachable, or dial out.** Push delivery needs a public, authenticated endpoint. Applications behind a firewall and local development need a worker that connects outwards, or a tunnel.
 
@@ -559,7 +559,7 @@ Four rules the SDK has to enforce or document:
 3. **Platform-delivered answers use the envelope's fences, not `submitInputs()`.** `submitInputs()` reads the run ID and attempt at the moment it is called, so a redelivered answer would be re-fenced to the current attempt and could reach a later wait. The SDK calls the translator itself and builds `ExecutionRequest::resume($answer, $runId, $attempt)` from the envelope.
 4. **Hydrate before igniting.** An invalid start input is refused as a permanent error before any run exists, so the platform does not retry it.
 
-The neuron-ai monitoring and evaluation guides already describe a `NeuronCloud` root object for this package (transport, platform URL, API key, signing key). The orchestration gateway can hang off the same root and reuse the signing key to verify inbound requests.
+The neuron-ai monitoring and evaluation guides already describe an `IQ` root object for this package (transport, platform URL, API key, signing key). The orchestration gateway can hang off the same root and reuse the signing key to verify inbound requests.
 
 ## 12. Decisions
 

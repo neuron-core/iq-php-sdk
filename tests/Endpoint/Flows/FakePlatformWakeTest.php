@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Flows;
+namespace NeuronCore\IQ\Tests\Endpoint\Flows;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
 
 /**
- * FakePlatform::wake(): the wake Neuron Cloud sends when a timer comes due
+ * FakePlatform::wake(): the wake IQ sends when a timer comes due
  * or a run has failed, fenced with what the application last reported for
  * the workflow ID. The order waits for its payment, then for a timer that
  * is due.
@@ -106,7 +106,7 @@ class FakePlatformWakeTest extends EndpointTestCase
         $this->work();
         $this->deliver($this->start(['invocationId' => 'inv_other', 'workflowId' => 'order:124', 'runId' => '1-another-order']));
         $this->work();
-        $bench->cloud->workflow(self::DEFINITION, 'order:124')->signal(WaitingWorkflow::EVENT)->dispatch();
+        $bench->iq->workflow(self::DEFINITION, 'order:124')->signal(WaitingWorkflow::EVENT)->dispatch();
         $this->work();
 
         $this->platformWakes();
@@ -128,7 +128,7 @@ class FakePlatformWakeTest extends EndpointTestCase
         ]));
         $this->work();
 
-        $bench->platform->wake($bench->cloud, self::NIGHTLY_WORKFLOW_ID);
+        $bench->platform->wake($bench->iq, self::NIGHTLY_WORKFLOW_ID);
 
         $wake = $this->lastDelivered();
         self::assertSame([self::NIGHTLY, self::NIGHTLY_WORKFLOW_ID, self::NIGHTLY_RUN_ID], [$wake['definition'], $wake['workflowId'], $wake['runId']]);
@@ -140,7 +140,7 @@ class FakePlatformWakeTest extends EndpointTestCase
         $bench = $this->shop($backend);
         $this->deliver($this->start());
         $this->work();
-        $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->dispatch();
+        $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->dispatch();
         // The announcement and the report of the signal are lost: the run moved on and the platform does not know.
         $bench->platform->failNext(2);
         $this->work();
@@ -196,7 +196,7 @@ class FakePlatformWakeTest extends EndpointTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud
+        $bench->iq
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions))
             ->register(self::NIGHTLY, static fn (): Workflow => new WaitingWorkflow($executions));
 
@@ -211,13 +211,13 @@ class FakePlatformWakeTest extends EndpointTestCase
     {
         $this->deliver($this->start());
         $this->work();
-        $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->dispatch();
+        $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->dispatch();
         $this->work();
     }
 
     protected function platformWakes(): HttpResponse
     {
-        return $this->bench->platform->wake($this->bench->cloud, self::WORKFLOW_ID);
+        return $this->bench->platform->wake($this->bench->iq, self::WORKFLOW_ID);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Units;
+namespace NeuronCore\IQ\Tests\Support\Units;
 
 use RuntimeException;
 
@@ -66,8 +66,8 @@ final class LocalPlatform
     public function __construct()
     {
         $this->port = self::freePort();
-        $this->requestLog = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-');
-        $this->datasets = sys_get_temp_dir() . '/' . uniqid('neuron-cloud-datasets-');
+        $this->requestLog = (string) tempnam(sys_get_temp_dir(), 'iq-');
+        $this->datasets = sys_get_temp_dir() . '/' . uniqid('iq-datasets-');
         mkdir($this->datasets);
 
         $process = proc_open(
@@ -76,7 +76,7 @@ final class LocalPlatform
             [0 => ['pipe', 'r'], 2 => ['pipe', 'w']],
             $this->pipes,
             null,
-            ['NEURON_CLOUD_REQUEST_LOG' => $this->requestLog, 'NEURON_CLOUD_DATASETS' => $this->datasets],
+            ['IQ_REQUEST_LOG' => $this->requestLog, 'IQ_DATASETS' => $this->datasets],
         );
 
         if (!is_resource($process)) {

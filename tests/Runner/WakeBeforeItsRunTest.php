@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
-use NeuronCore\Cloud\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
+use NeuronCore\IQ\Invocation;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -33,7 +33,7 @@ class WakeBeforeItsRunTest extends RunnerTestCase
             $reads += (int) ($partition === self::WORKFLOW_ID);
         });
 
-        $report = $bench->cloud->invoke($this->wakeOf('greeting', self::RUN_ID, attempt: 1));
+        $report = $bench->iq->invoke($this->wakeOf('greeting', self::RUN_ID, attempt: 1));
 
         self::assertSame([Outcome::Refused, RefusalReason::StaleRun->value], [$report->outcome, $report->code]);
         self::assertSame(2, $reads, 'The guard reads once and the report reads once: Neuron is not asked.');
@@ -45,7 +45,7 @@ class WakeBeforeItsRunTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->aRunOfFlakyFailsBeforeTheSecondReadOfTheStore($bench);
 
-        $report = $bench->cloud->invoke($this->wakeOf('greeting', self::RUN_ID, attempt: 1));
+        $report = $bench->iq->invoke($this->wakeOf('greeting', self::RUN_ID, attempt: 1));
 
         self::assertSame([Outcome::Refused, RefusalReason::StaleRun->value], [$report->outcome, $report->code]);
         self::assertSame([1, 0], [$bench->executions->count(FlakyNode::class), $bench->executions->count(CompleteNode::class)]);

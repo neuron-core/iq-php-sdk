@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Contract;
+namespace NeuronCore\IQ\Tests\Contract;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\Matrix\FirstCopy;
-use NeuronCore\Cloud\Tests\Support\Matrix\Kind;
-use NeuronCore\Cloud\Tests\Support\Matrix\Redelivery;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\Matrix\FirstCopy;
+use NeuronCore\IQ\Tests\Support\Matrix\Kind;
+use NeuronCore\IQ\Tests\Support\Matrix\Redelivery;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -79,7 +79,7 @@ use PHPUnit\Framework\Attributes\DataProvider;
  * written, and the store holds the records a killed worker leaves. The lease
  * passes one real second later.
  */
-class RedeliveryMatrixTest extends CloudTestCase
+class RedeliveryMatrixTest extends IQTestCase
 {
     protected function assertPostConditions(): void
     {

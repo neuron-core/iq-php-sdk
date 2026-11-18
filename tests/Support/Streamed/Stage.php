@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 use Closure;
 use Generator;
@@ -12,25 +12,25 @@ use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\Faults\FaultyPersistence;
-use NeuronCore\Cloud\Tests\Stub\InPlace\WatchedQueue;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MidBody;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Stub\Streamed\TaleWorkflow;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreJournal;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\Faults\FaultyPersistence;
+use NeuronCore\IQ\Tests\Stub\InPlace\WatchedQueue;
+use NeuronCore\IQ\Tests\Stub\Matrix\MidBody;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Stub\Streamed\TaleWorkflow;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreJournal;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Assert;
 use RuntimeException;
 
@@ -64,7 +64,7 @@ final class Stage
 
     public const ANSWER = ['name' => 'Ada'];
 
-    public readonly NeuronCloud $cloud;
+    public readonly IQ $iq;
 
     public readonly WatchedQueue $queue;
 
@@ -102,7 +102,7 @@ final class Stage
 
     /**
      * @param int $lease seconds
-     * @param bool $hasAQueue false: the cloud of the stage is given no dispatcher, and runs every message in place
+     * @param bool $hasAQueue false: the service of the stage is given no dispatcher, and runs every message in place
      */
     protected function __construct(
         public readonly TestBench $bench,
@@ -118,7 +118,7 @@ final class Stage
         $this->beforeStoreOperation = static function (): void {
         };
 
-        $this->cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
+        $this->iq = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence($this->store(...))
             ->register(
                 self::DEFINITION,
@@ -129,10 +129,10 @@ final class Stage
             );
 
         if ($hasAQueue) {
-            $this->cloud->setDispatcher($this->queue);
+            $this->iq->setDispatcher($this->queue);
         }
 
-        $this->thread = $this->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID);
+        $this->thread = $this->iq->workflow(self::DEFINITION, self::WORKFLOW_ID);
         $this->open();
         $this->handOver();
     }
@@ -146,7 +146,7 @@ final class Stage
     }
 
     /**
-     * A stage whose cloud was given no dispatcher: every message runs in place.
+     * A stage whose service was given no dispatcher: every message runs in place.
      */
     public static function withoutQueue(TestBench $bench, Kind $kind, Ending $ending = Ending::Completes): self
     {
@@ -221,7 +221,7 @@ final class Stage
      */
     public function elsewhere(?Ending $ending = null): ManagedWorkflow
     {
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new FakePlatform()))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new FakePlatform()))
             ->setPersistence($this->bench->persistence)
             ->register(self::DEFINITION, fn (): Workflow => $this->tale($ending ?? $this->ending), leaseTimeout: $this->lease)
             ->workflow(self::DEFINITION, self::WORKFLOW_ID);
@@ -276,12 +276,12 @@ final class Stage
     /**
      * Let the worker of the stage run what is queued.
      *
-     * @return array<int, Report|CloudException>
+     * @return array<int, Report|IQException>
      */
     public function drain(): array
     {
         $received = count($this->bench->platform->received());
-        $results = $this->queue->runAll($this->cloud);
+        $results = $this->queue->runAll($this->iq);
         $this->requestsOfTheWorker += count($this->bench->platform->received()) - $received;
 
         return $results;
@@ -295,7 +295,7 @@ final class Stage
         $received = count($this->bench->platform->received());
 
         try {
-            return $this->cloud->invoke($message);
+            return $this->iq->invoke($message);
         } finally {
             $this->requestsOfTheWorker += count($this->bench->platform->received()) - $received;
         }
@@ -439,7 +439,7 @@ final class Stage
      */
     public function ledgerRecord(): ?string
     {
-        return ($this->bench->persistence)()->get('__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID), 'starts');
+        return ($this->bench->persistence)()->get('__iq:' . hash('sha256', self::WORKFLOW_ID), 'starts');
     }
 
     /**
@@ -480,7 +480,7 @@ final class Stage
     {
         if ($this->kind->continuesARun()) {
             $this->thread->start()->dispatch();
-            $this->queue->runAll($this->cloud);
+            $this->queue->runAll($this->iq);
         }
     }
 

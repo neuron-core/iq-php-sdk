@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Evaluation;
+namespace NeuronCore\IQ\Tests\Evaluation;
 
 use NeuronAI\Console\Evaluation\EvaluationCommand;
 use NeuronAI\Evaluation\Config\ConfigLoader;
@@ -13,13 +13,13 @@ use NeuronAI\Evaluation\Runner\EvaluationResults;
 use NeuronAI\Evaluation\Runner\EvaluatorResult;
 use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Datasets\RefundRequestsEvaluator;
+use NeuronCore\IQ\Tests\Stub\Evaluation\GreetingEvaluator;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -35,9 +35,9 @@ use const JSON_THROW_ON_ERROR;
  * built with the service returns it from getDataset(), and Neuron's runner
  * loads it.
  */
-class CloudDatasetTest extends TestCase
+class IQDatasetTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const ITEMS = [
         ['input' => ['order' => 123], 'expected_output' => ['contains' => 'Order 123']],
@@ -46,7 +46,7 @@ class CloudDatasetTest extends TestCase
 
     public function test_neurons_runner_runs_the_evaluator_on_every_item_the_platform_keeps_in_order(): void
     {
-        $evaluator = new RefundRequestsEvaluator(self::cloud(self::keeping(self::ITEMS)));
+        $evaluator = new RefundRequestsEvaluator(self::iq(self::keeping(self::ITEMS)));
 
         $results = (new EvaluatorRunner())->run($evaluator);
 
@@ -59,7 +59,7 @@ class CloudDatasetTest extends TestCase
     public function test_the_items_are_read_once_when_the_runner_loads_the_dataset_and_not_before(): void
     {
         $http = self::keeping(self::ITEMS);
-        $evaluator = new RefundRequestsEvaluator(self::cloud($http));
+        $evaluator = new RefundRequestsEvaluator(self::iq($http));
 
         $evaluator->getDataset();
         $read = $http->received();
@@ -71,14 +71,14 @@ class CloudDatasetTest extends TestCase
 
     public function test_an_empty_dataset_runs_nothing(): void
     {
-        $results = (new EvaluatorRunner())->run(new RefundRequestsEvaluator(self::cloud(self::keeping([]))));
+        $results = (new EvaluatorRunner())->run(new RefundRequestsEvaluator(self::iq(self::keeping([]))));
 
         self::assertSame(0, $results->getTotalCount());
     }
 
     public function test_a_dataset_the_platform_does_not_give_stops_the_evaluator_before_any_item_runs(): void
     {
-        $evaluator = new RefundRequestsEvaluator(self::cloud(new ScriptedHttpClient(new HttpResponse(401, '{"code":"unauthorized"}'))));
+        $evaluator = new RefundRequestsEvaluator(self::iq(new ScriptedHttpClient(new HttpResponse(401, '{"code":"unauthorized"}'))));
 
         $refused = self::thrownBy(static fn (): EvaluationResults => (new EvaluatorRunner())->run($evaluator));
 
@@ -91,12 +91,12 @@ class CloudDatasetTest extends TestCase
      */
     public function test_neurons_command_reports_an_evaluator_whose_dataset_cannot_be_read_and_runs_the_others(): void
     {
-        $cloud = self::cloud(new ScriptedHttpClient(new HttpResponse(404, '{"message":"Not found."}')));
+        $iq = self::iq(new ScriptedHttpClient(new HttpResponse(404, '{"message":"Not found."}')));
         $output = self::recordingOutput();
         $command = new EvaluationCommand(
             self::configListing($output),
             self::discovering([RefundRequestsEvaluator::class, GreetingEvaluator::class]),
-            resolver: static fn (string $class): object => $class === RefundRequestsEvaluator::class ? new $class($cloud) : new $class(),
+            resolver: static fn (string $class): object => $class === RefundRequestsEvaluator::class ? new $class($iq) : new $class(),
         );
         $command->setErrorStream(fopen('php://memory', 'w+'));
 
@@ -106,7 +106,7 @@ class CloudDatasetTest extends TestCase
 
         [$refunds, $greetings] = $output->report?->getEvaluatorReports() ?? [];
         self::assertSame(1, $exitCode);
-        self::assertStringStartsWith(CloudException::class . ': The platform answered 404 to /v1/datasets/refund-requests.', (string) $refunds?->getError());
+        self::assertStringStartsWith(IQException::class . ': The platform answered 404 to /v1/datasets/refund-requests.', (string) $refunds?->getError());
         self::assertSame(0, $refunds?->getResults()->getTotalCount());
         self::assertSame([null, 2], [$greetings?->getError(), $greetings?->getResults()->getTotalCount()]);
     }
@@ -122,9 +122,9 @@ class CloudDatasetTest extends TestCase
         )));
     }
 
-    protected static function cloud(ScriptedHttpClient $http): NeuronCloud
+    protected static function iq(ScriptedHttpClient $http): IQ
     {
-        return new NeuronCloud('test-api-key', platformUrl: 'https://platform.test', httpClient: $http);
+        return new IQ('test-api-key', platformUrl: 'https://platform.test', httpClient: $http);
     }
 
     /**

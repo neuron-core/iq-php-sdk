@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentState;
@@ -16,8 +16,8 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;

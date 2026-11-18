@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\InPlace;
+namespace NeuronCore\IQ\Tests\Local\InPlace;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowEngine;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Support\InPlace\InPlaceTestCase;
-use NeuronCore\Cloud\Tests\Support\InPlace\Kind;
-use NeuronCore\Cloud\Tests\Support\InPlace\Stage;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Support\InPlace\InPlaceTestCase;
+use NeuronCore\IQ\Tests\Support\InPlace\Kind;
+use NeuronCore\IQ\Tests\Support\InPlace\Stage;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -74,7 +74,7 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
         $stage = $this->stage($backend, Kind::Start, $ending);
         $runId = self::runIdOf($stage, $stage->play());
 
-        $copied = $stage->play(static fn (): string => $stage->cloud->invoke(self::copyOfTheStart($runId))->runId);
+        $copied = $stage->play(static fn (): string => $stage->iq->invoke(self::copyOfTheStart($runId))->runId);
 
         self::assertNull($copied->thrown);
         self::assertSame([0, []], [$copied->bodiesRun, $copied->attemptsOpened]);
@@ -86,7 +86,7 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
         $stage = $this->stage($backend, Kind::Start, $ending);
         $runId = self::runIdOf($stage, $stage->play());
 
-        $report = $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $report = $stage->iq->invoke(self::copyOfTheStart($runId));
 
         self::assertSame(
             [Outcome::Refused, RefusalReason::RunInFlight->value, null],
@@ -102,7 +102,7 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
         $runId = self::runIdOf($stage, $stage->play());
         $held = $stage->stored();
 
-        $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $stage->iq->invoke(self::copyOfTheStart($runId));
 
         self::assertSame($held, $stage->stored());
     }
@@ -113,7 +113,7 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
         $stage = $this->stage($backend, Kind::Start, $ending);
         $runId = self::runIdOf($stage, $stage->play());
 
-        $report = $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $report = $stage->iq->invoke(self::copyOfTheStart($runId));
 
         self::assertTrue($report->claimed);
         self::assertTrue((new Ledger($stage->bench->persistence))->has(Stage::WORKFLOW_ID, $runId));
@@ -124,11 +124,11 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
     {
         $stage = $this->stage($backend, Kind::Start, $ending);
         $runId = self::runIdOf($stage, $stage->play());
-        $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $stage->iq->invoke(self::copyOfTheStart($runId));
         (new WorkflowEngine(($stage->bench->persistence)()))->abandon(Stage::WORKFLOW_ID);
         $bodiesRun = $stage->bench->executions->total();
 
-        $report = $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $report = $stage->iq->invoke(self::copyOfTheStart($runId));
 
         self::assertSame([Outcome::Rejected, Code::AlreadyClaimed->value, null], [$report->outcome, $report->code, $report->run]);
         self::assertSame($bodiesRun, $stage->bench->executions->total());
@@ -147,7 +147,7 @@ class StartOutsideTheLedgerTest extends InPlaceTestCase
         $runId = self::runIdOf($stage, $stage->play());
         $bodiesRun = $stage->bench->executions->total();
 
-        $report = $stage->cloud->invoke(self::copyOfTheStart($runId));
+        $report = $stage->iq->invoke(self::copyOfTheStart($runId));
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([Outcome::Completed, 1, true], [$report->outcome, $report->executedAttempt, $report->claimed]);

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\InPlace;
+namespace NeuronCore\IQ\Tests\Support\InPlace;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function array_slice;
 use function is_array;
@@ -22,7 +22,7 @@ use const PHP_URL_PATH;
  * stage, once per backend, and for every kind of segment where the data
  * provider says so.
  */
-abstract class InPlaceTestCase extends CloudTestCase
+abstract class InPlaceTestCase extends IQTestCase
 {
     protected const ANNOUNCEMENTS = '/v1/announcements';
 

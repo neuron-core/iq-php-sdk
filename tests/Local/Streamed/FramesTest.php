@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Streamed;
+namespace NeuronCore\IQ\Tests\Local\Streamed;
 
 use Closure;
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Streamed\EchoingAdapter;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Stub\Streamed\TaleWorkflow;
-use NeuronCore\Cloud\Tests\Support\Streamed\Kind;
-use NeuronCore\Cloud\Tests\Support\Streamed\Stage;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamedTestCase;
-use NeuronCore\Cloud\Tests\Support\Streamed\Taken;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Streamed\EchoingAdapter;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Stub\Streamed\TaleWorkflow;
+use NeuronCore\IQ\Tests\Support\Streamed\Kind;
+use NeuronCore\IQ\Tests\Support\Streamed\Stage;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamedTestCase;
+use NeuronCore\IQ\Tests\Support\Streamed\Taken;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;

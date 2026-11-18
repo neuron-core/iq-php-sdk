@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 use Closure;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
@@ -11,31 +11,31 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Evaluation\CloudDataset;
-use NeuronCore\Cloud\Evaluation\CloudOutput;
-use NeuronCore\Cloud\Evaluation\DatasetUpload;
-use NeuronCore\Cloud\Evaluation\RunContext;
-use NeuronCore\Cloud\Observability\CloudListener;
-use NeuronCore\Cloud\Observability\TraceExporter;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\Endpoint;
-use NeuronCore\Cloud\Runtime\InPlaceDispatcher;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Runtime\Registry;
-use NeuronCore\Cloud\Runtime\Runner;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Runtime\Sync;
-use NeuronCore\Cloud\Runtime\WorkflowBuilder;
+use NeuronCore\IQ\Evaluation\IQDataset;
+use NeuronCore\IQ\Evaluation\IQOutput;
+use NeuronCore\IQ\Evaluation\DatasetUpload;
+use NeuronCore\IQ\Evaluation\RunContext;
+use NeuronCore\IQ\Observability\IQListener;
+use NeuronCore\IQ\Observability\TraceExporter;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Endpoint;
+use NeuronCore\IQ\Runtime\InPlaceDispatcher;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Runtime\Registry;
+use NeuronCore\IQ\Runtime\Runner;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Runtime\Sync;
+use NeuronCore\IQ\Runtime\WorkflowBuilder;
 
 use function array_chunk;
 
 use const CURLOPT_FOLLOWLOCATION;
 
 /**
- * Connects the workflows of an application to Neuron Cloud.
+ * Connects the workflows of an application to IQ.
  */
-class NeuronCloud
+class IQ
 {
     protected HttpClientInterface $httpClient;
 
@@ -58,7 +58,7 @@ class NeuronCloud
     public function __construct(
         protected string $apiKey,
         protected ?string $signingKey = null,
-        protected string $platformUrl = 'https://cloud.neuron-ai.dev',
+        protected string $platformUrl = 'https://app.neuron-iq.dev',
         ?HttpClientInterface $httpClient = null,
     ) {
         $this->httpClient = $httpClient ?? new CurlHttpClient(curlOptions: [CURLOPT_FOLLOWLOCATION => false]);
@@ -71,7 +71,7 @@ class NeuronCloud
      *
      * @param Closure(string $workflowId, ?string $runId): Workflow $factory
      * @param int $leaseTimeout seconds; it replaces the lease the class declares
-     * @throws CloudException when the name, the version or the lease cannot be used
+     * @throws IQException when the name, the version or the lease cannot be used
      */
     public function register(string $name, Closure $factory, int $version = 1, int $leaseTimeout = 600): static
     {
@@ -157,7 +157,7 @@ class NeuronCloud
     /**
      * A listener that traces an agent or a workflow the application runs
      * itself, with chat(), stream(), run() or events(): subscribe it with
-     * $workflow->subscribe(ObservabilityEvent::class, $cloud->tracer()). Each
+     * $workflow->subscribe(ObservabilityEvent::class, $iq->tracer()). Each
      * run it hears sends its trace when its segment ends, as enableTracing()
      * says, and its spans are named after the class of the agent or the
      * workflow. It takes the settings enableTracing() was given when tracer()
@@ -170,7 +170,7 @@ class NeuronCloud
      * definition name, even when the workflow carries this listener too.
      * Every call returns a new listener. It needs the API key only.
      */
-    public function tracer(): CloudListener
+    public function tracer(): IQListener
     {
         return $this->listener();
     }
@@ -183,9 +183,9 @@ class NeuronCloud
      * @param string|null $environment where the evaluation ran, such as "ci"
      * @param RunContext|null $context the code and the build it ran on; null: what the environment of the process says
      */
-    public function evaluationOutput(?string $environment = null, ?RunContext $context = null): CloudOutput
+    public function evaluationOutput(?string $environment = null, ?RunContext $context = null): IQOutput
     {
-        return new CloudOutput($this->platform(), $environment, $context ?? RunContext::detect());
+        return new IQOutput($this->platform(), $environment, $context ?? RunContext::detect());
     }
 
     /**
@@ -194,7 +194,7 @@ class NeuronCloud
      *
      * @param string $suiteId the build, as {@see RunContext} names it
      * @return array<string, mixed>
-     * @throws CloudException when the platform gave no such answer
+     * @throws IQException when the platform gave no such answer
      */
     public function evaluationSuite(string $suiteId): array
     {
@@ -209,9 +209,9 @@ class NeuronCloud
      *
      * @param string $slug what the platform names the dataset by
      */
-    public function dataset(string $slug): CloudDataset
+    public function dataset(string $slug): IQDataset
     {
-        return new CloudDataset($this->platform(), $slug);
+        return new IQDataset($this->platform(), $slug);
     }
 
     /**
@@ -226,7 +226,7 @@ class NeuronCloud
      *
      * @param string $slug what the platform names the dataset by, in lowercase letters, digits and hyphens
      * @param string|null $name what a dataset the upload creates is called; its slug when null
-     * @throws CloudException when the platform refuses the items or gives no answer, as PlatformClient::uploadDatasetItems()
+     * @throws IQException when the platform refuses the items or gives no answer, as PlatformClient::uploadDatasetItems()
      */
     public function uploadDataset(string $slug, DatasetInterface $dataset, ?string $name = null): DatasetUpload
     {
@@ -247,7 +247,7 @@ class NeuronCloud
      * replaces the one the platform holds.
      *
      * @param string|null $endpointUrl null: the URL setEndpointUrl() was given
-     * @throws CloudException not_configured, when no persistence is set, and when no endpoint URL is given or set;
+     * @throws IQException not_configured, when no persistence is set, and when no endpoint URL is given or set;
      *                        unsuitable_persistence, for an in-memory or file store; invalid_request, when no
      *                        definition is registered, for an endpoint URL that is not https and for a registered
      *                        lease under 60 seconds: in all of these nothing was sent. endpoint_unverified, when the
@@ -279,7 +279,7 @@ class NeuronCloud
      * The body of a queue job: execute one segment and report it, or post one
      * of the SDK's own notices to the platform.
      *
-     * @throws CloudException when the message was not dealt with: the reason tells the worker what to do. For an
+     * @throws IQException when the message was not dealt with: the reason tells the worker what to do. For an
      *                        observe the platform did not record, the exception carries the report that was built
      */
     public function invoke(Invocation $invocation): Report
@@ -293,7 +293,7 @@ class NeuronCloud
      * and the dispatcher that are set when it is called: call setPersistence()
      * and setDispatcher() first.
      *
-     * @throws CloudException when the name is not registered, the workflow ID cannot be used or no persistence is set
+     * @throws IQException when the name is not registered, the workflow ID cannot be used or no persistence is set
      */
     public function workflow(string $name, string $workflowId): ManagedWorkflow
     {
@@ -307,7 +307,7 @@ class NeuronCloud
     }
 
     /**
-     * @throws CloudException
+     * @throws IQException
      */
     protected function runner(): Runner
     {
@@ -361,7 +361,7 @@ class NeuronCloud
         }
 
         // Spans are named after the definition: it is the name the platform knows the workflow by.
-        return new WorkflowBuilder($persistence, fn (Definition $definition): CloudListener => $this->listener($definition->name));
+        return new WorkflowBuilder($persistence, fn (Definition $definition): IQListener => $this->listener($definition->name));
     }
 
     /**
@@ -372,13 +372,13 @@ class NeuronCloud
      *                                every other listener leaves the runs this one hears to it; null: a listener of
      *                                the application, whose spans are named after the class
      */
-    protected function listener(?string $definition = null): CloudListener
+    protected function listener(?string $definition = null): IQListener
     {
         if ($this->tracing === null) {
-            return new CloudListener(null);
+            return new IQListener(null);
         }
 
-        return new CloudListener(
+        return new IQListener(
             new TraceExporter($this->platform()),
             $definition,
             metadata: $this->tracing['attributes'],
@@ -389,22 +389,22 @@ class NeuronCloud
 
     /**
      * @return Closure(): PersistenceInterface
-     * @throws CloudException not_configured
+     * @throws IQException not_configured
      */
     protected function persistence(): Closure
     {
-        return $this->persistence ?? throw new CloudException(
+        return $this->persistence ?? throw new IQException(
             'No persistence is set: call setPersistence() with a factory of the store your workflows use.',
             Code::NotConfigured,
         );
     }
 
     /**
-     * @throws CloudException not_configured
+     * @throws IQException not_configured
      */
     protected function endpointUrl(): string
     {
-        return $this->endpointUrl ?? throw new CloudException(
+        return $this->endpointUrl ?? throw new IQException(
             'No endpoint URL is set: give sync() the URL the platform calls, or call setEndpointUrl().',
             Code::NotConfigured,
         );

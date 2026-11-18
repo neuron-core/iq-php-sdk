@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Datasets;
+namespace NeuronCore\IQ\Tests\Stub\Datasets;
 
 use NeuronAI\Evaluation\Assertions\StringContains;
 use NeuronAI\Evaluation\BaseEvaluator;
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 /**
  * Runs on the dataset "refund-requests" of the platform, with the service it is
@@ -18,14 +18,14 @@ class RefundRequestsEvaluator extends BaseEvaluator
 {
     public const DATASET = 'refund-requests';
 
-    public function __construct(protected NeuronCloud $cloud)
+    public function __construct(protected IQ $iq)
     {
         parent::__construct();
     }
 
     public function getDataset(): DatasetInterface
     {
-        return $this->cloud->dataset(self::DATASET);
+        return $this->iq->dataset(self::DATASET);
     }
 
     public function run(array $datasetItem): mixed

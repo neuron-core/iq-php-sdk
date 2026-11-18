@@ -13,14 +13,14 @@ declare(strict_types=1);
  * does not run for ever.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Verb;
 
 use function getenv;
 use function in_array;
@@ -58,9 +58,9 @@ while ($job = $shop->spool->pop($list)) {
     $invocation = Invocation::fromArray(json_decode($job, true, flags: JSON_THROW_ON_ERROR));
 
     try {
-        $report = $shop->cloud->invoke($invocation);
+        $report = $shop->iq->invoke($invocation);
         echo describe($invocation, $report), "\n";
-    } catch (CloudException $e) {
+    } catch (IQException $e) {
         $final = in_array($e->reason, [Code::Unauthorized, Code::InvalidRequest, Code::UnsupportedProtocol], true);
         $spent = $e->reason !== Code::ReportUndelivered && $invocation->expiresAt !== null && time() >= $invocation->expiresAt;
         $keptAside = $final || $spent;

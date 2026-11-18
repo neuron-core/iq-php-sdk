@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\InPlace;
+namespace NeuronCore\IQ\Tests\Local\InPlace;
 
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Channel\CallbackChannel;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Stub\InPlace\SilentAdapter;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MatrixWorkflow;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\InPlace\InPlaceTestCase;
-use NeuronCore\Cloud\Tests\Support\InPlace\Kind;
-use NeuronCore\Cloud\Tests\Support\InPlace\Stage;
-use NeuronCore\Cloud\Tests\Support\InPlace\TracedCallback;
+use NeuronCore\IQ\Tests\Stub\InPlace\SilentAdapter;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Stub\Matrix\MatrixWorkflow;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\InPlace\InPlaceTestCase;
+use NeuronCore\IQ\Tests\Support\InPlace\Kind;
+use NeuronCore\IQ\Tests\Support\InPlace\Stage;
+use NeuronCore\IQ\Tests\Support\InPlace\TracedCallback;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 

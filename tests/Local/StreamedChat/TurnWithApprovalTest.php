@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\StreamedChat;
+namespace NeuronCore\IQ\Tests\Local\StreamedChat;
 
 use NeuronAI\Agent\Adapters\AGUIAdapter;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
@@ -14,16 +14,16 @@ use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Streaming\Channel\StreamingChannelInterface;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\SupportAgent;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Broadcast;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatEndpoint;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Confidential;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\StreamedChatTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\RefundOrder;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\SupportAgent;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Broadcast;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatEndpoint;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Confidential;
+use NeuronCore\IQ\Tests\Support\StreamedChat\StreamedChatTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;

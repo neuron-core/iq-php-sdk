@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Questions;
+namespace NeuronCore\IQ\Tests\Stub\Questions;
 
 use NeuronAI\Workflow\Workflow;
 use RuntimeException;

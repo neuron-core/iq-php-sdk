@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Tests\Stub\Units\RecordingPersistence;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -29,7 +29,7 @@ use function time;
  */
 class RequestedSyncTest extends EndpointTestCase
 {
-    protected const ENDPOINT = 'https://shop.example.com/neuron-cloud';
+    protected const ENDPOINT = 'https://shop.example.com/iq';
 
     public function test_a_requested_sync_is_answered_200_with_every_registered_version_its_lease_the_sdk_and_the_endpoint(): void
     {
@@ -41,7 +41,7 @@ class RequestedSyncTest extends EndpointTestCase
         self::assertSame(
             [
                 'protocols' => [1],
-                'sdk' => 'neuron-cloud-php/1.0.0',
+                'sdk' => 'iq-php/1.0.0',
                 'endpoint' => self::ENDPOINT,
                 'definitions' => [
                     ['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600],
@@ -59,7 +59,7 @@ class RequestedSyncTest extends EndpointTestCase
         $bench = $this->deployment();
 
         $answer = $this->deliver(['verb' => 'sync']);
-        $bench->cloud->sync();
+        $bench->iq->sync();
 
         self::assertSame($bench->platform->received()[0]->body, self::fieldsOf($answer));
     }
@@ -76,7 +76,7 @@ class RequestedSyncTest extends EndpointTestCase
     public function test_a_requested_sync_asks_nothing_of_the_store(): void
     {
         $store = new RecordingPersistence();
-        $this->deployment()->cloud->setPersistence(static fn (): PersistenceInterface => $store);
+        $this->deployment()->iq->setPersistence(static fn (): PersistenceInterface => $store);
 
         $this->deliver(['verb' => 'sync']);
 
@@ -89,7 +89,7 @@ class RequestedSyncTest extends EndpointTestCase
 
         $answer = $this->deliver([
             'verb' => 'sync',
-            'endpoint' => 'https://elsewhere.example.com/neuron-cloud',
+            'endpoint' => 'https://elsewhere.example.com/iq',
             'definitions' => [],
             'definition' => 'nightly-reconciliation',
         ]);
@@ -101,20 +101,20 @@ class RequestedSyncTest extends EndpointTestCase
 
     public function test_the_answer_follows_the_endpoint_url_set_when_the_platform_asks(): void
     {
-        $this->deployment()->cloud->setEndpointUrl('https://shop.example.com/v2/neuron-cloud');
+        $this->deployment()->iq->setEndpointUrl('https://shop.example.com/v2/iq');
 
         $answer = $this->deliver(['verb' => 'sync']);
 
-        self::assertSame('https://shop.example.com/v2/neuron-cloud', self::fieldsOf($answer)['endpoint']);
+        self::assertSame('https://shop.example.com/v2/iq', self::fieldsOf($answer)['endpoint']);
     }
 
     public function test_a_requested_sync_signed_with_another_key_is_answered_401_and_shows_nothing_of_the_deployment(): void
     {
-        $cloud = $this->deployment()->cloud;
+        $iq = $this->deployment()->iq;
         $body = '{"protocol":1,"verb":"sync"}';
         $timestamp = time();
 
-        $answer = $cloud->handle('POST', [
+        $answer = $iq->handle('POST', [
             'webhook-id' => 'msg_1',
             'webhook-timestamp' => (string) $timestamp,
             'webhook-signature' => (string) (new Signature('whsec_' . 'YW5vdGhlciBrZXkgb2YgYW5vdGhlciBwbGF0Zm9ybQ=='))->sign('msg_1', $timestamp, $body),
@@ -150,7 +150,7 @@ class RequestedSyncTest extends EndpointTestCase
 
     public function test_a_deployment_that_registered_nothing_answers_409_sync_refused(): void
     {
-        $this->benchOn(TestBench::SQLITE)->cloud->setEndpointUrl(self::ENDPOINT);
+        $this->benchOn(TestBench::SQLITE)->iq->setEndpointUrl(self::ENDPOINT);
 
         $answer = $this->deliver(['verb' => 'sync']);
 
@@ -160,7 +160,7 @@ class RequestedSyncTest extends EndpointTestCase
     public function test_a_deployment_given_no_persistence_answers_409_sync_refused(): void
     {
         $platform = $this->benchOn(TestBench::SQLITE)->platform;
-        $bare = (new NeuronCloud(TestBench::API_KEY, $platform->signingKey, TestBench::PLATFORM_URL, $platform))
+        $bare = (new IQ(TestBench::API_KEY, $platform->signingKey, TestBench::PLATFORM_URL, $platform))
             ->register('order-fulfilment', static fn (): Workflow => new Workflow())
             ->setEndpointUrl(self::ENDPOINT);
 
@@ -171,7 +171,7 @@ class RequestedSyncTest extends EndpointTestCase
 
     public function test_a_store_that_cannot_be_built_is_answered_500_internal_error_and_says_nothing_of_why(): void
     {
-        $this->deployment()->cloud->setPersistence(static fn (): PersistenceInterface => throw new RuntimeException(self::STORE_FAILURE));
+        $this->deployment()->iq->setPersistence(static fn (): PersistenceInterface => throw new RuntimeException(self::STORE_FAILURE));
 
         $answer = $this->deliver(['verb' => 'sync']);
 
@@ -194,16 +194,16 @@ class RequestedSyncTest extends EndpointTestCase
     {
         return [
             'the endpoint URL is not https' => [static function (TestBench $bench): void {
-                $bench->cloud->setEndpointUrl('http://shop.example.com/neuron-cloud');
+                $bench->iq->setEndpointUrl('http://shop.example.com/iq');
             }],
             'the store is a file store' => [static function (TestBench $bench): void {
-                $bench->cloud->setPersistence(static fn (): PersistenceInterface => new FilePersistence(sys_get_temp_dir()));
+                $bench->iq->setPersistence(static fn (): PersistenceInterface => new FilePersistence(sys_get_temp_dir()));
             }],
             'the store is an in-memory store' => [static function (TestBench $bench): void {
-                $bench->cloud->setPersistence(static fn (): PersistenceInterface => new InMemoryPersistence());
+                $bench->iq->setPersistence(static fn (): PersistenceInterface => new InMemoryPersistence());
             }],
             'a lease is under 60 seconds' => [static function (TestBench $bench): void {
-                $bench->cloud->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), leaseTimeout: 59);
+                $bench->iq->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), leaseTimeout: 59);
             }],
         ];
     }
@@ -217,13 +217,13 @@ class RequestedSyncTest extends EndpointTestCase
     {
         $bench = $this->benchOn(TestBench::SQLITE);
 
-        $bench->cloud
+        $bench->iq
             ->register('order-fulfilment', static fn (): Workflow => new Workflow())
             ->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 2, leaseTimeout: 900)
             ->register('nightly-reconciliation', static fn (): Workflow => new Workflow());
 
         if ($endpointUrl !== null) {
-            $bench->cloud->setEndpointUrl($endpointUrl);
+            $bench->iq->setEndpointUrl($endpointUrl);
         }
 
         return $bench;

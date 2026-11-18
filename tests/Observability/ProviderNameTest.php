@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Observability;
+namespace NeuronCore\IQ\Tests\Observability;
 
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronCore\Cloud\Observability\ProviderName;
+use NeuronCore\IQ\Observability\ProviderName;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

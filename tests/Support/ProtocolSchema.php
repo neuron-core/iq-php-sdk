@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support;
+namespace NeuronCore\IQ\Tests\Support;
 
 use Opis\JsonSchema\Errors\ErrorFormatter;
 use Opis\JsonSchema\Errors\ValidationError;
@@ -22,7 +22,7 @@ use const JSON_THROW_ON_ERROR;
 final class ProtocolSchema
 {
     /** The schemas carry no $id: this prefix only gives their relative references a base. */
-    protected const BASE_URI = 'https://neuron-cloud.test/protocol/1/';
+    protected const BASE_URI = 'https://iq.test/protocol/1/';
 
     /**
      * @param string $message the file name of the schema, without its extension: 'report', 'announcement', 'start'...

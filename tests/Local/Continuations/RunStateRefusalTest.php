@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use Closure;
 use NeuronAI\Exceptions\InputTranslationException;
@@ -13,15 +13,15 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\ReviewedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\ReviewedWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -57,7 +57,7 @@ class RunStateRefusalTest extends ContinuationTestCase
         $executions = $this->benchOn($backend)->executions;
         $refusal = null;
         $whileRunning = function () use ($continuation, &$refusal): void {
-            $busy = $this->bench->cloud->workflow('busy', self::WORKFLOW_ID);
+            $busy = $this->bench->iq->workflow('busy', self::WORKFLOW_ID);
             $refusal = self::thrownFrom(fn (): PendingSegment => $this->prepare($continuation, $busy, ContractWorkflow::EVENT, self::BUYER));
         };
 
@@ -155,7 +155,7 @@ class RunStateRefusalTest extends ContinuationTestCase
         $attached = null;
         $onceAnswered = function () use ($continuation, &$refusal, &$attached): void {
             $attached = $this->storedRun()?->interrupt;
-            $review = $this->bench->cloud->workflow('review', self::WORKFLOW_ID);
+            $review = $this->bench->iq->workflow('review', self::WORKFLOW_ID);
             $refusal = self::thrownFrom(fn (): PendingSegment => $this->prepare($continuation, $review, ReviewedWorkflow::EVENT, self::APPROVED));
         };
 

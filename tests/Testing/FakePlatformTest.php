@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Testing;
+namespace NeuronCore\IQ\Tests\Testing;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\Chat\Messages\UserMessage;
@@ -15,20 +15,20 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Testing\FakeAIProvider;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Evaluation\CloudOutput;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Endpoint\RecordingCloud;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Tracing\Researcher;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Evaluation\IQOutput;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\Datasets\RefundRequestsEvaluator;
+use NeuronCore\IQ\Tests\Stub\Endpoint\RecordingIQ;
+use NeuronCore\IQ\Tests\Stub\Evaluation\GreetingEvaluator;
+use NeuronCore\IQ\Tests\Stub\Evaluation\ProfileEvaluator;
+use NeuronCore\IQ\Tests\Stub\Tracing\Researcher;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -47,7 +47,7 @@ use const JSON_THROW_ON_ERROR;
 
 class FakePlatformTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const WORKFLOW_ID = 'order:123';
 
@@ -372,42 +372,42 @@ class FakePlatformTest extends TestCase
 
     public function test_deliver_posts_the_message_to_the_endpoint_as_json_and_returns_its_answer(): void
     {
-        $cloud = new RecordingCloud(new HttpResponse(200, '{"protocols":[1]}'));
+        $iq = new RecordingIQ(new HttpResponse(200, '{"protocols":[1]}'));
 
-        $answer = (new FakePlatform())->deliver($cloud, ['protocol' => 1, 'verb' => 'ping']);
+        $answer = (new FakePlatform())->deliver($iq, ['protocol' => 1, 'verb' => 'ping']);
 
         self::assertSame('{"protocols":[1]}', $answer->body);
-        self::assertSame('POST', $cloud->handled()[0]['method']);
-        self::assertSame(['protocol' => 1, 'verb' => 'ping'], self::bodyOf($cloud));
+        self::assertSame('POST', $iq->handled()[0]['method']);
+        self::assertSame(['protocol' => 1, 'verb' => 'ping'], self::bodyOf($iq));
     }
 
     public function test_deliver_says_protocol_1_for_a_message_that_names_none(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
 
-        (new FakePlatform())->deliver($cloud, ['verb' => 'ping']);
+        (new FakePlatform())->deliver($iq, ['verb' => 'ping']);
 
-        self::assertSame(1, self::bodyOf($cloud)['protocol']);
+        self::assertSame(1, self::bodyOf($iq)['protocol']);
     }
 
     public function test_deliver_keeps_the_protocol_a_message_names(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
 
-        (new FakePlatform())->deliver($cloud, ['protocol' => 2, 'verb' => 'ping']);
+        (new FakePlatform())->deliver($iq, ['protocol' => 2, 'verb' => 'ping']);
 
-        self::assertSame(2, self::bodyOf($cloud)['protocol']);
+        self::assertSame(2, self::bodyOf($iq)['protocol']);
     }
 
     public function test_deliver_signs_the_body_with_the_signing_key_as_standard_webhooks_does(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
         $platform = new FakePlatform();
         $before = time();
 
-        $platform->deliver($cloud, ['verb' => 'ping']);
+        $platform->deliver($iq, ['verb' => 'ping']);
 
-        ['headers' => $headers, 'body' => $body] = $cloud->handled()[0];
+        ['headers' => $headers, 'body' => $body] = $iq->handled()[0];
         self::assertGreaterThanOrEqual($before, (int) $headers['webhook-timestamp']);
         self::assertTrue((new Signature($platform->signingKey))->verify(
             $headers['webhook-id'],
@@ -420,34 +420,34 @@ class FakePlatformTest extends TestCase
 
     public function test_deliver_sends_the_invocation_id_of_a_message_as_its_webhook_id(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
 
-        (new FakePlatform())->deliver($cloud, ['verb' => 'wake', 'invocationId' => 'inv_01JB7K4T9QW2']);
+        (new FakePlatform())->deliver($iq, ['verb' => 'wake', 'invocationId' => 'inv_01JB7K4T9QW2']);
 
-        self::assertSame('inv_01JB7K4T9QW2', $cloud->handled()[0]['headers']['webhook-id']);
+        self::assertSame('inv_01JB7K4T9QW2', $iq->handled()[0]['headers']['webhook-id']);
     }
 
     public function test_deliver_gives_a_message_without_an_invocation_id_a_webhook_id_of_its_own(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
         $platform = new FakePlatform();
 
-        $platform->deliver($cloud, ['verb' => 'ping']);
-        $platform->deliver($cloud, ['verb' => 'ping']);
+        $platform->deliver($iq, ['verb' => 'ping']);
+        $platform->deliver($iq, ['verb' => 'ping']);
 
-        [$first, $second] = $cloud->handled();
+        [$first, $second] = $iq->handled();
         self::assertNotSame('', $first['headers']['webhook-id']);
         self::assertNotSame($first['headers']['webhook-id'], $second['headers']['webhook-id']);
     }
 
     public function test_deliver_signs_at_the_timestamp_it_is_given(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
         $platform = new FakePlatform();
 
-        $platform->deliver($cloud, ['verb' => 'ping'], 1791453603);
+        $platform->deliver($iq, ['verb' => 'ping'], 1791453603);
 
-        ['headers' => $headers, 'body' => $body] = $cloud->handled()[0];
+        ['headers' => $headers, 'body' => $body] = $iq->handled()[0];
         self::assertSame('1791453603', $headers['webhook-timestamp']);
         self::assertTrue((new Signature($platform->signingKey))->verify(
             $headers['webhook-id'],
@@ -460,34 +460,34 @@ class FakePlatformTest extends TestCase
 
     public function test_wake_sends_a_wake_fenced_with_the_run_of_the_last_report_recorded_for_the_workflow_id(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
         $platform = new FakePlatform();
         $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 1]));
         $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 2]));
         $platform->request(self::reportOf('order:124', ['runId' => '2-7c1e7d3a', 'attempt' => 5]));
 
-        $platform->wake($cloud, self::WORKFLOW_ID);
+        $platform->wake($iq, self::WORKFLOW_ID);
 
-        $wake = self::bodyOf($cloud);
+        $wake = self::bodyOf($iq);
         self::assertSame(
             ['wake', 'order-fulfilment', self::WORKFLOW_ID, '2-0192f3a8', 2],
             [$wake['verb'], $wake['definition'], $wake['workflowId'], $wake['runId'], $wake['attempt']],
         );
-        self::assertSame($wake['invocationId'], $cloud->handled()[0]['headers']['webhook-id']);
+        self::assertSame($wake['invocationId'], $iq->handled()[0]['headers']['webhook-id']);
         ProtocolSchema::assertValid('wake', $wake);
     }
 
     public function test_wake_does_not_fence_from_a_report_the_platform_did_not_record(): void
     {
-        $cloud = new RecordingCloud();
+        $iq = new RecordingIQ();
         $platform = new FakePlatform();
         $platform->request(self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 1]));
         $platform->failNext();
         self::answerOf($platform, self::reportOf(self::WORKFLOW_ID, ['runId' => '2-0192f3a8', 'attempt' => 2]));
 
-        $platform->wake($cloud, self::WORKFLOW_ID);
+        $platform->wake($iq, self::WORKFLOW_ID);
 
-        self::assertSame(1, self::bodyOf($cloud)['attempt']);
+        self::assertSame(1, self::bodyOf($iq)['attempt']);
     }
 
     public function test_wake_fails_when_the_last_report_shows_no_run(): void
@@ -499,7 +499,7 @@ class FakePlatformTest extends TestCase
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage("The platform recorded no report that shows a run to wake for workflow ID 'order:123'");
 
-        $platform->wake(new RecordingCloud(), self::WORKFLOW_ID);
+        $platform->wake(new RecordingIQ(), self::WORKFLOW_ID);
     }
 
     public function test_wake_fails_when_nothing_was_reported_for_the_workflow_id(): void
@@ -510,7 +510,7 @@ class FakePlatformTest extends TestCase
         $this->expectException(AssertionFailedError::class);
         $this->expectExceptionMessage("The platform recorded no report that shows a run to wake for workflow ID 'order:123'");
 
-        $platform->wake(new RecordingCloud(), self::WORKFLOW_ID);
+        $platform->wake(new RecordingIQ(), self::WORKFLOW_ID);
     }
 
     public function test_assert_traced_passes_for_a_trace_whose_parentless_span_has_the_name(): void
@@ -581,11 +581,11 @@ class FakePlatformTest extends TestCase
     public function test_an_agent_run_with_the_tracer_of_a_service_given_the_fake_passes_assert_traced(): void
     {
         $platform = new FakePlatform();
-        $cloud = self::serviceOn($platform)->enableTracing();
+        $iq = self::serviceOn($platform)->enableTracing();
 
         Researcher::make()
             ->setAiProvider(new FakeAIProvider(new AssistantMessage('Rome is sunny.')))
-            ->subscribe(ObservabilityEvent::class, $cloud->tracer())
+            ->subscribe(ObservabilityEvent::class, $iq->tracer())
             ->for('thread:1')
             ->chat(new UserMessage('What is the weather in Rome?'));
 
@@ -845,10 +845,10 @@ class FakePlatformTest extends TestCase
     /**
      * An evaluation.php that lists one output.
      */
-    protected static function configListing(CloudOutput $output): ConfigLoader
+    protected static function configListing(IQOutput $output): ConfigLoader
     {
         return new class ($output) extends ConfigLoader {
-            public function __construct(protected CloudOutput $output)
+            public function __construct(protected IQOutput $output)
             {
             }
 
@@ -859,9 +859,9 @@ class FakePlatformTest extends TestCase
         };
     }
 
-    protected static function serviceOn(FakePlatform $platform): NeuronCloud
+    protected static function serviceOn(FakePlatform $platform): IQ
     {
-        return new NeuronCloud('test-api-key', httpClient: $platform);
+        return new IQ('test-api-key', httpClient: $platform);
     }
 
     /**
@@ -871,8 +871,8 @@ class FakePlatformTest extends TestCase
     {
         return self::post('/v1/sync', [
             'protocols' => [1],
-            'sdk' => 'neuron-cloud-php/1.0.0',
-            'endpoint' => 'https://shop.example.com/neuron-cloud.php',
+            'sdk' => 'iq-php/1.0.0',
+            'endpoint' => 'https://shop.example.com/iq.php',
             'definitions' => array_map(
                 static fn (int $version): array => ['definition' => 'order-fulfilment', 'version' => $version, 'leaseSeconds' => 600],
                 $versions,
@@ -883,9 +883,9 @@ class FakePlatformTest extends TestCase
     /**
      * @return array<string, mixed> the body of the last request the endpoint was handed
      */
-    protected static function bodyOf(RecordingCloud $cloud): array
+    protected static function bodyOf(RecordingIQ $iq): array
     {
-        $handled = $cloud->handled();
+        $handled = $iq->handled();
 
         return json_decode($handled[count($handled) - 1]['body'], true, flags: JSON_THROW_ON_ERROR);
     }

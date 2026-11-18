@@ -4,7 +4,7 @@
          bootstrap="vendor/autoload.php"
          colors="true">
     <testsuites>
-        <testsuite name="Neuron Cloud SDK Test Suite">
+        <testsuite name="IQ SDK Test Suite">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

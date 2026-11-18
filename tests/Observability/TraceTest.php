@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Observability;
+namespace NeuronCore\IQ\Tests\Observability;
 
-use NeuronCore\Cloud\Observability\Trace;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\Tracing\Otlp;
+use NeuronCore\IQ\Observability\Trace;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\Tracing\Otlp;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -262,7 +262,7 @@ class TraceTest extends TestCase
         $unnamed = Otlp::resource((new Trace())->close());
 
         self::assertSame(
-            ['service.name' => 'checkout', 'telemetry.sdk.name' => 'neuron-cloud-php', 'telemetry.sdk.language' => 'php', 'telemetry.sdk.version' => '1.0.0'],
+            ['service.name' => 'checkout', 'telemetry.sdk.name' => 'iq-php', 'telemetry.sdk.language' => 'php', 'telemetry.sdk.version' => '1.0.0'],
             $named,
         );
         self::assertSame('unknown_service', $unnamed['service.name']);
@@ -272,7 +272,7 @@ class TraceTest extends TestCase
     {
         $export = self::identified()->close();
 
-        self::assertSame(['name' => 'neuron-core/cloud-sdk', 'version' => '1.0.0'], $export['resourceSpans'][0]['scopeSpans'][0]['scope']);
+        self::assertSame(['name' => 'neuron-core/iq-php-sdk', 'version' => '1.0.0'], $export['resourceSpans'][0]['scopeSpans'][0]['scope']);
     }
 
     public function test_attributes_are_typed_as_otlp_types_them_and_a_null_is_left_out(): void

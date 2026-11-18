@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Requests;
+namespace NeuronCore\IQ\Tests\Support\Requests;
 
 use Closure;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\Runner\InspectableDispatcher;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\Runner\InspectableDispatcher;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function base64_decode;
 use function base64_encode;
@@ -29,7 +29,7 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * A test of the requests the endpoint is handed: every one goes through
- * NeuronCloud::handle() and is kept with its answer, and every answer must
+ * IQ::handle() and is kept with its answer, and every answer must
  * follow the table of statuses of the wire protocol. The signatures are
  * computed here, not by the SDK.
  */
@@ -46,8 +46,8 @@ abstract class RequestTestCase extends EndpointTestCase
 
     protected const UNSUPPORTED_PROTOCOL = [400, '{"code":"unsupported_protocol"}'];
 
-    /** The cloud whose endpoint the requests are handed to. */
-    protected NeuronCloud $cloud;
+    /** The service whose endpoint the requests are handed to. */
+    protected IQ $iq;
 
     protected InspectableDispatcher $queue;
 
@@ -99,7 +99,7 @@ abstract class RequestTestCase extends EndpointTestCase
         $bench = $this->benchOn($backend);
         $this->queue = new InspectableDispatcher();
         $this->footprint = new Footprint();
-        $this->cloud = $this->wire($bench->cloud);
+        $this->iq = $this->wire($bench->iq);
 
         return $bench;
     }
@@ -107,16 +107,16 @@ abstract class RequestTestCase extends EndpointTestCase
     /**
      * Another deployment over the same store, queue and definition, holding another signing key.
      */
-    protected function deploymentHolding(?string $signingKey): NeuronCloud
+    protected function deploymentHolding(?string $signingKey): IQ
     {
-        return $this->wire(new NeuronCloud(TestBench::API_KEY, $signingKey, TestBench::PLATFORM_URL, $this->bench->platform));
+        return $this->wire(new IQ(TestBench::API_KEY, $signingKey, TestBench::PLATFORM_URL, $this->bench->platform));
     }
 
-    protected function wire(NeuronCloud $cloud): NeuronCloud
+    protected function wire(IQ $iq): IQ
     {
         $executions = $this->bench->executions;
 
-        return $cloud
+        return $iq
             ->setPersistence($this->footprint->ofStores($this->bench->persistence))
             ->setDispatcher($this->queue)
             ->register(static::DEFINITION, $this->footprint->ofWorkflows(static fn (): Workflow => new WaitingWorkflow($executions)));
@@ -129,7 +129,7 @@ abstract class RequestTestCase extends EndpointTestCase
      */
     protected function post(string $body, ?array $headers = null, string $method = 'POST'): HttpResponse
     {
-        $answer = $this->cloud->handle($method, $headers ?? $this->signed($body), $body);
+        $answer = $this->iq->handle($method, $headers ?? $this->signed($body), $body);
         $this->exchanges[] = new Exchange($method, $body, $answer);
 
         return $answer;
@@ -208,11 +208,11 @@ abstract class RequestTestCase extends EndpointTestCase
     /**
      * A worker deals with everything that waits in the queue of this test.
      *
-     * @return array<int, Report|CloudException> what every invoke() returned or threw, in order
+     * @return array<int, Report|IQException> what every invoke() returned or threw, in order
      */
     protected function work(): array
     {
-        return $this->queue->runAll($this->cloud);
+        return $this->queue->runAll($this->iq);
     }
 
     /**

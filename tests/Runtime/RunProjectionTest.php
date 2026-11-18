@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use DateTimeImmutable;
 use NeuronAI\Agent\Interrupt\Action;
@@ -15,9 +15,9 @@ use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Runtime\RunProjection;
-use NeuronCore\Cloud\Tests\Stub\Units\RefundReview;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Runtime\RunProjection;
+use NeuronCore\IQ\Tests\Stub\Units\RefundReview;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
-use NeuronCore\Cloud\Tests\Stub\Streamed\TaleWorkflow;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Stub\Streamed\TaleWorkflow;
+use NeuronCore\IQ\Verb;
 
 /**
  * The kinds of segment an application streams in its own process.

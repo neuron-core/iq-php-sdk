@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use NeuronAI\Exceptions\AgentException;
@@ -12,9 +12,9 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
 use Throwable;
 
 use function array_filter;
@@ -48,7 +48,7 @@ final class Endpoint
 
     /**
      * @param Closure(): array<string, mixed> $manifest what a sync of this deployment publishes; it throws a
-     *                                                  CloudException when this deployment cannot publish one
+     *                                                  IQException when this deployment cannot publish one
      */
     public function __construct(
         protected Signature $signature,
@@ -135,7 +135,7 @@ final class Endpoint
 
         try {
             $definition = $this->definitionOf($message);
-        } catch (CloudException $unknown) {
+        } catch (IQException $unknown) {
             return $this->refuse(404, $unknown->reason);
         }
 
@@ -150,7 +150,7 @@ final class Endpoint
      * A start and a wake execute on the version their run ID pins, so this deployment must have it. An
      * inspect and an abandon only read and free the store, which every version of a definition shares.
      *
-     * @throws CloudException unknown_definition, unknown_version
+     * @throws IQException unknown_definition, unknown_version
      */
     protected function definitionOf(PlatformMessage $message): Definition
     {
@@ -187,7 +187,7 @@ final class Endpoint
     {
         try {
             $manifest = ($this->manifest)();
-        } catch (CloudException) {
+        } catch (IQException) {
             return $this->refuse(409, Code::SyncRefused);
         }
 

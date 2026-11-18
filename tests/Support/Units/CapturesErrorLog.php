@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Units;
+namespace NeuronCore\IQ\Tests\Support\Units;
 
 use Closure;
 
@@ -25,7 +25,7 @@ trait CapturesErrorLog
      */
     protected static function loggedBy(Closure $call): string
     {
-        $log = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-log-');
+        $log = (string) tempnam(sys_get_temp_dir(), 'iq-log-');
         $configured = (string) ini_get('error_log');
         ini_set('error_log', $log);
 

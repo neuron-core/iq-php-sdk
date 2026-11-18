@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\InPlace;
+namespace NeuronCore\IQ\Tests\Support\InPlace;
 
-use NeuronCore\Cloud\Tests\Support\Faults\StoreOperation;
+use NeuronCore\IQ\Tests\Support\Faults\StoreOperation;
 
 /**
  * What one segment run in the calling process left behind when the store

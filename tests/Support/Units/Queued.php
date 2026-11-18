@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Units;
+namespace NeuronCore\IQ\Tests\Support\Units;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Notices;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Notices;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Verb;
 
 use function time;
 

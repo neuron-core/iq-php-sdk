@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use Error;
 use ErrorException;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Requests\FailingQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Requests\FailingQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
@@ -37,7 +37,7 @@ class DispatcherFailureTest extends RequestTestCase
     public function test_a_start_the_queue_does_not_take_is_answered_503_dispatch_failed(string $backend, Throwable $failure): void
     {
         $this->shop($backend);
-        $this->cloud->setDispatcher(new FailingQueue($failure));
+        $this->iq->setDispatcher(new FailingQueue($failure));
 
         $answer = $this->deliver($this->start());
 
@@ -48,7 +48,7 @@ class DispatcherFailureTest extends RequestTestCase
     public function test_a_wake_the_queue_does_not_take_is_answered_503_dispatch_failed(string $backend, Throwable $failure): void
     {
         $this->shop($backend);
-        $this->cloud->setDispatcher(new FailingQueue($failure));
+        $this->iq->setDispatcher(new FailingQueue($failure));
 
         $answer = $this->deliver($this->wake(attempt: 1));
 
@@ -59,7 +59,7 @@ class DispatcherFailureTest extends RequestTestCase
     public function test_a_503_says_in_how_many_seconds_the_platform_may_send_again(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
+        $this->iq->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
 
         $answer = $this->deliver($this->start());
 
@@ -70,7 +70,7 @@ class DispatcherFailureTest extends RequestTestCase
     public function test_a_start_the_queue_does_not_take_opens_no_store_builds_no_workflow_and_runs_nothing(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
+        $this->iq->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
 
         $this->deliver($this->start());
 
@@ -83,9 +83,9 @@ class DispatcherFailureTest extends RequestTestCase
         $bench = $this->shop($backend);
         $body = self::encode($this->start());
         $headers = $this->signed($body, 'inv_start');
-        $this->cloud->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
+        $this->iq->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
         $this->post($body, $headers);
-        $this->cloud->setDispatcher($this->queue);
+        $this->iq->setDispatcher($this->queue);
 
         $answer = $this->post($body, $headers);
         [$report] = $this->work();
@@ -99,7 +99,7 @@ class DispatcherFailureTest extends RequestTestCase
     public function test_a_message_answered_in_the_request_is_answered_while_the_queue_is_down(string $backend, string $verb): void
     {
         $this->shop($backend);
-        $this->cloud->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
+        $this->iq->setDispatcher(new FailingQueue(new RuntimeException(self::QUEUE_FAILURE)));
 
         $answer = $this->deliver(['verb' => $verb] + $this->abandon());
 
@@ -111,7 +111,7 @@ class DispatcherFailureTest extends RequestTestCase
     {
         $bench = $this->shop($backend);
         $executions = $bench->executions;
-        $this->cloud = (new NeuronCloud(TestBench::API_KEY, $bench->platform->signingKey, TestBench::PLATFORM_URL, $bench->platform))
+        $this->iq = (new IQ(TestBench::API_KEY, $bench->platform->signingKey, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence($bench->persistence)
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
@@ -125,7 +125,7 @@ class DispatcherFailureTest extends RequestTestCase
     {
         $bench = $this->shop(TestBench::IN_MEMORY);
         $executions = $bench->executions;
-        $this->cloud = (new NeuronCloud(TestBench::API_KEY, $bench->platform->signingKey, TestBench::PLATFORM_URL, $bench->platform))
+        $this->iq = (new IQ(TestBench::API_KEY, $bench->platform->signingKey, TestBench::PLATFORM_URL, $bench->platform))
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
         $answer = $this->deliver($this->start());
@@ -141,7 +141,7 @@ class DispatcherFailureTest extends RequestTestCase
     {
         return self::onEveryBackend([
             'an exception' => [new RuntimeException(self::QUEUE_FAILURE)],
-            'an exception of the SDK' => [new CloudException(self::QUEUE_FAILURE, Code::NotConfigured)],
+            'an exception of the SDK' => [new IQException(self::QUEUE_FAILURE, Code::NotConfigured)],
             'a warning a framework turned into an exception' => [new ErrorException(self::QUEUE_FAILURE)],
             'an Error' => [new Error(self::QUEUE_FAILURE)],
             'a TypeError' => [new TypeError(self::QUEUE_FAILURE)],

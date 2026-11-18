@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Evaluation;
+namespace NeuronCore\IQ\Evaluation;
 
 use function exec;
 use function function_exists;

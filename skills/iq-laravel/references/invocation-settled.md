@@ -11,10 +11,10 @@ namespace App\Listeners;
 
 use App\Neuron\Channels\ChannelFactory;
 use NeuronAI\Agent\Adapters\AGUIAdapter;
-use NeuronCore\Cloud\Laravel\Events\InvocationSettled;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Laravel\Events\InvocationSettled;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Verb;
 use RuntimeException;
 
 class CloseBrowserStream

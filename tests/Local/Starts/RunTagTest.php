@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function iterator_to_array;
@@ -74,7 +74,7 @@ class RunTagTest extends LocalTestCase
     {
         $executions = $this->bench->executions;
 
-        return $this->bench->cloud
+        return $this->bench->iq
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions), $version)
             ->workflow(self::DEFINITION, self::WORKFLOW_ID);
     }
@@ -88,10 +88,10 @@ class RunTagTest extends LocalTestCase
             self::RUN_IN_PLACE => $orders->start()->run(),
             self::STREAMED => iterator_to_array($orders->start()->events(), false),
             self::DISPATCHED => $orders->start()->dispatch(),
-            default => $this->bench->cloud->invoke(Queued::start(self::DEFINITION, runId: $runId)),
+            default => $this->bench->iq->invoke(Queued::start(self::DEFINITION, runId: $runId)),
         };
 
-        $this->queue->runAll($this->bench->cloud);
+        $this->queue->runAll($this->bench->iq);
     }
 
     protected function tagOfTheStoredRun(): ?string

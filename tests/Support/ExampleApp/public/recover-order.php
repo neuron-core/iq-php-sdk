@@ -8,7 +8,7 @@ declare(strict_types=1);
  * would not: a start never replaces a run. Answered 200 with whether there was something to finish.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Workflow\WorkflowState;
 
@@ -23,7 +23,7 @@ use const JSON_THROW_ON_ERROR;
 $shop = require __DIR__ . '/../bootstrap.php';
 
 $order = json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
-$state = $shop->cloud->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $order['orderId']))->recover();
+$state = $shop->iq->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $order['orderId']))->recover();
 
 header('Content-Type: application/json');
 echo json_encode(['recovered' => $state instanceof WorkflowState], JSON_THROW_ON_ERROR);

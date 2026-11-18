@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
-use NeuronCore\Cloud\Runtime\Format;
+use NeuronCore\IQ\Runtime\Format;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -96,7 +96,7 @@ class FormatTest extends TestCase
             '255 multibyte characters' => [str_repeat('é', 255), true],
             '256 characters' => [str_repeat('a', 256), false],
             'an empty ID' => ['', false],
-            'two underscores in front' => ['__neuron_cloud:123', false],
+            'two underscores in front' => ['__iq:123', false],
             'a control character' => ["order\x07123", false],
             'a delete character' => ["order\x7F", false],
             'a trailing line break' => ["order:123\n", false],

@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessBench;
-use NeuronCore\Cloud\Tests\Support\Questions\RaceBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessBench;
+use NeuronCore\IQ\Tests\Support\Questions\RaceBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\TestCase;
 
 use function count;

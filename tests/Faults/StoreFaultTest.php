@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Faults;
+namespace NeuronCore\IQ\Tests\Faults;
 
 use Closure;
 use Composer\InstalledVersions;
 use NeuronAI\HttpClient\HttpRequest;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultCase;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultSweep;
-use NeuronCore\Cloud\Tests\Support\Faults\Sighting;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreOperation;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Support\Faults\FaultCase;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\FaultSweep;
+use NeuronCore\IQ\Tests\Support\Faults\Sighting;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\Faults\StoreOperation;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

@@ -4,21 +4,21 @@ declare(strict_types=1);
 
 /*
  * A platform for PHP's built-in server. It writes every request it receives,
- * one JSON object per line, in the file NEURON_CLOUD_REQUEST_LOG names.
+ * one JSON object per line, in the file IQ_REQUEST_LOG names.
  *
  *   /moved/...   is answered 307, to the same path without that prefix
  *   /silent/...  is never answered
- *   GET /v1/datasets/<slug> is answered with <slug>.json of the directory NEURON_CLOUD_DATASETS names, or 404
+ *   GET /v1/datasets/<slug> is answered with <slug>.json of the directory IQ_DATASETS names, or 404
  *   POST /v1/datasets/<slug>/items is answered as a write that created the dataset and added every item
  *   anything else is recorded
  *
- * Usage: NEURON_CLOUD_REQUEST_LOG=<file> NEURON_CLOUD_DATASETS=<directory> php -S 127.0.0.1:<port> platform-server.php
+ * Usage: IQ_REQUEST_LOG=<file> IQ_DATASETS=<directory> php -S 127.0.0.1:<port> platform-server.php
  */
 
 $path = (string) \parse_url((string) $_SERVER['REQUEST_URI'], \PHP_URL_PATH);
 
 \file_put_contents(
-    (string) \getenv('NEURON_CLOUD_REQUEST_LOG'),
+    (string) \getenv('IQ_REQUEST_LOG'),
     \json_encode([
         'method' => $_SERVER['REQUEST_METHOD'],
         'path' => $path,
@@ -44,7 +44,7 @@ if (\str_starts_with($path, '/silent/')) {
 \header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && \str_starts_with($path, '/v1/datasets/')) {
-    $dataset = \getenv('NEURON_CLOUD_DATASETS') . '/' . \basename(\rawurldecode(\substr($path, \strlen('/v1/datasets/')))) . '.json';
+    $dataset = \getenv('IQ_DATASETS') . '/' . \basename(\rawurldecode(\substr($path, \strlen('/v1/datasets/')))) . '.json';
 
     if (!\is_file($dataset)) {
         // What the platform answers for a slug it does not know.

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
-use NeuronCore\Cloud\Runtime\Notices;
+use NeuronCore\IQ\Runtime\Notices;
 
 use function base64_decode;
 use function base64_encode;
@@ -96,12 +96,12 @@ final class Invocation
      * and tells the platform what it shows.
      *
      * @param self $segment a start, a wake, an answer or a signal
-     * @throws CloudException invalid_request, when $segment is itself an announcement or an observe
+     * @throws IQException invalid_request, when $segment is itself an announcement or an observe
      */
     public static function observeOf(self $segment): self
     {
         if ($segment->verb === Verb::Announce || $segment->verb === Verb::Observe) {
-            throw new CloudException(
+            throw new IQException(
                 "The {$segment->verb->value} '{$segment->invocationId}' is a notice of the SDK and not a segment: nothing observes it.",
                 Code::InvalidRequest,
             );

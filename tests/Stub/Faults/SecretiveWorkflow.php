@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Faults;
+namespace NeuronCore\IQ\Tests\Stub\Faults;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\Faults\Markers;
+use NeuronCore\IQ\Tests\Support\Faults\Markers;
 
 /**
  * Holds a marker everywhere a workflow keeps what must not leave the

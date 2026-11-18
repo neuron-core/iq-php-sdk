@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 use function touch;
 

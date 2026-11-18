@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointSchema;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointSchema;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use Throwable;
 
 use function array_filter;

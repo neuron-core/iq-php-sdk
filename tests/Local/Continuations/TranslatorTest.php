@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\PaidAmountTranslator;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\PaidAmountTranslator;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

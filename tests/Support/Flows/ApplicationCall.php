@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
 use Throwable;
 
 /**
- * What one process of an application does with its NeuronCloud, in a form
+ * What one process of an application does with its IQ, in a form
  * that travels to that process and back: the call, then what it returned or
  * what it threw.
  */
@@ -62,17 +62,17 @@ final class ApplicationCall
      * @return array<string, mixed> "returned": the state a local call returned; "reported": the report invoke()
      *                              returned; "thrown": the class and the reason of what either threw
      */
-    public static function perform(NeuronCloud $cloud, array $call): array
+    public static function perform(IQ $iq, array $call): array
     {
         try {
             return match ($call['call']) {
                 self::START_AND_RUN => self::returned(
-                    $cloud->workflow($call['definition'], $call['workflowId'])->start(new OrderPlaced($call['orderId']))->run(),
+                    $iq->workflow($call['definition'], $call['workflowId'])->start(new OrderPlaced($call['orderId']))->run(),
                 ),
                 self::ANSWER_AND_RUN => self::returned(
-                    $cloud->workflow($call['definition'], $call['workflowId'])->submitInputs($call['payload'])->run(),
+                    $iq->workflow($call['definition'], $call['workflowId'])->submitInputs($call['payload'])->run(),
                 ),
-                default => ['reported' => $cloud->invoke(Invocation::fromArray($call['invocation']))->toArray()],
+                default => ['reported' => $iq->invoke(Invocation::fromArray($call['invocation']))->toArray()],
             };
         } catch (Throwable $thrown) {
             return ['thrown' => [
@@ -100,7 +100,7 @@ final class ApplicationCall
     {
         return match (true) {
             $thrown instanceof WorkflowRefusedException => $thrown->reason->value,
-            $thrown instanceof CloudException => $thrown->reason->value,
+            $thrown instanceof IQException => $thrown->reason->value,
             default => null,
         };
     }

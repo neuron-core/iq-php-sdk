@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Matrix;
+namespace NeuronCore\IQ\Tests\Support\Matrix;
 
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MatrixWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MidBody;
-use NeuronCore\Cloud\Tests\Stub\Matrix\SeverablePersistence;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Matrix\MatrixWorkflow;
+use NeuronCore\IQ\Tests\Stub\Matrix\MidBody;
+use NeuronCore\IQ\Tests\Stub\Matrix\SeverablePersistence;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Assert;
 
 use function array_keys;
@@ -71,7 +71,7 @@ final class Redelivery
     /** @var array<string, int> */
     protected array $ledgerAfterSecondCopy;
 
-    /** @var array<int, Report|CloudException> what the notices left in the queue came to, once the platform answered again */
+    /** @var array<int, Report|IQException> what the notices left in the queue came to, once the platform answered again */
     protected array $late;
 
     protected function __construct(protected TestBench $bench, protected Kind $kind, protected FirstCopy $state)
@@ -93,7 +93,7 @@ final class Redelivery
 
     protected function registerWorkflow(): void
     {
-        $this->bench->cloud->register(
+        $this->bench->iq->register(
             self::DEFINITION,
             fn (): MatrixWorkflow => new MatrixWorkflow(
                 $this->bench->executions,
@@ -223,7 +223,7 @@ final class Redelivery
         if ($this->kind === Kind::WakeOfDeadRun) {
             $this->startOnWorkerCutOffFromItsStore($start);
         } else {
-            $this->bench->cloud->invoke($start);
+            $this->bench->iq->invoke($start);
         }
 
         $run = $this->run();
@@ -242,12 +242,12 @@ final class Redelivery
     protected function startOnWorkerCutOffFromItsStore(Invocation $start): void
     {
         $store = new SeverablePersistence(($this->bench->persistence)());
-        $this->bench->cloud->setPersistence(static fn (): PersistenceInterface => $store);
+        $this->bench->iq->setPersistence(static fn (): PersistenceInterface => $store);
         $this->midBody->whenReached($store->sever(...));
 
-        $this->bench->cloud->invoke($start);
+        $this->bench->iq->invoke($start);
 
-        $this->bench->cloud->setPersistence($this->bench->persistence);
+        $this->bench->iq->setPersistence($this->bench->persistence);
         $this->waitForLeaseToPass();
     }
 
@@ -279,7 +279,7 @@ final class Redelivery
             $this->bench->platform->failNext(4);
         }
 
-        $this->first = $this->bench->cloud->invoke(Invocation::fromArray($this->message));
+        $this->first = $this->bench->iq->invoke(Invocation::fromArray($this->message));
 
         if ($this->state !== FirstCopy::Executing) {
             $this->deliverSecondCopy();
@@ -292,7 +292,7 @@ final class Redelivery
         $this->runBeforeSecondCopy = $this->run();
         $this->ledgerBeforeSecondCopy = $this->ledger();
 
-        $this->second = $this->bench->cloud->invoke(Invocation::fromArray($this->message));
+        $this->second = $this->bench->iq->invoke(Invocation::fromArray($this->message));
 
         $this->executedBySecondCopy = $this->bench->executions->total() - $executed;
         $this->runAfterSecondCopy = $this->run();
@@ -306,7 +306,7 @@ final class Redelivery
     {
         $executed = $this->bench->executions->total();
 
-        $this->late = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $this->late = $this->bench->dispatcher->runAll($this->bench->iq);
 
         $this->executedByLateNotices = $this->bench->executions->total() - $executed;
     }
@@ -324,7 +324,7 @@ final class Redelivery
      */
     protected function ledger(): array
     {
-        $stored = ($this->bench->persistence)()->get('__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID), 'starts');
+        $stored = ($this->bench->persistence)()->get('__iq:' . hash('sha256', self::WORKFLOW_ID), 'starts');
 
         return $stored === null ? [] : json_decode($stored, true, flags: JSON_THROW_ON_ERROR);
     }

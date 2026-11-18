@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -51,7 +51,7 @@ class MethodTest extends RequestTestCase
     public function test_a_get_is_answered_405_by_an_endpoint_that_holds_no_signing_key(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding(null);
+        $this->iq = $this->deploymentHolding(null);
 
         $answer = $this->post('', [], 'GET');
 
@@ -62,7 +62,7 @@ class MethodTest extends RequestTestCase
     public function test_a_post_is_answered_401_by_an_endpoint_that_holds_no_signing_key(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding(null);
+        $this->iq = $this->deploymentHolding(null);
 
         $answer = $this->post('', []);
 

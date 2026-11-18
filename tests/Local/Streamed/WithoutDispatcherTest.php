@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Streamed;
+namespace NeuronCore\IQ\Tests\Local\Streamed;
 
 use NeuronAI\Exceptions\WorkflowRefusedException;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\Streamed\Kind;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamedTestCase;
-use NeuronCore\Cloud\Tests\Support\Streamed\Taken;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\Streamed\Kind;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamedTestCase;
+use NeuronCore\IQ\Tests\Support\Streamed\Taken;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;
@@ -119,7 +119,7 @@ class WithoutDispatcherTest extends StreamedTestCase
 
         $thrown = self::caught($segment->events(...));
 
-        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertInstanceOf(IQException::class, $thrown);
         self::assertSame(Code::DispatchFailed, $thrown->reason);
     }
 
@@ -132,7 +132,7 @@ class WithoutDispatcherTest extends StreamedTestCase
 
         $undelivered = self::caught($segment->events(...))?->getPrevious();
 
-        self::assertInstanceOf(CloudException::class, $undelivered);
+        self::assertInstanceOf(IQException::class, $undelivered);
         self::assertSame(Code::ReportUndelivered, $undelivered->reason);
     }
 
@@ -161,7 +161,7 @@ class WithoutDispatcherTest extends StreamedTestCase
 
         $again = self::caught($segment->events(...));
 
-        self::assertInstanceOf(CloudException::class, $again);
+        self::assertInstanceOf(IQException::class, $again);
         self::assertSame(Code::SegmentUsed, $again->reason);
     }
 

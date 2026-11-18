@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Faults;
+namespace NeuronCore\IQ\Tests\Support\Faults;
 
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\Code;
 
 /**
  * A report the platform received, beside what was true when it was sent.

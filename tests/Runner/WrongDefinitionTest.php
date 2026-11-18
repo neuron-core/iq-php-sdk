@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -32,7 +32,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wake('greeting', $failed));
+        $report = $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame([Outcome::Rejected, Code::WrongDefinition->value], [$report->outcome, $report->code]);
         self::assertNull($report->executedAttempt);
@@ -47,7 +47,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $bench->cloud->invoke($this->wake('greeting', $failed));
+        $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame([1, 0], [$bench->executions->count(FlakyNode::class), $bench->executions->count(CompleteNode::class)]);
     }
@@ -58,7 +58,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wake('greeting', $failed));
+        $report = $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame('failed', $failed->run['status']);
         self::assertSame($failed->run, $report->run);
@@ -76,7 +76,7 @@ class WrongDefinitionTest extends RunnerTestCase
             }
         });
 
-        $bench->cloud->invoke($this->wake('greeting', $failed));
+        $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame([], $written);
     }
@@ -87,7 +87,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $bench->cloud->invoke($this->wake('greeting', $failed));
+        $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame([], $this->queue->dispatched());
     }
@@ -98,7 +98,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wake('greeting', $failed, self::APPLICATION));
+        $report = $bench->iq->invoke($this->wake('greeting', $failed, self::APPLICATION));
 
         self::assertSame([Outcome::Rejected, Code::WrongDefinition->value], [$report->outcome, $report->code]);
         self::assertSame(0, $bench->executions->count(CompleteNode::class));
@@ -110,7 +110,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wakeOf('greeting', $failed->runId, attempt: 2));
+        $report = $bench->iq->invoke($this->wakeOf('greeting', $failed->runId, attempt: 2));
 
         self::assertSame([Outcome::Rejected, Code::WrongDefinition->value], [$report->outcome, $report->code]);
         self::assertSame($failed->run, $report->run);
@@ -122,7 +122,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wakeOf('greeting', '1-a-run-that-ended', attempt: 1));
+        $report = $bench->iq->invoke($this->wakeOf('greeting', '1-a-run-that-ended', attempt: 1));
 
         self::assertSame([Outcome::Refused, RefusalReason::StaleRun->value], [$report->outcome, $report->code]);
         self::assertSame($failed->run, $report->run);
@@ -135,7 +135,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunOfFlaky($bench);
 
-        $report = $bench->cloud->invoke($this->wake('flaky', $failed));
+        $report = $bench->iq->invoke($this->wake('flaky', $failed));
 
         self::assertSame([Outcome::Completed, 2], [$report->outcome, $report->executedAttempt]);
         self::assertSame(2, $bench->executions->count(FlakyNode::class));
@@ -147,7 +147,7 @@ class WrongDefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $failed = $this->failedRunStartedOutsideTheSdk($bench);
 
-        $report = $bench->cloud->invoke($this->wake('greeting', $failed));
+        $report = $bench->iq->invoke($this->wake('greeting', $failed));
 
         self::assertSame([Outcome::Completed, 2], [$report->outcome, $report->executedAttempt]);
         self::assertSame(1, $bench->executions->count(CompleteNode::class), 'Nothing says which definition started a run with no tag.');
@@ -161,9 +161,9 @@ class WrongDefinitionTest extends RunnerTestCase
     protected function failedRunOfFlaky(TestBench $bench): Report
     {
         $executions = $bench->executions;
-        $bench->cloud->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions));
+        $bench->iq->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions));
 
-        return $bench->cloud->invoke($this->start('flaky'));
+        return $bench->iq->invoke($this->start('flaky'));
     }
 
     /**
@@ -179,7 +179,7 @@ class WrongDefinitionTest extends RunnerTestCase
             // The run stays failed in the store.
         }
 
-        return $bench->cloud->invoke($this->observeOf($this->start('greeting')));
+        return $bench->iq->invoke($this->observeOf($this->start('greeting')));
     }
 
     protected function wakeOf(string $definition, string $runId, int $attempt): Invocation

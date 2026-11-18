@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Observability;
+namespace NeuronCore\IQ\Observability;
 
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Runtime\PlatformClient;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Runtime\PlatformClient;
 
 use function error_log;
 
@@ -29,7 +29,7 @@ class TraceExporter
     {
         try {
             $this->platform->traces($trace);
-        } catch (CloudException $e) {
+        } catch (IQException $e) {
             // The cause says why no answer came: a network error, or a value JSON cannot carry.
             error_log('[TraceExporter] Failed to send trace: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
         }

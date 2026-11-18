@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\StreamedChat;
+namespace NeuronCore\IQ\Tests\Support\StreamedChat;
 
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Providers\AIProviderInterface;
@@ -10,13 +10,13 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\SupportAgent;
-use NeuronCore\Cloud\Tests\Support\Concurrency\SharedPlatform;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Flows\FileQueue;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\RefundOrder;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\SupportAgent;
+use NeuronCore\IQ\Tests\Support\Concurrency\SharedPlatform;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Flows\FileQueue;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PDO;
 
 use function array_map;
@@ -32,7 +32,7 @@ use function unlink;
 /**
  * What the web server and the queue worker of a chat application share when
  * they are separate processes: a directory with the SQLite store of the runs,
- * the chat history and a file queue. Each process builds its own NeuronCloud
+ * the chat history and a file queue. Each process builds its own IQ
  * on it.
  */
 final class ChatHome
@@ -72,7 +72,7 @@ final class ChatHome
 
     public static function temporary(): self
     {
-        $directory = sys_get_temp_dir() . '/neuron-cloud-chat-' . bin2hex(random_bytes(8));
+        $directory = sys_get_temp_dir() . '/iq-chat-' . bin2hex(random_bytes(8));
         mkdir($directory);
 
         return new self($directory);
@@ -91,11 +91,11 @@ final class ChatHome
         HttpClientInterface $platform,
         Broadcast $broadcast,
         int $leaseTimeout = 600,
-    ): NeuronCloud {
+    ): IQ {
         $transcripts = $this->transcripts;
         $executions = $this->executions;
 
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $platform))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $platform))
             ->setPersistence(fn (): PersistenceInterface => $this->store())
             ->setDispatcher($this->queue)
             ->register(

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Processes;
+namespace NeuronCore\IQ\Tests\Local\Processes;
 
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\NarrateNode;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\Processes\ScriptProcess;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\NarrateNode;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\Processes\ScriptProcess;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function extension_loaded;
 
@@ -21,7 +21,7 @@ use const PHP_BINARY;
  * nothing to the queue there: only the process that took the first step of
  * the stream tells how it ended. Each case is a real process and its child.
  */
-class ForkedStreamTest extends CloudTestCase
+class ForkedStreamTest extends IQTestCase
 {
     protected function setUp(): void
     {

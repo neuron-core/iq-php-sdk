@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\Registry;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Registry;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -17,7 +17,7 @@ use function str_repeat;
 
 class RegistryTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const NAME = 'order-fulfilment';
 

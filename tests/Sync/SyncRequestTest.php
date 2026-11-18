@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use NeuronAI\HttpClient\HttpMethod;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\SyncTestCase;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\SyncTestCase;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_keys;
 use function array_map;
 
 /**
- * What NeuronCloud::sync() sends the platform: appendix A, "Application to
+ * What IQ::sync() sends the platform: appendix A, "Application to
  * platform" and "Authentication", and resources/protocol/1/sync.json.
  */
 class SyncRequestTest extends SyncTestCase
@@ -52,7 +52,7 @@ class SyncRequestTest extends SyncTestCase
 
         self::shop($platform)->sync(self::ENDPOINT);
 
-        self::assertMatchesRegularExpression('~^neuron-cloud-php/\d+\.\d+\.\d+$~D', self::published($platform)->headers['User-Agent']);
+        self::assertMatchesRegularExpression('~^iq-php/\d+\.\d+\.\d+$~D', self::published($platform)->headers['User-Agent']);
     }
 
     public function test_sync_gives_the_platform_fifteen_seconds(): void
@@ -86,9 +86,9 @@ class SyncRequestTest extends SyncTestCase
     {
         $platform = self::platformAccepting();
 
-        self::shop($platform)->sync('https://shop.example.com:8443/neuron-cloud.php?tenant=7');
+        self::shop($platform)->sync('https://shop.example.com:8443/iq.php?tenant=7');
 
-        self::assertSame('https://shop.example.com:8443/neuron-cloud.php?tenant=7', ((array) self::published($platform)->body)['endpoint']);
+        self::assertSame('https://shop.example.com:8443/iq.php?tenant=7', ((array) self::published($platform)->body)['endpoint']);
     }
 
     public function test_the_body_has_the_four_fields_of_a_sync_and_no_other(): void
@@ -99,12 +99,12 @@ class SyncRequestTest extends SyncTestCase
     public function test_every_registered_version_of_every_definition_is_listed_with_its_lease(): void
     {
         $platform = self::platformAccepting();
-        $cloud = self::deployment($platform)
+        $iq = self::deployment($platform)
             ->register('order-fulfilment', self::workflow(...), version: 1, leaseTimeout: 120)
             ->register('order-fulfilment', self::workflow(...), version: 2, leaseTimeout: 900)
             ->register('nightly-reconciliation', self::workflow(...), version: 7, leaseTimeout: 3600);
 
-        $cloud->sync(self::ENDPOINT);
+        $iq->sync(self::ENDPOINT);
 
         self::assertSame(
             [
@@ -126,14 +126,14 @@ class SyncRequestTest extends SyncTestCase
     public function test_the_definitions_are_listed_name_by_name_and_version_by_version_in_the_order_they_were_first_registered(): void
     {
         $platform = self::platformAccepting();
-        $cloud = self::deployment($platform)
+        $iq = self::deployment($platform)
             ->register('order-fulfilment', self::workflow(...), version: 3)
             ->register('nightly-reconciliation', self::workflow(...), version: 2)
             ->register('order-fulfilment', self::workflow(...), version: 1)
             ->register('a-trial', self::workflow(...), version: 1)
             ->register('nightly-reconciliation', self::workflow(...), version: 1);
 
-        $cloud->sync(self::ENDPOINT);
+        $iq->sync(self::ENDPOINT);
 
         self::assertSame(
             ['order-fulfilment 3', 'order-fulfilment 1', 'nightly-reconciliation 2', 'nightly-reconciliation 1', 'a-trial 1'],
@@ -147,12 +147,12 @@ class SyncRequestTest extends SyncTestCase
     public function test_a_version_registered_twice_is_listed_once_at_its_first_place_with_its_last_lease(): void
     {
         $platform = self::platformAccepting();
-        $cloud = self::deployment($platform)
+        $iq = self::deployment($platform)
             ->register('order-fulfilment', self::workflow(...), version: 1, leaseTimeout: 120)
             ->register('order-fulfilment', self::workflow(...), version: 2)
             ->register('order-fulfilment', self::workflow(...), version: 1, leaseTimeout: 300);
 
-        $cloud->sync(self::ENDPOINT);
+        $iq->sync(self::ENDPOINT);
 
         self::assertSame(
             [

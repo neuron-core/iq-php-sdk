@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 use Closure;
 use NeuronAI\Chat\Messages\Message;
@@ -21,13 +21,13 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\Format;
-use NeuronCore\Cloud\Runtime\LocalSegment;
-use NeuronCore\Cloud\Runtime\Registry;
-use NeuronCore\Cloud\Runtime\Settlement;
-use NeuronCore\Cloud\Runtime\StartEvents;
-use NeuronCore\Cloud\Runtime\WorkflowBuilder;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Format;
+use NeuronCore\IQ\Runtime\LocalSegment;
+use NeuronCore\IQ\Runtime\Registry;
+use NeuronCore\IQ\Runtime\Settlement;
+use NeuronCore\IQ\Runtime\StartEvents;
+use NeuronCore\IQ\Runtime\WorkflowBuilder;
 use Throwable;
 
 use function in_array;
@@ -43,9 +43,9 @@ final class ManagedWorkflow
     protected ?Closure $configure = null;
 
     /**
-     * @internal NeuronCloud::workflow() builds it
+     * @internal IQ::workflow() builds it
      *
-     * @throws CloudException unknown_definition for a name that is not registered; invalid_request for a workflow ID
+     * @throws IQException unknown_definition for a name that is not registered; invalid_request for a workflow ID
      *                        the protocol cannot carry: Neuron would refuse it only after a segment was announced
      */
     public function __construct(
@@ -59,7 +59,7 @@ final class ManagedWorkflow
         $registry->current($name);
 
         if (!Format::isWorkflowId($workflowId)) {
-            throw new CloudException(
+            throw new IQException(
                 "The workflow ID given for '{$name}' cannot be used: use 1 to 255 characters, with no control character "
                 . "and no leading '__'.",
                 Code::InvalidRequest,
@@ -89,7 +89,7 @@ final class ManagedWorkflow
      *
      * @param Event|Message|Message[]|null $input an event; for an agent, the messages of the turn; null: the workflow's own start event
      * @param bool $stream for messages only: whether the provider streams its answer
-     * @throws CloudException invalid_start, when the event could never ignite a run
+     * @throws IQException invalid_start, when the event could never ignite a run
      * @throws Throwable what a hook of the workflow threw while its event or its graph was built
      */
     public function start(Event|Message|array|null $input = null, bool $stream = false): PendingSegment
@@ -114,7 +114,7 @@ final class ManagedWorkflow
      * @throws InputTranslationException when no run is suspended on a wait, or the translator refuses the payload
      * @throws WorkflowRefusedException not_awaited, when the wait rejects the answer
      * @throws WorkflowException when Neuron could not hold the answer: it is not JSON-compatible
-     * @throws CloudException wrong_definition, when another definition started the run that holds the workflow ID;
+     * @throws IQException wrong_definition, when another definition started the run that holds the workflow ID;
      *                        unknown_version, when this process lacks the version the run is pinned to
      */
     public function submitInputs(array $payload, ?InputTranslatorInterface $translator = null): PendingSegment
@@ -138,7 +138,7 @@ final class ManagedWorkflow
      * @throws InputTranslationException when no run is suspended on a wait
      * @throws WorkflowRefusedException not_awaited, when the run waits for something else, or the wait rejects the payload
      * @throws WorkflowException when Neuron could not hold the payload: it is not JSON-compatible
-     * @throws CloudException wrong_definition, when another definition started the run that holds the workflow ID;
+     * @throws IQException wrong_definition, when another definition started the run that holds the workflow ID;
      *                        unknown_version, when this process lacks the version the run is pinned to
      */
     public function signal(string $event, array $payload = []): PendingSegment
@@ -165,7 +165,7 @@ final class ManagedWorkflow
      * Finish a failed or dead run now, in this process.
      *
      * @return WorkflowState|null null when there was nothing to do, or when another process got to the run first
-     * @throws CloudException dispatch_failed, when the queue did not take the announcement: nothing ran;
+     * @throws IQException dispatch_failed, when the queue did not take the announcement: nothing ran;
      *                        wrong_definition, when another definition started the run that holds the workflow ID;
      *                        unknown_version, when this process lacks the version the run is pinned to
      * @throws Throwable what Neuron throws: the exception of a node that fails again
@@ -188,7 +188,7 @@ final class ManagedWorkflow
     /**
      * The run holding the workflow ID, as the store shows it now.
      *
-     * @throws CloudException wrong_definition, when another definition started that run
+     * @throws IQException wrong_definition, when another definition started that run
      */
     protected function snapshot(): ?WorkflowRunSnapshot
     {
@@ -196,7 +196,7 @@ final class ManagedWorkflow
         $run = $this->builder->build($definition, $this->workflowId, null)->inspect();
 
         if (!$definition->mayActOn($run)) {
-            throw new CloudException(
+            throw new IQException(
                 "The run that holds workflow ID '{$this->workflowId}' was started by '{$run?->tag}', not by '{$this->name}': "
                 . 'only the definition that started a run can answer or recover it.',
                 Code::WrongDefinition,

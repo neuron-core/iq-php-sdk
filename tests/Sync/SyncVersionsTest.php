@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\SyncTestCase;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\SyncTestCase;
 
 /**
  * What a SyncResult says about the versions of a deployment: which ones can
@@ -53,12 +53,12 @@ class SyncVersionsTest extends SyncTestCase
             self::openRuns('nightly-reconciliation', 3, 9),
             self::openRuns('nightly-reconciliation', 1, 0),
         ]);
-        $cloud = self::shop($platform)
+        $iq = self::shop($platform)
             ->register('nightly-reconciliation', self::workflow(...), version: 2)
             ->register('nightly-reconciliation', self::workflow(...), version: 3)
             ->register('nightly-reconciliation', self::workflow(...), version: 4);
 
-        $result = $cloud->sync(self::ENDPOINT);
+        $result = $iq->sync(self::ENDPOINT);
 
         self::assertSame(['nightly-reconciliation' => [2, 1], 'order-fulfilment' => [1]], $result->retirable);
     }

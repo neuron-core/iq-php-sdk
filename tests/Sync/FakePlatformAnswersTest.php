@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -102,8 +102,8 @@ class FakePlatformAnswersTest extends TestCase
     {
         return HttpRequest::post('https://platform.test/v1/sync', [
             'protocols' => [1],
-            'sdk' => 'neuron-cloud-php/1.0.0',
-            'endpoint' => 'https://shop.example.com/neuron-cloud',
+            'sdk' => 'iq-php/1.0.0',
+            'endpoint' => 'https://shop.example.com/iq',
             'definitions' => [
                 ['definition' => 'order-fulfilment', 'version' => 2, 'leaseSeconds' => 600],
                 ['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600],

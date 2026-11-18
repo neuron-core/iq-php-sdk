@@ -8,7 +8,7 @@ declare(strict_types=1);
  * segment run in this request when "inPlace" is true, answered 200. An order that already has a run is a 409.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Exceptions\RunInFlightException;
 
@@ -25,7 +25,7 @@ $shop = require __DIR__ . '/../bootstrap.php';
 
 $order = json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
 $orderId = (string) $order['orderId'];
-$start = $shop->cloud->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf($orderId))
+$start = $shop->iq->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf($orderId))
     ->start(new OrderPlaced($orderId, (string) ($order['note'] ?? '')));
 
 header('Content-Type: application/json');

@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Questions;
+namespace NeuronCore\IQ\Tests\Support\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessBench;
-use NeuronCore\Cloud\Tests\Support\Concurrency\SharedPlatform;
-use NeuronCore\Cloud\Tests\Support\Concurrency\WorkerProcess;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointSchema;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\InspectablePlatform;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessBench;
+use NeuronCore\IQ\Tests\Support\Concurrency\SharedPlatform;
+use NeuronCore\IQ\Tests\Support\Concurrency\WorkerProcess;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointSchema;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\InspectablePlatform;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PDO;
 
 use function array_map;
@@ -54,7 +54,7 @@ final class RaceBench
     public readonly InspectablePlatform $operator;
 
     /** The endpoint of the test's own process, with the definitions of the workers on the store they use. */
-    public readonly NeuronCloud $endpoint;
+    public readonly IQ $endpoint;
 
     protected string $directory;
 
@@ -63,7 +63,7 @@ final class RaceBench
 
     public function __construct()
     {
-        $this->directory = sys_get_temp_dir() . '/neuron-cloud-' . bin2hex(random_bytes(8));
+        $this->directory = sys_get_temp_dir() . '/iq-' . bin2hex(random_bytes(8));
         mkdir($this->directory);
         touch($this->directory . '/executions');
         touch($this->directory . '/platform');
@@ -80,7 +80,7 @@ final class RaceBench
         $this->executions = $executions = new ExecutionLog($this->directory . '/executions');
         $this->platform = new SharedPlatform($this->directory . '/platform');
         $this->operator = new InspectablePlatform();
-        $this->endpoint = (new NeuronCloud(TestBench::API_KEY, $this->operator->signingKey, TestBench::PLATFORM_URL, $this->platform))
+        $this->endpoint = (new IQ(TestBench::API_KEY, $this->operator->signingKey, TestBench::PLATFORM_URL, $this->platform))
             ->setPersistence($this->store(...))
             ->register(ProcessBench::COMPLETING, static fn (): CompletingWorkflow => new CompletingWorkflow($executions))
             ->register(ProcessBench::WAITING, static fn (): WaitingWorkflow => new WaitingWorkflow($executions));

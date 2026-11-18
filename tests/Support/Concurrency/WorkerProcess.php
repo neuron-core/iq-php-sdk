@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
 use PHPUnit\Framework\Assert;
 
@@ -48,7 +48,7 @@ final class WorkerProcess
     protected ?int $signal = null;
 
     /**
-     * @param array<string, mixed> $job what worker.php rebuilds its NeuronCloud and its invocation from
+     * @param array<string, mixed> $job what worker.php rebuilds its IQ and its invocation from
      */
     public function __construct(array $job)
     {
@@ -62,7 +62,7 @@ final class WorkerProcess
     }
 
     /**
-     * Wait until the worker has built its NeuronCloud and only waits for its order.
+     * Wait until the worker has built its IQ and only waits for its order.
      */
     public function awaitReady(): void
     {

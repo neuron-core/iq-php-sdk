@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -71,7 +71,7 @@ class DefinitionLookupTest extends RequestTestCase
     public function test_a_start_and_a_wake_on_an_older_version_this_deployment_still_has_are_queued(string $backend, string $verb): void
     {
         $this->shop($backend);
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new Workflow(), version: 2);
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new Workflow(), version: 2);
 
         $answer = $this->deliver($this->message($verb, self::RUN_ID));
 
@@ -82,7 +82,7 @@ class DefinitionLookupTest extends RequestTestCase
     public function test_a_wake_of_a_run_the_sdk_did_not_mint_is_queued_by_a_deployment_that_begins_at_version_2(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), version: 2);
+        $this->iq->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), version: 2);
 
         $answer = $this->deliver(['definition' => 'nightly-reconciliation'] + $this->message('wake', '0192f3a8-7c1e'));
 
@@ -93,7 +93,7 @@ class DefinitionLookupTest extends RequestTestCase
     public function test_a_wake_of_a_run_of_version_1_is_answered_404_by_a_deployment_that_begins_at_version_2(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), version: 2);
+        $this->iq->register('nightly-reconciliation', static fn (): Workflow => new Workflow(), version: 2);
 
         $answer = $this->deliver(['definition' => 'nightly-reconciliation'] + $this->message('wake', self::RUN_ID));
 
@@ -103,7 +103,7 @@ class DefinitionLookupTest extends RequestTestCase
     public function test_a_ping_is_answered_by_a_deployment_that_registers_nothing(): void
     {
         $this->shop(TestBench::IN_MEMORY);
-        $this->cloud = new NeuronCloud(TestBench::API_KEY, $this->bench->platform->signingKey);
+        $this->iq = new IQ(TestBench::API_KEY, $this->bench->platform->signingKey);
 
         $answer = $this->post(self::PING);
 

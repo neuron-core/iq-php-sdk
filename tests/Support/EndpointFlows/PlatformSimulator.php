@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\UniqueIdGenerator;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 use function array_column;
 use function array_count_values;
@@ -20,7 +20,7 @@ use function max;
 use function time;
 
 /**
- * Neuron Cloud for one run, as appendix B of the design asks it to behave
+ * IQ for one run, as appendix B of the design asks it to behave
  * (rules 8 to 11 and the aborted start of rule 13, with rules 6 and 7 as far
  * as they need them). It reaches the application only through deliver() and
  * wake() of the fake platform, and decides only from what the fake recorded
@@ -75,7 +75,7 @@ final class PlatformSimulator
      */
     public function __construct(
         protected ReadablePlatform $platform,
-        protected NeuronCloud $endpoint,
+        protected IQ $endpoint,
         protected string $definition,
         protected string $workflowId,
         int $version = 1,

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Streamed;
+namespace NeuronCore\IQ\Tests\Stub\Streamed;
 
 use DateTimeImmutable;
 use Generator;
@@ -12,8 +12,8 @@ use NeuronAI\Workflow\Events\StopEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 class CloseTaleNode extends Node
 {

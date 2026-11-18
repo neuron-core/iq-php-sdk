@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
-use NeuronCore\Cloud\SyncResult;
+use NeuronCore\IQ\SyncResult;
 use PHPUnit\Framework\TestCase;
 
 class SyncResultTest extends TestCase

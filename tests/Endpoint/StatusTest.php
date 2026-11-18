@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint;
+namespace NeuronCore\IQ\Tests\Endpoint;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\InMemoryMessageStore;
@@ -11,20 +11,20 @@ use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\Endpoint\AwaitUnencodableEventNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
-use NeuronCore\Cloud\Tests\Stub\Requests\UnencodableRunWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\Endpoint\AwaitUnencodableEventNode;
+use NeuronCore\IQ\Tests\Stub\Flows\SupportAgent;
+use NeuronCore\IQ\Tests\Stub\Requests\UnencodableRunWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -172,7 +172,7 @@ class StatusTest extends EndpointTestCase
 
         $this->deliver($this->abandon(self::RUN_ID));
 
-        $stored = ($bench->persistence)()->get('__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID), 'starts');
+        $stored = ($bench->persistence)()->get('__iq:' . hash('sha256', self::WORKFLOW_ID), 'starts');
         $useBy = json_decode((string) $stored, true, flags: JSON_THROW_ON_ERROR)[self::RUN_ID];
         self::assertGreaterThanOrEqual($before + 3600, $useBy);
         self::assertLessThanOrEqual(time() + 3600, $useBy);
@@ -191,7 +191,7 @@ class StatusTest extends EndpointTestCase
     public function test_a_ping_is_answered_before_a_persistence_is_set(): void
     {
         $platform = $this->benchOn(TestBench::IN_MEMORY)->platform;
-        $unconfigured = new NeuronCloud(TestBench::API_KEY, $platform->signingKey);
+        $unconfigured = new IQ(TestBench::API_KEY, $platform->signingKey);
 
         self::assertSame(200, $platform->deliver($unconfigured, ['verb' => 'ping'])->statusCode);
     }
@@ -204,7 +204,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver($this->start(['runId' => '01JB2M8Q3W']));
 
         self::assertSame([400, ['code' => 'invalid_request']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -213,7 +213,7 @@ class StatusTest extends EndpointTestCase
         $bench = $this->shop($backend);
         $body = '{"protocol": 1, "verb":';
 
-        $answer = $bench->cloud->handle('POST', $this->signedHeaders($body), $body);
+        $answer = $bench->iq->handle('POST', $this->signedHeaders($body), $body);
 
         self::assertSame([400, ['code' => 'invalid_request']], [$answer->statusCode, self::fieldsOf($answer)]);
     }
@@ -226,7 +226,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver($this->start(['expiresAt' => time() + 3600 + 300 + 60]));
 
         self::assertSame([400, ['code' => 'invalid_request']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('reservedAndUnknownVerbs')]
@@ -237,7 +237,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver(['verb' => $verb, 'attempt' => 1] + $this->start());
 
         self::assertSame([400, ['code' => 'invalid_request']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -255,7 +255,7 @@ class StatusTest extends EndpointTestCase
     {
         $bench = $this->shop(TestBench::IN_MEMORY);
 
-        $answer = $bench->cloud->handle($method, [], '');
+        $answer = $bench->iq->handle($method, [], '');
 
         self::assertSame([405, ['code' => 'invalid_request']], [$answer->statusCode, self::fieldsOf($answer)]);
         ProtocolSchema::assertValid('error', self::fieldsOf($answer));
@@ -265,9 +265,9 @@ class StatusTest extends EndpointTestCase
     public function test_an_endpoint_that_holds_no_usable_signing_key_answers_every_request_401_invalid_signature(?string $signingKey): void
     {
         $bench = $this->shop(TestBench::IN_MEMORY);
-        $cloud = new NeuronCloud(TestBench::API_KEY, $signingKey);
+        $iq = new IQ(TestBench::API_KEY, $signingKey);
 
-        $answer = $bench->platform->deliver($cloud, ['verb' => 'ping']);
+        $answer = $bench->platform->deliver($iq, ['verb' => 'ping']);
 
         self::assertSame([401, ['code' => 'invalid_signature']], [$answer->statusCode, self::fieldsOf($answer)]);
     }
@@ -277,10 +277,10 @@ class StatusTest extends EndpointTestCase
     {
         $bench = $this->shop($backend);
 
-        $answer = (new FakePlatform())->deliver($bench->cloud, $this->start());
+        $answer = (new FakePlatform())->deliver($bench->iq, $this->start());
 
         self::assertSame([401, ['code' => 'invalid_signature']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing unverified is queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing unverified is queued.');
     }
 
     #[DataProvider('backends')]
@@ -290,7 +290,7 @@ class StatusTest extends EndpointTestCase
         $signed = json_encode(['protocol' => 1] + $this->abandon(self::RUN_ID), JSON_THROW_ON_ERROR);
         $altered = json_encode(['protocol' => 1] + $this->abandon('1-another-run'), JSON_THROW_ON_ERROR);
 
-        $answer = $bench->cloud->handle('POST', $this->signedHeaders($signed), $altered);
+        $answer = $bench->iq->handle('POST', $this->signedHeaders($signed), $altered);
 
         self::assertSame([401, ['code' => 'invalid_signature']], [$answer->statusCode, self::fieldsOf($answer)]);
         self::assertFalse(self::fieldsOf($this->deliver($this->inspect('1-another-run')))['claimed'], 'Nothing unverified is obeyed.');
@@ -304,7 +304,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver($this->start(), time() + $secondsFromNow);
 
         self::assertSame([401, ['code' => 'invalid_signature']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'A replayed request queues nothing.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'A replayed request queues nothing.');
     }
 
     #[DataProvider('backends')]
@@ -315,7 +315,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver($this->start(['definition' => 'nightly-reconciliation']));
 
         self::assertSame([404, ['code' => 'unknown_definition']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -336,7 +336,7 @@ class StatusTest extends EndpointTestCase
         $answer = $this->deliver($this->start(['runId' => '2-0192f3a8']));
 
         self::assertSame([404, ['code' => 'unknown_version']], [$answer->statusCode, self::fieldsOf($answer)]);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'Nothing was queued.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'Nothing was queued.');
     }
 
     #[DataProvider('backends')]
@@ -409,7 +409,7 @@ class StatusTest extends EndpointTestCase
     public function test_a_queue_that_takes_nothing_is_answered_503_dispatch_failed_with_a_retry_after(string $backend): void
     {
         $bench = $this->shop($backend);
-        $bench->cloud->setDispatcher(new UnreachableQueue());
+        $bench->iq->setDispatcher(new UnreachableQueue());
 
         $answer = $this->deliver($this->start());
 
@@ -437,7 +437,7 @@ class StatusTest extends EndpointTestCase
     {
         $bench = $this->benchOn($backend);
         // The run this workflow shows has an ID no JSON body can hold: the answer cannot be encoded.
-        $bench->cloud->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
+        $bench->iq->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
 
         $answer = $this->deliver($this->inspect());
 
@@ -449,7 +449,7 @@ class StatusTest extends EndpointTestCase
     {
         $bench = $this->benchOn($backend);
         $unencodable = static fn (): Workflow => (new Workflow())->addNode(new AwaitUnencodableEventNode());
-        $bench->cloud->register(self::DEFINITION, $unencodable);
+        $bench->iq->register(self::DEFINITION, $unencodable);
         // A run started outside the SDK waits for an event whose name no JSON body can hold as it is.
         $unencodable()->for(self::WORKFLOW_ID)->setPersistence(($bench->persistence)())->run();
 
@@ -511,7 +511,7 @@ class StatusTest extends EndpointTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
+        $bench->iq->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
         return $bench;
     }
@@ -535,9 +535,9 @@ class StatusTest extends EndpointTestCase
         $executions = $bench->executions;
         $conversations = new InMemoryMessageStore();
         $provider = new FakeAIProvider(new ToolCallMessage(null, [new ToolCall('refund', 'call_refund_1', ['iban' => 'IT60X0542811101000000123456'])]));
-        $bench->cloud->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
+        $bench->iq->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
 
-        return (string) $bench->cloud->workflow('support-agent', self::THREAD_ID)->start(new UserMessage('Refund order 123.'))->run()->getRunId();
+        return (string) $bench->iq->workflow('support-agent', self::THREAD_ID)->start(new UserMessage('Refund order 123.'))->run()->getRunId();
     }
 
     /**

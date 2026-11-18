@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_keys;
@@ -30,11 +30,11 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->rivalsWinTheLedger(5);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::Unavailable->value, $report->code);
-        self::assertSame(CloudException::class, $report->errorClass);
+        self::assertSame(IQException::class, $report->errorClass);
         self::assertNull($report->executedAttempt);
         self::assertSame(0, $bench->executions->total());
         $bench->platform->assertReported(self::WORKFLOW_ID, Outcome::Aborted, Code::Unavailable->value);
@@ -46,7 +46,7 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->rivalsWinTheLedger(5);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertNull($report->claimed);
         self::assertSame(
@@ -74,7 +74,7 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->rivalsWinTheLedger(4);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertTrue($report->claimed);
@@ -88,7 +88,7 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->failStoreOn('get', $this->ledgerPartition());
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::Unavailable->value, $report->code);
@@ -109,7 +109,7 @@ class ClaimTest extends RunnerTestCase
             }
         });
 
-        $report = $bench->cloud->invoke($this->start('greeting', fields: ['expiresAt' => $expiresAt]));
+        $report = $bench->iq->invoke($this->start('greeting', fields: ['expiresAt' => $expiresAt]));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::Expired->value, $report->code);
@@ -125,7 +125,7 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->neuronCannotWriteTheRun();
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -144,7 +144,7 @@ class ClaimTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->neuronCannotWriteTheRun();
 
-        $report = $bench->cloud->invoke($this->start('greeting', self::APPLICATION));
+        $report = $bench->iq->invoke($this->start('greeting', self::APPLICATION));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -157,10 +157,10 @@ class ClaimTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->neuronCannotWriteTheRun();
-        $bench->cloud->invoke($this->start('greeting'));
-        $bench->cloud->setPersistence($bench->persistence);
+        $bench->iq->invoke($this->start('greeting'));
+        $bench->iq->setPersistence($bench->persistence);
 
-        $copy = $bench->cloud->invoke($this->start('greeting'));
+        $copy = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Rejected, $copy->outcome);
         self::assertSame(Code::AlreadyClaimed->value, $copy->code);

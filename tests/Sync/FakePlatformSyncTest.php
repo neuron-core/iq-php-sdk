@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PHPUnit\Framework\AssertionFailedError;
 
 /**
@@ -19,11 +19,11 @@ use PHPUnit\Framework\AssertionFailedError;
  * the list it accepted last. A sync needs a store every process shares, so
  * the deployment of these tests is on SQLite.
  */
-class FakePlatformSyncTest extends CloudTestCase
+class FakePlatformSyncTest extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
-    protected const ENDPOINT = 'https://shop.example.com/neuron-cloud';
+    protected const ENDPOINT = 'https://shop.example.com/iq';
 
     protected function assertPostConditions(): void
     {
@@ -33,7 +33,7 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_the_answer_to_a_sync_lists_every_published_version_with_no_open_run_and_nothing_stranded(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
 
         // The same list again, sent by hand: the answer is what sync() was given, but for "modified".
         $answer = $bench->platform->request($bench->platform->received()[0])->json();
@@ -56,7 +56,7 @@ class FakePlatformSyncTest extends CloudTestCase
 
     public function test_every_version_below_the_current_one_comes_back_retirable(): void
     {
-        $result = $this->deployment()->cloud->sync(self::ENDPOINT);
+        $result = $this->deployment()->iq->sync(self::ENDPOINT);
 
         self::assertSame(['order-fulfilment' => [1, 2]], $result->retirable);
     }
@@ -64,7 +64,7 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_no_version_ever_comes_back_stranded(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
         $redeployed = $this->redeployedWithout($bench);
 
         $result = $redeployed->sync(self::ENDPOINT);
@@ -76,8 +76,8 @@ class FakePlatformSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
 
-        $first = $bench->cloud->sync(self::ENDPOINT);
-        $again = $bench->cloud->sync(self::ENDPOINT);
+        $first = $bench->iq->sync(self::ENDPOINT);
+        $again = $bench->iq->sync(self::ENDPOINT);
 
         self::assertSame([true, false], [$first->modified, $again->modified]);
     }
@@ -85,25 +85,25 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_a_sync_of_another_list_modifies(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
-        $bench->cloud->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 4);
+        $bench->iq->sync(self::ENDPOINT);
+        $bench->iq->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 4);
 
-        self::assertTrue($bench->cloud->sync(self::ENDPOINT)->modified);
+        self::assertTrue($bench->iq->sync(self::ENDPOINT)->modified);
     }
 
     public function test_a_sync_of_the_same_list_for_another_endpoint_modifies(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
 
-        self::assertTrue($bench->cloud->sync('https://eu.shop.example.com/neuron-cloud')->modified);
+        self::assertTrue($bench->iq->sync('https://eu.shop.example.com/iq')->modified);
     }
 
     public function test_a_sync_is_accepted_without_a_ping_of_the_endpoint(): void
     {
         $bench = $this->deployment();
         // No signing key: a ping of this deployment would be answered 401, and the platform would refuse the sync.
-        $unverifiable = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
+        $unverifiable = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence($bench->persistence)
             ->register('order-fulfilment', static fn (): Workflow => new Workflow());
 
@@ -118,7 +118,7 @@ class FakePlatformSyncTest extends CloudTestCase
         $bench = $this->deployment();
         $bench->platform->failNext(1, 422);
 
-        $reason = self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT));
+        $reason = self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT));
 
         self::assertSame(Code::EndpointUnverified, $reason);
     }
@@ -127,9 +127,9 @@ class FakePlatformSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
         $bench->platform->failNext(1, 422);
-        self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT));
+        self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT));
 
-        $published = $bench->cloud->sync(self::ENDPOINT);
+        $published = $bench->iq->sync(self::ENDPOINT);
 
         self::assertTrue($published->modified, 'The list the platform refused is new to it.');
     }
@@ -140,9 +140,9 @@ class FakePlatformSyncTest extends CloudTestCase
         $bench->platform->failNext(2, 422);
 
         $reasons = [
-            self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT)),
-            self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT)),
-            self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT)),
+            self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT)),
+            self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT)),
+            self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT)),
         ];
 
         self::assertSame([Code::EndpointUnverified, Code::EndpointUnverified, null], $reasons);
@@ -151,7 +151,7 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_assert_synced_passes_once_a_sync_was_accepted(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
 
         $bench->platform->assertSynced();
 
@@ -172,7 +172,7 @@ class FakePlatformSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
         $bench->platform->failNext(1, 422);
-        self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT));
+        self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT));
 
         $this->expectException(AssertionFailedError::class);
 
@@ -182,7 +182,7 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_assert_synced_fails_when_sync_refused_to_send_anything(): void
     {
         $bench = $this->deployment();
-        self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync('http://shop.example.com/neuron-cloud'));
+        self::reasonThrownBy(static fn (): mixed => $bench->iq->sync('http://shop.example.com/iq'));
 
         $this->expectException(AssertionFailedError::class);
 
@@ -193,9 +193,9 @@ class FakePlatformSyncTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::SQLITE);
         $executions = $bench->executions;
-        $bench->cloud->register('completing', static fn (): Workflow => new CompletingWorkflow($executions));
-        $bench->cloud->workflow('completing', 'order:123')->start()->dispatch();
-        $bench->dispatcher->runAll($bench->cloud);
+        $bench->iq->register('completing', static fn (): Workflow => new CompletingWorkflow($executions));
+        $bench->iq->workflow('completing', 'order:123')->start()->dispatch();
+        $bench->dispatcher->runAll($bench->iq);
 
         $this->expectException(AssertionFailedError::class);
 
@@ -205,9 +205,9 @@ class FakePlatformSyncTest extends CloudTestCase
     public function test_assert_synced_still_passes_after_a_later_sync_was_refused(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
         $bench->platform->failNext(1, 422);
-        self::reasonThrownBy(static fn (): mixed => $bench->cloud->sync(self::ENDPOINT));
+        self::reasonThrownBy(static fn (): mixed => $bench->iq->sync(self::ENDPOINT));
 
         $bench->platform->assertSynced();
 
@@ -221,7 +221,7 @@ class FakePlatformSyncTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::SQLITE);
 
-        $bench->cloud
+        $bench->iq
             ->register('order-fulfilment', static fn (): Workflow => new Workflow())
             ->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 2)
             ->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 3)
@@ -233,9 +233,9 @@ class FakePlatformSyncTest extends CloudTestCase
     /**
      * The next deploy of the same application, whose code lost "nightly-reconciliation" and two versions.
      */
-    protected function redeployedWithout(TestBench $bench): NeuronCloud
+    protected function redeployedWithout(TestBench $bench): IQ
     {
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence($bench->persistence)
             ->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 3);
     }

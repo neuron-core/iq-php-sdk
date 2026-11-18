@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Endpoint;
+namespace NeuronCore\IQ\Tests\Support\Endpoint;
 
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PHPUnit\Framework\Assert;
 
 use function in_array;

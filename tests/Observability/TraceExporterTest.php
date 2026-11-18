@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Observability;
+namespace NeuronCore\IQ\Tests\Observability;
 
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Observability\TraceExporter;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CapturesErrorLog;
+use NeuronCore\IQ\Observability\TraceExporter;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CapturesErrorLog;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;

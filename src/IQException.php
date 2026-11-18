@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 use NeuronAI\Exceptions\NeuronException;
 use Throwable;
@@ -10,7 +10,7 @@ use Throwable;
 /**
  * What Neuron cannot say: the reason tells the caller what to do next.
  */
-class CloudException extends NeuronException
+class IQException extends NeuronException
 {
     /**
      * @param Report|null $report for an observe the platform did not record: the report that was built, which

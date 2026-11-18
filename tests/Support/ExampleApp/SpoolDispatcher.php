@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Verb;
 
 use function in_array;
 use function json_encode;
@@ -21,10 +21,10 @@ use const JSON_THROW_ON_ERROR;
 final class SpoolDispatcher implements DispatcherInterface
 {
     /** The orders to execute one segment: a start, a wake, an answer or a signal. */
-    public const SEGMENTS = 'neuron-cloud';
+    public const SEGMENTS = 'iq';
 
     /** The announcements and the observes to post. */
-    public const NOTICES = 'neuron-cloud-notices';
+    public const NOTICES = 'iq-notices';
 
     public function __construct(protected Spool $spool)
     {

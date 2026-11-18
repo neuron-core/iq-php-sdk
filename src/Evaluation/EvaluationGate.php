@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Evaluation;
+namespace NeuronCore\IQ\Evaluation;
 
 use Closure;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\IQ;
 
 use function addcslashes;
 use function array_slice;
@@ -49,7 +49,7 @@ class EvaluationGate
      * @param callable(string): void $write receives the report, line by line
      */
     public function __construct(
-        protected NeuronCloud $cloud,
+        protected IQ $iq,
         protected RunContext $context,
         callable $write,
     ) {
@@ -68,8 +68,8 @@ class EvaluationGate
         }
 
         try {
-            $suite = $this->cloud->evaluationSuite($this->context->suiteId);
-        } catch (CloudException $e) {
+            $suite = $this->iq->evaluationSuite($this->context->suiteId);
+        } catch (IQException $e) {
             ($this->write)("No answer about suite {$this->context->suiteId}: {$e->getMessage()}");
 
             return self::UNKNOWN;

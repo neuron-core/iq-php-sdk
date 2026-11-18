@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function base64_decode;
@@ -24,7 +24,7 @@ class SigningKeyTest extends RequestTestCase
     public function test_an_endpoint_that_holds_no_usable_key_answers_401_to_a_start_the_platform_signed(string $backend, ?string $signingKey): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding($signingKey);
+        $this->iq = $this->deploymentHolding($signingKey);
 
         $answer = $this->deliver($this->start());
 
@@ -36,7 +36,7 @@ class SigningKeyTest extends RequestTestCase
     public function test_an_endpoint_that_holds_no_usable_key_does_not_answer_a_ping(string $backend, ?string $signingKey): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding($signingKey);
+        $this->iq = $this->deploymentHolding($signingKey);
 
         $answer = $this->post(self::PING);
 
@@ -47,7 +47,7 @@ class SigningKeyTest extends RequestTestCase
     public function test_a_start_signed_with_what_an_unusable_key_holds_is_answered_401_and_does_nothing(string $backend, ?string $signingKey, string $bytes): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding($signingKey);
+        $this->iq = $this->deploymentHolding($signingKey);
         $body = self::encode($this->start());
         $timestamp = (string) time();
 
@@ -65,7 +65,7 @@ class SigningKeyTest extends RequestTestCase
     public function test_a_key_of_the_platform_is_read_as_the_bytes_its_base64_holds(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud = $this->deploymentHolding('whsec_' . self::KEY_BYTES);
+        $this->iq = $this->deploymentHolding('whsec_' . self::KEY_BYTES);
         $timestamp = (string) time();
 
         $answer = $this->post(self::PING, [

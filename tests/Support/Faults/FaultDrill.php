@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Faults;
+namespace NeuronCore\IQ\Tests\Support\Faults;
 
 use DateTimeImmutable;
 use Fiber;
 use LogicException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Faults\FaultyPersistence;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Faults\FaultyPersistence;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 
 use function array_count_values;
 use function array_reverse;
@@ -98,7 +98,7 @@ final class FaultDrill
         ]);
 
         $executions = $this->bench->executions;
-        $this->bench->cloud
+        $this->bench->iq
             ->setPersistence(fn (): PersistenceInterface => new FaultyPersistence(($this->bench->persistence)(), $this->journal, $this->fault))
             ->register('greeting', static fn (): CompletingWorkflow => new CompletingWorkflow($executions), leaseTimeout: self::LEASE)
             ->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1), leaseTimeout: self::LEASE)
@@ -139,9 +139,9 @@ final class FaultDrill
         $this->fault = $fault ?? StoreFault::none();
 
         try {
-            $this->bench->cloud->invoke($order);
+            $this->bench->iq->invoke($order);
             $thrown = null;
-        } catch (CloudException $notDealtWith) {
+        } catch (IQException $notDealtWith) {
             $thrown = $notDealtWith->reason;
         } finally {
             $this->fault = StoreFault::none();

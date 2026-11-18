@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Flows;
+namespace NeuronCore\IQ\Tests\Stub\Flows;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\Flows\FakeRedis;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpWorker;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\Flows\FakeRedis;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpWorker;
 
 use function json_encode;
 

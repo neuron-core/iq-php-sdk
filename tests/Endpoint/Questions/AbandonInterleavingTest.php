@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use Closure;
 use DateTimeImmutable;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Questions\SleepingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Questions\SleepingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_keys;
@@ -121,7 +121,7 @@ class AbandonInterleavingTest extends QuestionsTestCase
         $this->deliver($this->start());
         $this->work();
         $this->letInJustBefore(self::removalOfTheRun(...), static function () use ($bench): void {
-            $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->run();
+            $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->run();
         });
 
         $answer = $this->deliver($this->abandon(self::RUN_ID, attempt: 1));
@@ -188,8 +188,8 @@ class AbandonInterleavingTest extends QuestionsTestCase
         int $read,
     ): void {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register(self::DEFINITION, static fn (): Workflow => new SleepingWorkflow(new DateTimeImmutable('@0')));
-        $holder = (string) $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
+        $bench->iq->register(self::DEFINITION, static fn (): Workflow => new SleepingWorkflow(new DateTimeImmutable('@0')));
+        $holder = (string) $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
         $this->work();
         $this->letInJustBefore(self::readOfTheRun($read), function () use ($holder): void {
             $this->deliver($this->wake(attempt: 1, fields: ['runId' => $holder]));
@@ -210,7 +210,7 @@ class AbandonInterleavingTest extends QuestionsTestCase
         string $backend,
     ): void {
         $bench = $this->ordersOn($backend);
-        $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run();
+        $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run();
         $this->work();
         $this->deliver($this->start());
         $this->letInJustBefore(self::readOfTheRun(3), function (): void {
@@ -233,8 +233,8 @@ class AbandonInterleavingTest extends QuestionsTestCase
         string $backend,
     ): void {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register(self::DEFINITION, static fn (): Workflow => new SleepingWorkflow(new DateTimeImmutable('@0')));
-        $holder = (string) $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
+        $bench->iq->register(self::DEFINITION, static fn (): Workflow => new SleepingWorkflow(new DateTimeImmutable('@0')));
+        $holder = (string) $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
         $this->work();
         (new Ledger($bench->persistence))->claim(self::WORKFLOW_ID, self::RUN_ID, time() + 900);
         $this->letInJustBefore(self::readOfTheRun(3), function () use ($holder): void {
@@ -302,7 +302,7 @@ class AbandonInterleavingTest extends QuestionsTestCase
             }
         };
 
-        $this->bench->cloud->setPersistence(
+        $this->bench->iq->setPersistence(
             static fn (): PersistenceInterface => new InterceptedPersistence($persistence(), $justBefore),
         );
     }

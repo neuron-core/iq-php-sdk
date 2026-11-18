@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use DateTimeImmutable;
 use NeuronAI\Agent\Interrupt\ToolResultsRequest;
@@ -13,15 +13,15 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Continuations\LookupWorkflow;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\Continuations\LookupWorkflow;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -206,7 +206,7 @@ class WaitMismatchTest extends ContinuationTestCase
     {
         $executions = $this->bench->executions;
 
-        return (new NeuronCloud(TestBench::API_KEY, httpClient: $this->bench->platform))
+        return (new IQ(TestBench::API_KEY, httpClient: $this->bench->platform))
             ->setPersistence($this->bench->persistence)
             ->register('order', static fn (): Workflow => new WaitingWorkflow($executions))
             ->workflow('order', self::WORKFLOW_ID);

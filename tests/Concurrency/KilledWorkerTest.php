@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Concurrency;
+namespace NeuronCore\IQ\Tests\Concurrency;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\PrepareNode;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\StallNode;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessBench;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Concurrency\PrepareNode;
+use NeuronCore\IQ\Tests\Stub\Concurrency\StallNode;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessBench;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessTestCase;
+use NeuronCore\IQ\Verb;
 
 use function array_column;
 use function time;

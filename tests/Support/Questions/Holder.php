@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Questions;
+namespace NeuronCore\IQ\Tests\Support\Questions;
 
 /**
  * What holds a workflow ID when the platform asks about it, or orders its

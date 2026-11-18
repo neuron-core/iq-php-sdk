@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\InPlace;
+namespace NeuronCore\IQ\Tests\Stub\InPlace;
 
 use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Streaming\Adapter\StreamAdapterInterface;

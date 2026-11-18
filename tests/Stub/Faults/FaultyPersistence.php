@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Faults;
+namespace NeuronCore\IQ\Tests\Stub\Faults;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreJournal;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreOperation;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreJournal;
+use NeuronCore\IQ\Tests\Support\Faults\StoreOperation;
 
 /**
  * A store that keeps a journal of what it performs and fails when its fault

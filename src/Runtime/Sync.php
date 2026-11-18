@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\SyncResult;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\SyncResult;
 
 use function array_map;
 use function in_array;
@@ -43,7 +43,7 @@ final class Sync
     /**
      * The list is complete and replaces the one the platform holds.
      *
-     * @throws CloudException unsuitable_persistence or invalid_request, before anything is sent; the reason the
+     * @throws IQException unsuitable_persistence or invalid_request, before anything is sent; the reason the
      *                        platform refused the sync for good; report_undelivered, when it gave no usable answer
      */
     public function publish(string $endpointUrl): SyncResult
@@ -62,7 +62,7 @@ final class Sync
      * for a sync. Both are refused for the same reasons.
      *
      * @return array<string, mixed>
-     * @throws CloudException unsuitable_persistence or invalid_request
+     * @throws IQException unsuitable_persistence or invalid_request
      */
     public function manifest(string $endpointUrl): array
     {
@@ -81,14 +81,14 @@ final class Sync
      * The conditional writes of an in-memory or file store do not hold across
      * processes: with it, two workers could run the same start.
      *
-     * @throws CloudException unsuitable_persistence
+     * @throws IQException unsuitable_persistence
      */
     protected function assertStoreIsSharedByProcesses(): void
     {
         $store = ($this->persistence)();
 
         if ($store instanceof InMemoryPersistence || $store instanceof FilePersistence) {
-            throw new CloudException(
+            throw new IQException(
                 'The runs of a deployed application cannot be kept in ' . $store::class . ': its conditional writes do '
                 . 'not hold across processes. Give setPersistence() a database or a Redis store.',
                 Code::UnsuitablePersistence,
@@ -100,14 +100,14 @@ final class Sync
      * The platform would refuse the sync, or the sync would empty the list the platform holds: the deploy is
      * told before anything is sent.
      *
-     * @throws CloudException invalid_request
+     * @throws IQException invalid_request
      */
     protected function assertPublishable(string $endpointUrl): void
     {
         $definitions = $this->registry->all();
 
         if ($definitions === []) {
-            throw new CloudException(
+            throw new IQException(
                 'No definition is registered in this process, so nothing was published: an empty list would remove '
                 . 'every version the platform holds and strand those with open runs. A bootstrap that did not reach '
                 . 'its register() calls is the likeliest cause.',
@@ -119,7 +119,7 @@ final class Sync
             // The user and the password a URL may hold stay out of logs and error trackers.
             $shown = preg_replace('~^([a-z][a-z0-9+.-]*://)[^/?#@]*@~i', '$1', $endpointUrl);
 
-            throw new CloudException(
+            throw new IQException(
                 "The endpoint '{$shown}' cannot be published: the platform calls only https URLs.",
                 Code::InvalidRequest,
             );
@@ -127,7 +127,7 @@ final class Sync
 
         foreach ($definitions as $definition) {
             if ($definition->leaseTimeout < self::SHORTEST_LEASE) {
-                throw new CloudException(
+                throw new IQException(
                     "Version {$definition->version} of '{$definition->name}' cannot be published with its lease of "
                     . "{$definition->leaseTimeout} seconds: register it with a leaseTimeout of at least "
                     . self::SHORTEST_LEASE . '.',

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Tracing;
+namespace NeuronCore\IQ\Tests\Support\Tracing;
 
 use PHPUnit\Framework\Assert;
 

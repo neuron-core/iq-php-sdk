@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint;
+namespace NeuronCore\IQ\Tests\Endpoint;
 
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShippingFailed;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\Flows\Transcript;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Stub\Flows\ShippingFailed;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\Flows\Transcript;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_column;
@@ -192,7 +192,7 @@ class PlainPhpExampleTest extends EndpointTestCase
         $this->orderSleepingUntilItShips();
         $this->platformWakes();
 
-        [$first, $second] = $bench->dispatcher->runAll($bench->cloud, 2);
+        [$first, $second] = $bench->dispatcher->runAll($bench->iq, 2);
 
         self::assertInstanceOf(Report::class, $first);
         self::assertInstanceOf(Report::class, $second);
@@ -210,9 +210,9 @@ class PlainPhpExampleTest extends EndpointTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $transcript = $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'neuron-cloud-'));
+        $transcript = $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'iq-'));
 
-        $bench->cloud->register(
+        $bench->iq->register(
             self::DEFINITION,
             static fn (): Workflow => new OrderWorkflow($executions, $transcript, shippingFailures: $shippingFailures),
         );
@@ -257,7 +257,7 @@ class PlainPhpExampleTest extends EndpointTestCase
      */
     protected function paymentWebhook(): void
     {
-        $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(OrderWorkflow::EVENT, ['amount' => 49.9])->dispatch();
+        $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(OrderWorkflow::EVENT, ['amount' => 49.9])->dispatch();
     }
 
     /**
@@ -265,7 +265,7 @@ class PlainPhpExampleTest extends EndpointTestCase
      */
     protected function platformWakes(): HttpResponse
     {
-        return $this->bench->platform->wake($this->bench->cloud, self::WORKFLOW_ID);
+        return $this->bench->platform->wake($this->bench->iq, self::WORKFLOW_ID);
     }
 
     /**

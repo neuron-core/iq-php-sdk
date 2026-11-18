@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support;
+namespace NeuronCore\IQ\Tests\Support;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointSchema;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Testing\FakeDispatcher;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointSchema;
 use PDO;
 
 use function is_array;
@@ -22,7 +22,7 @@ use function unlink;
 use const PHP_URL_PATH;
 
 /**
- * A NeuronCloud wired to the two fakes over one store, with a log the stub
+ * An IQ wired to the two fakes over one store, with a log the stub
  * workflows count their node executions in. Call cleanUp() in tearDown().
  */
 final class TestBench
@@ -39,7 +39,7 @@ final class TestBench
 
     public readonly FakeDispatcher $dispatcher;
 
-    public readonly NeuronCloud $cloud;
+    public readonly IQ $iq;
 
     public readonly ExecutionLog $executions;
 
@@ -56,7 +56,7 @@ final class TestBench
         $this->executions = new ExecutionLog($executions);
         $this->platform = new InspectablePlatform();
         $this->dispatcher = new FakeDispatcher();
-        $this->cloud = (new NeuronCloud(self::API_KEY, $this->platform->signingKey, self::PLATFORM_URL, $this->platform))
+        $this->iq = (new IQ(self::API_KEY, $this->platform->signingKey, self::PLATFORM_URL, $this->platform))
             ->setPersistence($persistence)
             ->setDispatcher($this->dispatcher);
     }
@@ -151,6 +151,6 @@ final class TestBench
 
     protected static function temporaryFile(): string
     {
-        return (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-');
+        return (string) tempnam(sys_get_temp_dir(), 'iq-');
     }
 }

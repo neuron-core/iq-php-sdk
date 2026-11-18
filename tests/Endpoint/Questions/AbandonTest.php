@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Questions\ReleasedWithAnErrorWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Questions\ReleasedWithAnErrorWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_keys;
@@ -177,8 +177,8 @@ class AbandonTest extends QuestionsTestCase
         string $backend,
     ): void {
         $executions = $this->benchOn($backend)->executions;
-        $this->bench->cloud->register(self::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
-        $runId = (string) $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
+        $this->bench->iq->register(self::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
+        $runId = (string) $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
         $this->work();
 
         $answer = $this->deliver($this->abandon($runId, attempt: 1));
@@ -244,7 +244,7 @@ class AbandonTest extends QuestionsTestCase
         $bench = $this->ordersOn($backend);
         $this->deliver($this->start());
         $this->work();
-        $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->run();
+        $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->signal(WaitingWorkflow::EVENT)->run();
 
         $answer = $this->deliver($this->abandon(self::RUN_ID, attempt: 1));
 
@@ -294,7 +294,7 @@ class AbandonTest extends QuestionsTestCase
     public function test_an_abandon_enters_in_the_ledger_the_run_id_of_a_holder_that_was_never_there_also_when_it_is_refused(string $backend): void
     {
         $bench = $this->ordersOn($backend);
-        $runId = (string) $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
+        $runId = (string) $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
         $this->work();
 
         $answer = $this->abandonTheHolder(attemptsAhead: 1);
@@ -366,7 +366,7 @@ class AbandonTest extends QuestionsTestCase
     ): void {
         $bench = $this->ordersOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('nightly-reconciliation', static fn (): Workflow => new CompletingWorkflow($executions));
+        $bench->iq->register('nightly-reconciliation', static fn (): Workflow => new CompletingWorkflow($executions));
         $this->deliver($this->start());
         $this->work();
         $this->removeTheClassOfTheStartEvent();
@@ -400,7 +400,7 @@ class AbandonTest extends QuestionsTestCase
         $bench = $this->ordersOn($backend);
         $this->deliver($this->start());
         $this->work();
-        $bench->cloud->register(self::DEFINITION, static fn (): Workflow => new ReleasedWithAnErrorWorkflow());
+        $bench->iq->register(self::DEFINITION, static fn (): Workflow => new ReleasedWithAnErrorWorkflow());
 
         $answer = $this->deliver($this->abandon(self::RUN_ID, attempt: 1));
 
@@ -414,7 +414,7 @@ class AbandonTest extends QuestionsTestCase
         string $backend,
     ): void {
         $bench = $this->ordersOn($backend);
-        $bench->cloud->register('nightly-reconciliation', static fn (): Workflow => new ReleasedWithAnErrorWorkflow());
+        $bench->iq->register('nightly-reconciliation', static fn (): Workflow => new ReleasedWithAnErrorWorkflow());
         $this->deliver($this->start());
         $this->work();
 

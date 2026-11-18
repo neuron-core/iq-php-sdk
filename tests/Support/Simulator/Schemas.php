@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Simulator;
+namespace NeuronCore\IQ\Tests\Support\Simulator;
 
 use Opis\JsonSchema\Validator;
 
@@ -20,7 +20,7 @@ use function ltrim;
 final class Schemas
 {
     /** The schemas carry no $id: this prefix only gives their relative references a base. */
-    protected const BASE_URI = 'https://neuron-cloud.simulator/protocol/1/';
+    protected const BASE_URI = 'https://iq.simulator/protocol/1/';
 
     protected Validator $validator;
 

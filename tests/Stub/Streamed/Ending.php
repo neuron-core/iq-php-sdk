@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Streamed;
+namespace NeuronCore\IQ\Tests\Stub\Streamed;
 
 /**
  * How the last node of a tale ends the segment that reaches it, once it has streamed a word.

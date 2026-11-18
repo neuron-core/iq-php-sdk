@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Local;
+namespace NeuronCore\IQ\Tests\Stub\Local;
 
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Stub\Units\OrderPlaced;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 class AwaitOrderPaymentNode extends Node
 {

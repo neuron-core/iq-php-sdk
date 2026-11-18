@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Streamed;
+namespace NeuronCore\IQ\Tests\Stub\Streamed;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Workflow\Interrupt\InterruptRequest;

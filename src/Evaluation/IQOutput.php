@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Evaluation;
+namespace NeuronCore\IQ\Evaluation;
 
 use DateTimeImmutable;
 use JsonException;
@@ -16,9 +16,9 @@ use NeuronAI\Evaluation\Score;
 use NeuronAI\Evaluation\Conversation\Trajectory;
 use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\Tools\ToolCall;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Observability\ProviderName;
-use NeuronCore\Cloud\Runtime\PlatformClient;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Observability\ProviderName;
+use NeuronCore\IQ\Runtime\PlatformClient;
 
 use function array_map;
 use function count;
@@ -38,24 +38,24 @@ use const JSON_PRESERVE_ZERO_FRACTION;
 use const JSON_THROW_ON_ERROR;
 
 /**
- * Sends an evaluation run to Neuron Cloud.
+ * Sends an evaluation run to IQ.
  *
- * This is the Neuron Cloud SDK home for the evaluation-output channel: it turns every
+ * This is the IQ SDK home for the evaluation-output channel: it turns every
  * evaluator report in an {@see EvaluationReport} into a separate payload, posted to
  * `{platformUrl}/v1/evaluations` with the API key and the HTTP client of the SDK.
  *
  * Build it from the SDK root, and hand the instance to neuron-ai's evaluation output
  * pipeline in `evaluation.php` (neuron-ai takes a class string or an instance):
  *
- *   'output' => [ConsoleOutput::class, $cloud->evaluationOutput()],
+ *   'output' => [ConsoleOutput::class, $iq->evaluationOutput()],
  *
  * Best-effort: a payload that fails to encode or upload is logged, never thrown, so
  * the other outputs of the pipeline and the exit code of the run are what they would be.
  */
-class CloudOutput implements EvaluationOutputInterface
+class IQOutput implements EvaluationOutputInterface
 {
     /**
-     * @internal built by {@see \NeuronCore\Cloud\NeuronCloud::evaluationOutput()}
+     * @internal built by {@see \NeuronCore\IQ\IQ::evaluationOutput()}
      */
     public function __construct(
         protected readonly PlatformClient $platform,
@@ -139,9 +139,9 @@ class CloudOutput implements EvaluationOutputInterface
 
         try {
             $this->platform->evaluation($this->withValidText($payload));
-        } catch (CloudException|JsonException $e) {
+        } catch (IQException|JsonException $e) {
             // The cause says why no answer came: a network error, or a value JSON cannot carry.
-            error_log('[NeuronCloudOutput] Failed to send evaluation: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
+            error_log('[IQOutput] Failed to send evaluation: ' . $e->getMessage() . ' ' . $e->getPrevious()?->getMessage());
         }
     }
 
@@ -170,7 +170,7 @@ class CloudOutput implements EvaluationOutputInterface
         $dataset = $report->getResults()->getDataset();
 
         return match (true) {
-            $dataset instanceof CloudDataset => ['source' => 'platform', 'name' => $dataset->getName()],
+            $dataset instanceof IQDataset => ['source' => 'platform', 'name' => $dataset->getName()],
             $dataset instanceof NamedDatasetInterface => ['source' => 'application', 'name' => $dataset->getName()],
             default => null,
         };

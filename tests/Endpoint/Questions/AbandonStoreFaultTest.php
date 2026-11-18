@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Faults\FaultyPersistence;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreJournal;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Faults\FaultyPersistence;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreJournal;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_key_exists;
@@ -187,7 +187,7 @@ class AbandonStoreFaultTest extends QuestionsTestCase
     {
         $bench = $this->ordersOn($backend);
         $executions = $bench->executions;
-        $unconfigured = (new NeuronCloud(TestBench::API_KEY, $bench->platform->signingKey))
+        $unconfigured = (new IQ(TestBench::API_KEY, $bench->platform->signingKey))
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
         $answer = $bench->platform->deliver($unconfigured, $this->abandon(self::RUN_ID));
@@ -322,7 +322,7 @@ class AbandonStoreFaultTest extends QuestionsTestCase
         $bench = $this->ordersOn($backend);
         $journal = new StoreJournal();
         $this->fault = StoreFault::none();
-        $bench->cloud->setPersistence(
+        $bench->iq->setPersistence(
             fn (): PersistenceInterface => new FaultyPersistence(($bench->persistence)(), $journal, $this->fault),
         );
 
@@ -332,7 +332,7 @@ class AbandonStoreFaultTest extends QuestionsTestCase
             return;
         }
 
-        $started = $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run();
+        $started = $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run();
         $this->work();
         [$this->runId, $this->attempt] = [(string) $started->getRunId(), 1];
     }

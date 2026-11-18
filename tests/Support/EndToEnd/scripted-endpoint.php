@@ -11,7 +11,7 @@ declare(strict_types=1);
  * Usage: SCRIPTED_ENDPOINT_HOME=<directory> php -S 127.0.0.1:<port> scripted-endpoint.php
  */
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 use function file_get_contents;
 use function getenv;

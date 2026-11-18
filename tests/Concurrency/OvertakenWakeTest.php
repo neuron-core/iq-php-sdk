@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Concurrency;
+namespace NeuronCore\IQ\Tests\Concurrency;
 
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\OvertakenPersistence;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Concurrency\OvertakenPersistence;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -24,7 +24,7 @@ use function time;
  * The one interleaving of two copies of a wake that the worker processes of
  * RacingWakesTest only meet by chance, played in a single process.
  */
-class OvertakenWakeTest extends CloudTestCase
+class OvertakenWakeTest extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -41,16 +41,16 @@ class OvertakenWakeTest extends CloudTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
         $flaky = static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1);
-        $failed = $bench->cloud->register('flaky', $flaky)->invoke($this->start());
+        $failed = $bench->iq->register('flaky', $flaky)->invoke($this->start());
         $wake = $this->wake($failed->run['attempt']);
 
         $overtaken = new OvertakenPersistence(
             ($bench->persistence)(),
             static function () use ($bench, $wake): void {
-                self::assertSame(Outcome::Completed, $bench->cloud->invoke($wake)->outcome);
+                self::assertSame(Outcome::Completed, $bench->iq->invoke($wake)->outcome);
             },
         );
-        $report = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
+        $report = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence(static fn (): PersistenceInterface => $overtaken)
             ->register('flaky', $flaky)
             ->invoke($wake);

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Continuations\AwaitBuyerNode;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\PaidAmountTranslator;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Continuations\AwaitBuyerNode;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\PaidAmountTranslator;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use const NAN;
@@ -115,7 +115,7 @@ class PinnedVersionTest extends ContinuationTestCase
         [$aborted] = $this->queue->runAll($this->processThatOnlyHasVersion1());
         [$report] = $this->work();
 
-        self::assertInstanceOf(CloudException::class, $aborted);
+        self::assertInstanceOf(IQException::class, $aborted);
         self::assertSame(Code::UnknownVersion, $aborted->reason);
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([Outcome::Suspended, 2], [$report->outcome, $report->executedAttempt]);
@@ -133,7 +133,7 @@ class PinnedVersionTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(fn (): PendingSegment => $this->prepare($continuation, $contract, ContractWorkflow::EVENT, self::BUYER));
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
         self::assertSame([], $this->queuedAfter($queued));
     }
@@ -148,7 +148,7 @@ class PinnedVersionTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(static fn (): PendingSegment => $contract->submitInputs(['currency' => 'EUR'], $translator));
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
         self::assertNull($translator->translatedAgainst);
     }
@@ -163,7 +163,7 @@ class PinnedVersionTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(static fn (): PendingSegment => $contract->signal('contract.withdrawn'));
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
     }
 
@@ -181,7 +181,7 @@ class PinnedVersionTest extends ContinuationTestCase
             fn (): PendingSegment => $this->prepare($continuation, $contract, ContractWorkflow::EVENT, $notJsonCompatible),
         );
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
     }
 
@@ -229,7 +229,7 @@ class PinnedVersionTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(fn (): PendingSegment => $this->prepare($continuation, $contract, ContractWorkflow::EVENT, self::BUYER));
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::UnknownVersion, $thrown->reason);
         self::assertSame([], $this->queue->dispatched());
     }
@@ -237,7 +237,7 @@ class PinnedVersionTest extends ContinuationTestCase
     /**
      * A process of an older deploy, on the same store and the same queue: it has no version 2 of "contract".
      */
-    protected function processThatOnlyHasVersion1(): NeuronCloud
+    protected function processThatOnlyHasVersion1(): IQ
     {
         $executions = $this->bench->executions;
 

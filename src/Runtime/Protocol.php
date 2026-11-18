@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 /**
  * @internal
@@ -12,5 +12,5 @@ final class Protocol
     public const VERSION = 1;
 
     /** How the SDK names itself to the platform. */
-    public const SDK = 'neuron-cloud-php/1.0.0';
+    public const SDK = 'iq-php/1.0.0';
 }

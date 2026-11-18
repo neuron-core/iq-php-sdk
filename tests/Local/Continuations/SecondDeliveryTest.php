@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Continuations\AwaitBuyerNode;
-use NeuronCore\Cloud\Tests\Stub\Continuations\AwaitSellerNode;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Continuations\AwaitBuyerNode;
+use NeuronCore\IQ\Tests\Stub\Continuations\AwaitSellerNode;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -114,7 +114,7 @@ class SecondDeliveryTest extends ContinuationTestCase
         [$handedOver] = $this->queuedAfter($queued);
         $heldUpForTwoDays = Invocation::fromArray(['expiresAt' => time() - self::A_DAY] + $handedOver->toArray());
 
-        $report = $this->bench->cloud->invoke($heldUpForTwoDays);
+        $report = $this->bench->iq->invoke($heldUpForTwoDays);
 
         self::assertSame([Outcome::Suspended, 2], [$report->outcome, $report->executedAttempt]);
         self::assertSame(1, $executions->count(AwaitBuyerNode::class));

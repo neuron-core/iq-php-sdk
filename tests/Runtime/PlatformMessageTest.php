@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Runtime\PlatformMessage;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Runtime\PlatformMessage;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -316,7 +316,7 @@ class PlatformMessageTest extends TestCase
     {
         return [
             'a start with a definition the protocol cannot carry' => [['definition' => 'Nightly Reconciliation'] + self::START],
-            'a start with a workflow ID that begins with two underscores' => [['workflowId' => '__neuron_cloud:1'] + self::START],
+            'a start with a workflow ID that begins with two underscores' => [['workflowId' => '__iq:1'] + self::START],
             'a start whose run ID carries no version' => [['runId' => '01JB2M8Q3W'] + self::START],
             'a start whose use-by time is no integer' => [['expiresAt' => '1791368100'] + self::START],
             'a start whose use-by time is negative' => [['expiresAt' => -1] + self::START],

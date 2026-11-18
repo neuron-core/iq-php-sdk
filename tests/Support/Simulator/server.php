@@ -9,7 +9,7 @@ declare(strict_types=1);
  *        php -S 127.0.0.1:<port> server.php
  */
 
-namespace NeuronCore\Cloud\Tests\Support\Simulator;
+namespace NeuronCore\IQ\Tests\Support\Simulator;
 
 use function dirname;
 use function file_get_contents;

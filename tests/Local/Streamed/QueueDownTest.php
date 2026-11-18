@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Streamed;
+namespace NeuronCore\IQ\Tests\Local\Streamed;
 
 use NeuronAI\Exceptions\WorkflowRefusedException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Support\Streamed\Kind;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamedTestCase;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Support\Streamed\Kind;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamedTestCase;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -24,7 +24,7 @@ use RuntimeException;
  */
 class QueueDownTest extends StreamedTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     #[DataProvider('kinds')]
     public function test_a_queue_that_does_not_take_the_announcement_fails_events_itself_as_dispatch_failed(string $backend, Kind $kind): void

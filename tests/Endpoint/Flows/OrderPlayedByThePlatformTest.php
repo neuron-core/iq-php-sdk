@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Flows;
+namespace NeuronCore\IQ\Tests\Endpoint\Flows;
 
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\ShippingFailed;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Move;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlatformSimulator;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlaysOneFlow;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Secrets;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Shop;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\ShippingFailed;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Move;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlatformSimulator;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlaysOneFlow;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Secrets;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Shop;
 use PHPUnit\Framework\TestCase;
 
 use function array_column;
@@ -26,7 +26,7 @@ use const SIGKILL;
 
 /**
  * The end of milestone 3: example (a) of section 5 of the design, with a
- * script in the place of Neuron Cloud. The platform starts an order, wakes
+ * script in the place of IQ. The platform starts an order, wakes
  * its timer when it is due, retries the segment that failed, finds the run
  * a killed worker left behind and has another worker finish it. It sends
  * every message twice. The endpoint answers in the process of the test, and
@@ -241,7 +241,7 @@ class OrderPlayedByThePlatformTest extends TestCase
 
     protected static function play(Shop $shop): void
     {
-        $platform = self::$platform = new PlatformSimulator($shop->platform, $shop->cloud, Shop::DEFINITION, Shop::WORKFLOW_ID);
+        $platform = self::$platform = new PlatformSimulator($shop->platform, $shop->iq, Shop::DEFINITION, Shop::WORKFLOW_ID);
 
         $platform->start();
         $shop->work();

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Stub\EndpointFlows;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Secrets;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Flows\Transcript;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Secrets;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Flows\Transcript;
 
 /**
  * The workflow of the plain PHP example as the platform starts it: with no

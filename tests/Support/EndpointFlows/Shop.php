@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\EndpointFlows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\Concurrency\Gate;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Flows\FileQueue;
-use NeuronCore\Cloud\Tests\Support\Flows\Transcript;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\EndpointFlows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\Concurrency\Gate;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Flows\FileQueue;
+use NeuronCore\IQ\Tests\Support\Flows\Transcript;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PDO;
 
 use function array_map;
@@ -47,8 +47,8 @@ final class Shop
 
     public readonly ReadablePlatform $platform;
 
-    /** The NeuronCloud of the web tier: the endpoint and the payment webhook. */
-    public readonly NeuronCloud $cloud;
+    /** The IQ of the web tier: the endpoint and the payment webhook. */
+    public readonly IQ $iq;
 
     public readonly ExecutionLog $executions;
 
@@ -58,7 +58,7 @@ final class Shop
 
     protected FileQueue $queue;
 
-    /** @var array<string, mixed> what every process builds its NeuronCloud from */
+    /** @var array<string, mixed> what every process builds its IQ from */
     protected array $settings;
 
     /** @var Invocation[] every message that was taken out of the queue, in order */
@@ -74,7 +74,7 @@ final class Shop
      */
     public function __construct(int $shipsAfter, int $shippingFailures = 0, array $versions = [1])
     {
-        $directory = sys_get_temp_dir() . '/neuron-cloud-' . bin2hex(random_bytes(8));
+        $directory = sys_get_temp_dir() . '/iq-' . bin2hex(random_bytes(8));
         mkdir($directory);
 
         $this->settings = [
@@ -102,7 +102,7 @@ final class Shop
         $this->gate = new Gate($directory . '/gate');
         $this->queue = new FileQueue($directory . '/queue');
         $this->platform = new ReadablePlatform();
-        $this->cloud = self::bootstrap($this->settings, $this->platform, $this->platform->signingKey);
+        $this->iq = self::bootstrap($this->settings, $this->platform, $this->platform->signingKey);
     }
 
     /**
@@ -111,19 +111,19 @@ final class Shop
      * @param array<string, mixed> $settings the directory the processes share, and how an order behaves
      * @param string|null $signingKey only the endpoint needs it
      */
-    public static function bootstrap(array $settings, HttpClientInterface $platform, ?string $signingKey = null): NeuronCloud
+    public static function bootstrap(array $settings, HttpClientInterface $platform, ?string $signingKey = null): IQ
     {
         $directory = $settings['directory'];
         $executions = new ExecutionLog($directory . '/executions');
         $transcript = new Transcript($directory . '/transcript');
         $gate = new Gate($directory . '/gate');
 
-        $cloud = (new NeuronCloud(TestBench::API_KEY, $signingKey, TestBench::PLATFORM_URL, $platform))
+        $iq = (new IQ(TestBench::API_KEY, $signingKey, TestBench::PLATFORM_URL, $platform))
             ->setPersistence(static fn (): PersistenceInterface => new DatabasePersistence(self::connect($directory)))
             ->setDispatcher(new FileQueue($directory . '/queue'));
 
         foreach ($settings['versions'] as $version) {
-            $cloud->register(
+            $iq->register(
                 self::DEFINITION,
                 static fn (): OrderWorkflow => new OrderWorkflow($executions, $transcript, $gate, $settings['shipsAfter'], $settings['shippingFailures']),
                 $version,
@@ -131,7 +131,7 @@ final class Shop
             );
         }
 
-        return $cloud;
+        return $iq;
     }
 
     /**
@@ -148,7 +148,7 @@ final class Shop
      */
     public function paymentWebhook(): void
     {
-        $this->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)
+        $this->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)
             ->signal(OrderWorkflow::EVENT, ['amount' => 49.9, 'reference' => Secrets::SIGNAL])
             ->dispatch();
     }

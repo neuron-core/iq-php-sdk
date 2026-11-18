@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\FailureTable;
+namespace NeuronCore\IQ\Tests\EndToEnd\FailureTable;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\FailureTableTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Wait;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Tests\Support\EndToEnd\FailureTableTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Wait;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
 
 use function array_column;
 use function count;
@@ -22,7 +22,7 @@ class Row19WrongApiKeyTest extends FailureTableTestCase
 {
     protected const ORDER = 'R1901';
 
-    protected const REVOKED_KEY = ['NEURON_CLOUD_API_KEY' => 'a-key-the-platform-revoked'];
+    protected const REVOKED_KEY = ['IQ_API_KEY' => 'a-key-the-platform-revoked'];
 
     protected const FAILED = SpoolDispatcher::NOTICES . ':failed';
 

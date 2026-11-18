@@ -9,7 +9,7 @@
             "$ref": "definitions.json#/$defs/protocols"
         },
         "sdk": {
-            "description": "The SDK and its version, such as \"neuron-cloud-php/1.0.0\".",
+            "description": "The SDK and its version, such as \"iq-php/1.0.0\".",
             "type": "string",
             "minLength": 1
         },

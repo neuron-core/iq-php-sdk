@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Observability;
+namespace NeuronCore\IQ\Tests\Observability;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -29,26 +29,26 @@ use NeuronAI\Workflow\Observability\WorkflowStart;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Observability\CloudListener;
-use NeuronCore\Cloud\Observability\Trace;
-use NeuronCore\Cloud\Observability\TraceExporter;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Tracing\AskResearcherTool;
-use NeuronCore\Cloud\Tests\Stub\Tracing\Researcher;
-use NeuronCore\Cloud\Tests\Stub\Tracing\UnbuildableWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Tracing\WeatherTool;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedStream;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Tracing\Otlp;
-use NeuronCore\Cloud\Tests\Support\Units\CapturesErrorLog;
+use NeuronCore\IQ\Observability\IQListener;
+use NeuronCore\IQ\Observability\Trace;
+use NeuronCore\IQ\Observability\TraceExporter;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Tracing\AskResearcherTool;
+use NeuronCore\IQ\Tests\Stub\Tracing\Researcher;
+use NeuronCore\IQ\Tests\Stub\Tracing\UnbuildableWorkflow;
+use NeuronCore\IQ\Tests\Stub\Tracing\WeatherTool;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedStream;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Tracing\Otlp;
+use NeuronCore\IQ\Tests\Support\Units\CapturesErrorLog;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use WeakReference;
@@ -73,7 +73,7 @@ use const JSON_THROW_ON_ERROR;
  * The listener on a workflow: what Neuron reports while a segment executes
  * becomes one OpenTelemetry trace, sent when the segment ends.
  */
-class CloudListenerTest extends CloudTestCase
+class IQListenerTest extends IQTestCase
 {
     use CapturesErrorLog;
 
@@ -694,11 +694,11 @@ class CloudListenerTest extends CloudTestCase
         };
 
         $logged = self::loggedBy(function () use (&$state, $broken): void {
-            $state = $this->traced(new CompletingWorkflow($this->bench->executions), new CloudListener($broken))->run();
+            $state = $this->traced(new CompletingWorkflow($this->bench->executions), new IQListener($broken))->run();
         });
 
         self::assertSame(WorkflowStatus::Completed, $state?->getStatus());
-        self::assertStringContainsString('[CloudListener] The exporter is broken.', $logged);
+        self::assertStringContainsString('[IQListener] The exporter is broken.', $logged);
     }
 
     public function test_the_end_of_a_node_that_no_run_in_flight_opened_sends_nothing(): void
@@ -719,8 +719,8 @@ class CloudListenerTest extends CloudTestCase
         array $metadata = [],
         bool $captureContent = true,
         bool $claimsRuns = false,
-    ): CloudListener {
-        return new CloudListener(
+    ): IQListener {
+        return new IQListener(
             new TraceExporter(new PlatformClient($this->platform, TestBench::PLATFORM_URL, TestBench::API_KEY)),
             $name,
             metadata: $metadata,
@@ -732,7 +732,7 @@ class CloudListenerTest extends CloudTestCase
     /**
      * A workflow on the store of the bench, with the listener subscribed as the SDK subscribes it.
      */
-    protected function traced(Workflow $workflow, ?CloudListener $listener = null, string $workflowId = self::WORKFLOW_ID): Workflow
+    protected function traced(Workflow $workflow, ?IQListener $listener = null, string $workflowId = self::WORKFLOW_ID): Workflow
     {
         return $workflow
             ->for($workflowId)
@@ -743,7 +743,7 @@ class CloudListenerTest extends CloudTestCase
     /**
      * One turn of an agent: the model asks for the weather tool, the tool runs, the model answers.
      */
-    protected function chatAboutTheWeather(CloudListener $listener): void
+    protected function chatAboutTheWeather(IQListener $listener): void
     {
         $model = new FakeAIProvider(
             new ToolCallMessage(null, [new ToolCall('weather', 'call_1', ['city' => 'Rome'])]),
@@ -816,7 +816,7 @@ class CloudListenerTest extends CloudTestCase
      *
      * @return array{string, string} the run ID of the agent and the run ID of the researcher
      */
-    protected function askTheResearcher(CloudListener $listener): array
+    protected function askTheResearcher(IQListener $listener): array
     {
         $researcherRun = null;
         $researcher = Researcher::make()

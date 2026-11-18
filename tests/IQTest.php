@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
@@ -10,24 +10,24 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Tests\Support\Units\LocalPlatform;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Testing\FakeDispatcher;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Tests\Support\Units\LocalPlatform;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 
 use function array_column;
@@ -39,9 +39,9 @@ use function parse_url;
 use const JSON_THROW_ON_ERROR;
 use const PHP_URL_PATH;
 
-class NeuronCloudTest extends CloudTestCase
+class IQTest extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const LOCAL_API_KEY = 'local-api-key';
 
@@ -58,50 +58,50 @@ class NeuronCloudTest extends CloudTestCase
 
     public function test_invoke_before_a_persistence_is_set_is_refused_as_not_configured(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        $reason = self::reasonThrownBy(static fn (): Report => $cloud->invoke(Queued::start('greeting')));
+        $reason = self::reasonThrownBy(static fn (): Report => $iq->invoke(Queued::start('greeting')));
 
         self::assertSame(Code::NotConfigured, $reason);
     }
 
     public function test_register_returns_the_instance_it_was_called_on(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        self::assertSame($cloud, $cloud->register('greeting', static fn (): Workflow => new Workflow()));
+        self::assertSame($iq, $iq->register('greeting', static fn (): Workflow => new Workflow()));
     }
 
     public function test_set_persistence_returns_the_instance_it_was_called_on(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        self::assertSame($cloud, $cloud->setPersistence(static fn (): PersistenceInterface => new InMemoryPersistence()));
+        self::assertSame($iq, $iq->setPersistence(static fn (): PersistenceInterface => new InMemoryPersistence()));
     }
 
     public function test_set_dispatcher_returns_the_instance_it_was_called_on(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        self::assertSame($cloud, $cloud->setDispatcher(new FakeDispatcher()));
+        self::assertSame($iq, $iq->setDispatcher(new FakeDispatcher()));
     }
 
     public function test_set_endpoint_url_returns_the_instance_it_was_called_on(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        self::assertSame($cloud, $cloud->setEndpointUrl('https://shop.example.com/neuron-cloud'));
+        self::assertSame($iq, $iq->setEndpointUrl('https://shop.example.com/iq'));
     }
 
     public function test_registering_a_version_again_replaces_it(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $executions = $bench->executions;
-        $bench->cloud
+        $bench->iq
             ->register('greeting', static fn (): Workflow => new FlakyWorkflow($executions))
             ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions));
 
-        $report = $bench->cloud->invoke(Queued::start('greeting'));
+        $report = $bench->iq->invoke(Queued::start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(0, $executions->count(FlakyNode::class));
@@ -111,11 +111,11 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $executions = $bench->executions;
-        $bench->cloud
+        $bench->iq
             ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions), version: 1)
             ->register('greeting', static fn (): Workflow => new FlakyWorkflow($executions), version: 2);
 
-        $bench->cloud->invoke(Queued::start('greeting', runId: '1-0192f3a8'));
+        $bench->iq->invoke(Queued::start('greeting', runId: '1-0192f3a8'));
 
         self::assertSame(1, $executions->count(CompleteNode::class));
         self::assertSame(0, $executions->count(FlakyNode::class));
@@ -124,43 +124,43 @@ class NeuronCloudTest extends CloudTestCase
     public function test_the_registered_definitions_are_listed_with_the_lease_of_each_version(): void
     {
         $factory = static fn (): Workflow => new Workflow();
-        $cloud = (new NeuronCloud(TestBench::API_KEY))
+        $iq = (new IQ(TestBench::API_KEY))
             ->register('order-fulfilment', $factory, leaseTimeout: 120)
             ->register('support-agent', $factory, version: 1, leaseTimeout: 60)
             ->register('support-agent', $factory, version: 2);
 
-        self::assertSame(['order-fulfilment' => [1 => 120], 'support-agent' => [1 => 60, 2 => 600]], $cloud->definitions());
+        self::assertSame(['order-fulfilment' => [1 => 120], 'support-agent' => [1 => 60, 2 => 600]], $iq->definitions());
     }
 
     public function test_no_definition_is_listed_before_one_is_registered(): void
     {
-        self::assertSame([], (new NeuronCloud(TestBench::API_KEY))->definitions());
+        self::assertSame([], (new IQ(TestBench::API_KEY))->definitions());
     }
 
     public function test_a_version_registered_again_is_listed_once_with_the_lease_it_was_given_last(): void
     {
         $factory = static fn (): Workflow => new Workflow();
-        $cloud = (new NeuronCloud(TestBench::API_KEY))
+        $iq = (new IQ(TestBench::API_KEY))
             ->register('order-fulfilment', $factory, leaseTimeout: 120)
             ->register('order-fulfilment', $factory, leaseTimeout: 900);
 
-        self::assertSame(['order-fulfilment' => [1 => 900]], $cloud->definitions());
+        self::assertSame(['order-fulfilment' => [1 => 900]], $iq->definitions());
     }
 
     public function test_a_registration_the_sdk_refuses_is_not_listed(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        self::reasonThrownBy(static fn (): NeuronCloud => $cloud->register('Order Fulfilment', static fn (): Workflow => new Workflow()));
+        self::reasonThrownBy(static fn (): IQ => $iq->register('Order Fulfilment', static fn (): Workflow => new Workflow()));
 
-        self::assertSame([], $cloud->definitions());
+        self::assertSame([], $iq->definitions());
     }
 
     public function test_register_refuses_a_name_the_protocol_cannot_carry(): void
     {
-        $cloud = new NeuronCloud(TestBench::API_KEY);
+        $iq = new IQ(TestBench::API_KEY);
 
-        $reason = self::reasonThrownBy(static fn (): NeuronCloud => $cloud->register('Order Fulfilment', static fn (): Workflow => new Workflow()));
+        $reason = self::reasonThrownBy(static fn (): IQ => $iq->register('Order Fulfilment', static fn (): Workflow => new Workflow()));
 
         self::assertSame(Code::InvalidRequest, $reason);
     }
@@ -169,9 +169,9 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $executions = $bench->executions;
-        $bench->cloud->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions), leaseTimeout: 90);
+        $bench->iq->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions), leaseTimeout: 90);
 
-        $bench->cloud->invoke(Queued::start('greeting'));
+        $bench->iq->invoke(Queued::start('greeting'));
 
         self::assertSame(90, $bench->platform->received()[0]->body['leaseSeconds'] ?? null);
     }
@@ -180,19 +180,19 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchWithGreeting();
 
-        $bench->cloud->invoke(Queued::start('greeting'));
+        $bench->iq->invoke(Queued::start('greeting'));
 
         self::assertSame(600, $bench->platform->received()[0]->body['leaseSeconds'] ?? null);
     }
 
-    public function test_the_platform_url_defaults_to_neuron_cloud(): void
+    public function test_the_platform_url_defaults_to_iq(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $cloud = $this->withGreeting(new NeuronCloud(TestBench::API_KEY, httpClient: $bench->platform), $bench);
+        $iq = $this->withGreeting(new IQ(TestBench::API_KEY, httpClient: $bench->platform), $bench);
 
-        $cloud->invoke(Queued::start('greeting'));
+        $iq->invoke(Queued::start('greeting'));
 
-        self::assertSame('https://cloud.neuron-ai.dev/v1/announcements', $bench->platform->received()[0]->uri);
+        self::assertSame('https://app.neuron-iq.dev/v1/announcements', $bench->platform->received()[0]->uri);
     }
 
     public function test_with_no_dispatcher_an_announcement_the_platform_did_not_record_is_posted_again_in_place(): void
@@ -249,9 +249,9 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchWithGreeting();
         $bench->platform->failNext(2);
-        $cloud = $this->withoutDispatcher($bench);
+        $iq = $this->withoutDispatcher($bench);
 
-        $reason = self::reasonThrownBy(static fn (): Report => $cloud->invoke(Queued::start('greeting', Origin::APPLICATION)));
+        $reason = self::reasonThrownBy(static fn (): Report => $iq->invoke(Queued::start('greeting', Origin::APPLICATION)));
 
         self::assertSame(Code::AnnounceFailed, $reason);
         self::assertSame(0, $bench->executions->total());
@@ -262,10 +262,10 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchWithGreeting();
         $bench->platform->failNext(2);
-        $cloud = $this->withoutDispatcher($bench);
-        self::thrownBy(static fn (): Report => $cloud->invoke(Queued::start('greeting', Origin::APPLICATION)));
+        $iq = $this->withoutDispatcher($bench);
+        self::thrownBy(static fn (): Report => $iq->invoke(Queued::start('greeting', Origin::APPLICATION)));
 
-        $report = $cloud->invoke(Queued::start('greeting', Origin::APPLICATION));
+        $report = $iq->invoke(Queued::start('greeting', Origin::APPLICATION));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -273,9 +273,9 @@ class NeuronCloudTest extends CloudTestCase
 
     public function test_workflow_before_a_persistence_is_set_is_refused_as_not_configured(): void
     {
-        $cloud = (new NeuronCloud(TestBench::API_KEY))->register('greeting', static fn (): Workflow => new Workflow());
+        $iq = (new IQ(TestBench::API_KEY))->register('greeting', static fn (): Workflow => new Workflow());
 
-        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $cloud->workflow('greeting', Queued::WORKFLOW_ID));
+        $reason = self::reasonThrownBy(static fn (): ManagedWorkflow => $iq->workflow('greeting', Queued::WORKFLOW_ID));
 
         self::assertSame(Code::NotConfigured, $reason);
     }
@@ -284,7 +284,7 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchWithGreeting();
 
-        $state = $bench->cloud->workflow('greeting', 'order:456')->start()->run();
+        $state = $bench->iq->workflow('greeting', 'order:456')->start()->run();
 
         self::assertSame('order:456', $state->getWorkflowId());
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -294,7 +294,7 @@ class NeuronCloudTest extends CloudTestCase
     {
         $bench = $this->benchWithGreeting();
 
-        $bench->cloud->workflow('greeting', Queued::WORKFLOW_ID)->start()->run();
+        $bench->iq->workflow('greeting', Queued::WORKFLOW_ID)->start()->run();
 
         self::assertSame([], $bench->platform->received());
         $bench->dispatcher->assertDispatched(Verb::Announce, Queued::WORKFLOW_ID);
@@ -325,7 +325,7 @@ class NeuronCloudTest extends CloudTestCase
         $thrown = self::thrownBy(static fn (): WorkflowState => $start->run());
 
         self::assertSame(Code::DispatchFailed, $thrown?->reason);
-        self::assertSame(Code::ReportUndelivered, $thrown->getPrevious() instanceof CloudException ? $thrown->getPrevious()->reason : null);
+        self::assertSame(Code::ReportUndelivered, $thrown->getPrevious() instanceof IQException ? $thrown->getPrevious()->reason : null);
         self::assertSame(0, $bench->executions->total());
     }
 
@@ -345,9 +345,9 @@ class NeuronCloudTest extends CloudTestCase
     {
         $platform = $this->localPlatform = new LocalPlatform();
         $dispatcher = new FakeDispatcher();
-        $cloud = $this->onLocalPlatform($platform->url(LocalPlatform::MOVED))->setDispatcher($dispatcher);
+        $iq = $this->onLocalPlatform($platform->url(LocalPlatform::MOVED))->setDispatcher($dispatcher);
 
-        $report = $cloud->invoke(Queued::start('greeting'));
+        $report = $iq->invoke(Queued::start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(
@@ -363,15 +363,15 @@ class NeuronCloudTest extends CloudTestCase
     public function test_the_default_http_client_posts_json_with_the_api_key_and_the_name_of_the_sdk(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $cloud = $this->onLocalPlatform($platform->url());
+        $iq = $this->onLocalPlatform($platform->url());
 
-        $cloud->invoke(Queued::start('greeting'));
+        $iq->invoke(Queued::start('greeting'));
 
         $announcement = $platform->requests()[0];
         self::assertSame('POST', $announcement['method']);
         self::assertSame('/v1/announcements', $announcement['path']);
         self::assertSame('Bearer ' . self::LOCAL_API_KEY, $announcement['headers']['Authorization']);
-        self::assertMatchesRegularExpression('~^neuron-cloud-php/\d+\.\d+\.\d+$~D', $announcement['headers']['User-Agent']);
+        self::assertMatchesRegularExpression('~^iq-php/\d+\.\d+\.\d+$~D', $announcement['headers']['User-Agent']);
         self::assertSame('application/json', $announcement['headers']['Content-Type']);
     }
 
@@ -379,9 +379,9 @@ class NeuronCloudTest extends CloudTestCase
     public function test_the_default_http_client_sends_the_report_as_the_body_of_its_request(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $cloud = $this->onLocalPlatform($platform->url());
+        $iq = $this->onLocalPlatform($platform->url());
 
-        $report = $cloud->invoke(Queued::start('greeting'));
+        $report = $iq->invoke(Queued::start('greeting'));
 
         $sent = $platform->requests()[1];
         self::assertSame('/v1/reports', $sent['path']);
@@ -395,10 +395,10 @@ class NeuronCloudTest extends CloudTestCase
     public function test_the_default_http_client_gives_the_platform_three_seconds_to_answer(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $cloud = $this->onLocalPlatform($platform->url(LocalPlatform::SILENT));
+        $iq = $this->onLocalPlatform($platform->url(LocalPlatform::SILENT));
         $askedAt = microtime(true);
 
-        $reason = self::reasonThrownBy(static fn (): Report => $cloud->invoke(Queued::announcementOf(Queued::start('greeting'))));
+        $reason = self::reasonThrownBy(static fn (): Report => $iq->invoke(Queued::announcementOf(Queued::start('greeting'))));
 
         $waited = microtime(true) - $askedAt;
         self::assertSame(Code::ReportUndelivered, $reason);
@@ -412,35 +412,35 @@ class NeuronCloudTest extends CloudTestCase
     protected function benchWithGreeting(): TestBench
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $this->withGreeting($bench->cloud, $bench);
+        $this->withGreeting($bench->iq, $bench);
 
         return $bench;
     }
 
-    protected function withGreeting(NeuronCloud $cloud, TestBench $bench): NeuronCloud
+    protected function withGreeting(IQ $iq, TestBench $bench): IQ
     {
         $executions = $bench->executions;
 
-        return $cloud
+        return $iq
             ->setPersistence($bench->persistence)
             ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions));
     }
 
     /**
-     * A NeuronCloud on the store and the platform of the bench, with no dispatcher set.
+     * An IQ on the store and the platform of the bench, with no dispatcher set.
      */
-    protected function withoutDispatcher(TestBench $bench): NeuronCloud
+    protected function withoutDispatcher(TestBench $bench): IQ
     {
-        return $this->withGreeting(new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform), $bench);
+        return $this->withGreeting(new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform), $bench);
     }
 
     /**
-     * A NeuronCloud that is given no HTTP client, so it builds its own, and reaches a platform on this machine.
+     * An IQ that is given no HTTP client, so it builds its own, and reaches a platform on this machine.
      */
-    protected function onLocalPlatform(string $platformUrl): NeuronCloud
+    protected function onLocalPlatform(string $platformUrl): IQ
     {
         return $this->withGreeting(
-            new NeuronCloud(self::LOCAL_API_KEY, platformUrl: $platformUrl),
+            new IQ(self::LOCAL_API_KEY, platformUrl: $platformUrl),
             $this->benchOn(TestBench::IN_MEMORY),
         );
     }

@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint;
+namespace NeuronCore\IQ\Tests\Endpoint;
 
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -40,7 +40,7 @@ class DeadRunTest extends EndpointTestCase
             $this->deliver($this->wake($dead['attempt']));
             [$takeover] = $this->work();
         };
-        $bench->cloud->register(
+        $bench->iq->register(
             self::DEFINITION,
             static fn (): Workflow => new BusyWorkflow($executions, $outlivesItsLease),
             leaseTimeout: 1,

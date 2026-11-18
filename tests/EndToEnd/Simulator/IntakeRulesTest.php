@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\Simulator;
+namespace NeuronCore\IQ\Tests\EndToEnd\Simulator;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\PlayedApplication;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\ScriptedEndpoint;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Shown;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\SimulatorTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\EndToEnd\PlayedApplication;
+use NeuronCore\IQ\Tests\Support\EndToEnd\ScriptedEndpoint;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Shown;
+use NeuronCore\IQ\Tests\Support\EndToEnd\SimulatorTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -175,7 +175,7 @@ class IntakeRulesTest extends SimulatorTestCase
 
     public function test_a_redirect_of_the_ping_is_not_followed_and_fails_the_sync(): void
     {
-        $this->endpoint->answerNext('ping', 302, [], ['Location' => $this->endpoint->url() . '/neuron-cloud']);
+        $this->endpoint->answerNext('ping', 302, [], ['Location' => $this->endpoint->url() . '/iq']);
 
         self::assertSame(422, $this->application->sync()['status']);
         self::assertSame([200, 302], array_column($this->platform->wire()->of(WireLog::PING), 'status'), 'One ping for the first sync, one for this.');
@@ -183,7 +183,7 @@ class IntakeRulesTest extends SimulatorTestCase
 
     public function test_an_endpoint_that_is_not_https_is_refused_as_malformed(): void
     {
-        $answer = $this->application->sync(endpoint: 'http://application.example.com/neuron-cloud');
+        $answer = $this->application->sync(endpoint: 'http://application.example.com/iq');
 
         self::assertSame(['status' => 400, 'body' => ['code' => 'invalid_request']], $answer);
     }
@@ -194,11 +194,11 @@ class IntakeRulesTest extends SimulatorTestCase
     public static function endpointsThatAreNotPubliclyRoutable(): array
     {
         return [
-            'a private address' => ['https://10.0.0.5/neuron-cloud'],
-            'the loopback address' => ['https://127.0.0.1/neuron-cloud'],
-            'a link-local address' => ['https://169.254.169.254/neuron-cloud'],
-            'localhost' => ['https://localhost/neuron-cloud'],
-            'a name nothing leads to' => ['https://nowhere.example.com/neuron-cloud'],
+            'a private address' => ['https://10.0.0.5/iq'],
+            'the loopback address' => ['https://127.0.0.1/iq'],
+            'a link-local address' => ['https://169.254.169.254/iq'],
+            'localhost' => ['https://localhost/iq'],
+            'a name nothing leads to' => ['https://nowhere.example.com/iq'],
         ];
     }
 
@@ -215,7 +215,7 @@ class IntakeRulesTest extends SimulatorTestCase
     {
         $this->platform->tunnel('https://elsewhere.example.com', $this->endpoint->url());
 
-        $answer = $this->application->sync(endpoint: 'https://elsewhere.example.com/neuron-cloud');
+        $answer = $this->application->sync(endpoint: 'https://elsewhere.example.com/iq');
 
         self::assertSame(['status' => 422, 'body' => ['code' => 'endpoint_unverified']], $answer, 'The protocol has no answer of its own for a move that waits.');
         self::assertSame(PlayedApplication::ENDPOINT, $this->platform->manifest()['endpoint']);
@@ -227,10 +227,10 @@ class IntakeRulesTest extends SimulatorTestCase
         $this->platform->tunnel('https://elsewhere.example.com', $this->endpoint->url());
         $this->platform->confirmEndpointMove('elsewhere.example.com');
 
-        $answer = $this->application->sync(endpoint: 'https://elsewhere.example.com/neuron-cloud');
+        $answer = $this->application->sync(endpoint: 'https://elsewhere.example.com/iq');
 
         self::assertSame([200, true], [$answer['status'], $answer['body']['modified']]);
-        self::assertSame('https://elsewhere.example.com/neuron-cloud', $this->platform->manifest()['endpoint']);
+        self::assertSame('https://elsewhere.example.com/iq', $this->platform->manifest()['endpoint']);
     }
 
     public function test_another_path_on_the_same_host_needs_no_consent(): void

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Continuations;
+namespace NeuronCore\IQ\Tests\Support\Continuations;
 
 use Closure;
 use NeuronAI\Exceptions\WorkflowRefusedException;
@@ -10,17 +10,17 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use Throwable;
 
 use function array_slice;
@@ -65,7 +65,7 @@ abstract class ContinuationTestCase extends LocalTestCase
      */
     protected function managed(string $name, Closure $factory, int $version = 1, int $leaseTimeout = 600): ManagedWorkflow
     {
-        return $this->bench->cloud
+        return $this->bench->iq
             ->register($name, $factory, $version, $leaseTimeout)
             ->workflow($name, self::WORKFLOW_ID);
     }
@@ -98,9 +98,9 @@ abstract class ContinuationTestCase extends LocalTestCase
      *
      * @param PersistenceInterface|null $store the one store this process builds; null: the stores of the bench
      */
-    protected function anotherProcess(?PersistenceInterface $store = null): NeuronCloud
+    protected function anotherProcess(?PersistenceInterface $store = null): IQ
     {
-        return (new NeuronCloud(TestBench::API_KEY, httpClient: $this->bench->platform))
+        return (new IQ(TestBench::API_KEY, httpClient: $this->bench->platform))
             ->setPersistence($store instanceof PersistenceInterface ? static fn (): PersistenceInterface => $store : $this->bench->persistence)
             ->setDispatcher($this->queue);
     }
@@ -126,11 +126,11 @@ abstract class ContinuationTestCase extends LocalTestCase
     /**
      * A worker takes everything that is queued, each message $deliveries times in a row.
      *
-     * @return array<int, Report|CloudException> what every invoke() returned or threw, in order
+     * @return array<int, Report|IQException> what every invoke() returned or threw, in order
      */
     protected function work(int $deliveries = 1): array
     {
-        return $this->queue->runAll($this->bench->cloud, $deliveries);
+        return $this->queue->runAll($this->bench->iq, $deliveries);
     }
 
     /**
@@ -142,7 +142,7 @@ abstract class ContinuationTestCase extends LocalTestCase
         $run = $this->storedRun();
         self::assertInstanceOf(WorkflowRunSnapshot::class, $run);
 
-        return $this->bench->cloud->invoke(
+        return $this->bench->iq->invoke(
             new Invocation('inv_platform_wake', Verb::Wake, Origin::PLATFORM, $definition, self::WORKFLOW_ID, $run->runId, $run->executionAttempt),
         );
     }
@@ -220,10 +220,10 @@ abstract class ContinuationTestCase extends LocalTestCase
      *
      * @param Closure(): mixed $call
      */
-    protected static function cloudExceptionFrom(Closure $call): CloudException
+    protected static function cloudExceptionFrom(Closure $call): IQException
     {
         $thrown = self::thrownFrom($call);
-        self::assertInstanceOf(CloudException::class, $thrown, self::describe($thrown));
+        self::assertInstanceOf(IQException::class, $thrown, self::describe($thrown));
 
         return $thrown;
     }

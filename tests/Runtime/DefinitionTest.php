@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Definition;
 use PHPUnit\Framework\TestCase;
 
 /**

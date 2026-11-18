@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function str_repeat;
@@ -32,7 +32,7 @@ class IdentifierFormatTest extends RequestTestCase
     {
         $this->shop($backend);
         if ($field === 'definition') {
-            $this->cloud->register($value, static fn (): Workflow => new Workflow());
+            $this->iq->register($value, static fn (): Workflow => new Workflow());
         }
 
         $answer = $this->deliver([$field => $value] + $this->message($verb));
@@ -59,7 +59,7 @@ class IdentifierFormatTest extends RequestTestCase
     public function test_a_start_on_the_highest_version_a_run_id_can_carry_is_queued(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new Workflow(), version: 999999);
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new Workflow(), version: 999999);
 
         $answer = $this->deliver($this->start(['runId' => '999999-0192f3a8']));
 
@@ -190,7 +190,7 @@ class IdentifierFormatTest extends RequestTestCase
                 'of 256 multibyte characters' => str_repeat('é', 256),
                 'that begins with two underscores' => '__order',
                 'that is two underscores' => '__',
-                'that is the partition of the ledger' => '__neuron_cloud:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
+                'that is the partition of the ledger' => '__iq:9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08',
                 'that ends with a line feed' => "order:123\n",
                 'with a tab' => "order\t123",
                 'with a NUL' => "order\u{0}123",

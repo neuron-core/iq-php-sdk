@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Concurrency;
+namespace NeuronCore\IQ\Tests\Stub\Concurrency;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 class PrepareNode extends Node
 {

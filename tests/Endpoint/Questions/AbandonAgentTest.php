@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Interrupt\ApprovalTranslator;
@@ -13,10 +13,10 @@ use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Stub\Continuations\RefundFailed;
-use NeuronCore\Cloud\Tests\Stub\Continuations\RefundTool as FailingRefundTool;
-use NeuronCore\Cloud\Tests\Stub\Flows\RefundTool;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Stub\Continuations\RefundFailed;
+use NeuronCore\IQ\Tests\Stub\Continuations\RefundTool as FailingRefundTool;
+use NeuronCore\IQ\Tests\Stub\Flows\RefundTool;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -166,12 +166,12 @@ class AbandonAgentTest extends QuestionsTestCase
         $executions = $this->bench->executions;
         $conversations = new InMemoryMessageStore();
         $provider = new FakeAIProvider(new ToolCallMessage(null, [new ToolCall('refund_order', self::CALL_ID)]));
-        $this->bench->cloud->register(self::AGENT, static fn (): Agent => Agent::make()
+        $this->bench->iq->register(self::AGENT, static fn (): Agent => Agent::make()
             ->setAiProvider($provider)
             ->setMessageStore($conversations)
             ->addTool((new FailingRefundTool($executions, failures: 1))->requireApproval()));
 
-        $thread = $this->bench->cloud->workflow(self::AGENT, self::THREAD_ID);
+        $thread = $this->bench->iq->workflow(self::AGENT, self::THREAD_ID);
         $thread->start(new UserMessage('Refund order 123.'))->run();
         $failure = self::thrownBy(static fn (): mixed => $thread->submitInputs([self::CALL_ID => 'approve'], new ApprovalTranslator())->run());
         $this->work();
@@ -187,11 +187,11 @@ class AbandonAgentTest extends QuestionsTestCase
     {
         $conversations = new InMemoryMessageStore();
         $outOfAnswers = new FakeAIProvider();
-        $this->bench->cloud->register(self::AGENT, static fn (): Agent => Agent::make()
+        $this->bench->iq->register(self::AGENT, static fn (): Agent => Agent::make()
             ->setAiProvider($outOfAnswers)
             ->setMessageStore($conversations));
 
-        $thread = $this->bench->cloud->workflow(self::AGENT, self::THREAD_ID);
+        $thread = $this->bench->iq->workflow(self::AGENT, self::THREAD_ID);
         $failure = self::thrownBy(static fn (): mixed => $thread->start(new UserMessage('Refund order 123.'))->run());
         $this->work();
 

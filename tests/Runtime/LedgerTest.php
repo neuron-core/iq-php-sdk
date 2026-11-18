@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Runtime\Claim;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Stub\RacingPersistence;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Runtime\Claim;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Stub\RacingPersistence;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_keys;
@@ -21,7 +21,7 @@ use function time;
 
 use const JSON_THROW_ON_ERROR;
 
-class LedgerTest extends CloudTestCase
+class LedgerTest extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -35,7 +35,7 @@ class LedgerTest extends CloudTestCase
 
         self::assertSame(
             '{"1-abc":' . $useBy . '}',
-            $this->store()->get('__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID), 'starts'),
+            $this->store()->get('__iq:' . hash('sha256', self::WORKFLOW_ID), 'starts'),
         );
     }
 
@@ -116,7 +116,7 @@ class LedgerTest extends CloudTestCase
         try {
             $ledger->claim(self::WORKFLOW_ID, '1-abc', time() + 900);
             self::fail('The claim should have given up.');
-        } catch (CloudException $gaveUp) {
+        } catch (IQException $gaveUp) {
             self::assertSame(Code::Unavailable, $gaveUp->reason);
         }
 
@@ -154,7 +154,7 @@ class LedgerTest extends CloudTestCase
      */
     protected function entries(): array
     {
-        $stored = $this->store()->get('__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID), 'starts');
+        $stored = $this->store()->get('__iq:' . hash('sha256', self::WORKFLOW_ID), 'starts');
 
         return $stored === null ? [] : json_decode($stored, true, flags: JSON_THROW_ON_ERROR);
     }
@@ -165,7 +165,7 @@ class LedgerTest extends CloudTestCase
     protected function seed(array $entries): void
     {
         $this->store()->initializeIfAbsent(
-            '__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID),
+            '__iq:' . hash('sha256', self::WORKFLOW_ID),
             'starts',
             json_encode($entries, JSON_THROW_ON_ERROR),
         );

@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -72,7 +72,7 @@ class AbandonAftermathTest extends QuestionsTestCase
     ): void {
         $bench = $this->benchOn($backend);
         $this->whileHeldBy(Holder::WaitingForAnEvent, function () use ($continuation): void {
-            $prepared = $this->prepare($continuation, $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID));
+            $prepared = $this->prepare($continuation, $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID));
             $this->abandonTheHolder();
             $prepared->dispatch();
         });
@@ -92,7 +92,7 @@ class AbandonAftermathTest extends QuestionsTestCase
     {
         $this->benchOn($backend);
         $this->whileHeldBy(Holder::WaitingForAnEvent, fn (): HttpResponse => $this->abandonTheHolder());
-        $order = $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID);
+        $order = $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID);
 
         $this->expectException(InputTranslationException::class);
 

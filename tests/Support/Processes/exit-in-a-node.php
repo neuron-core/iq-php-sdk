@@ -10,7 +10,7 @@ declare(strict_types=1);
  * without the extensions the test suite needs.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\Processes;
+namespace NeuronCore\IQ\Tests\Support\Processes;
 
 use Generator;
 use InvalidArgumentException;
@@ -19,12 +19,12 @@ use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Streaming\SSEEncoder;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\Units\ExitingNode;
-use NeuronCore\Cloud\Tests\Stub\Units\FramingAdapter;
-use NeuronCore\Cloud\Tests\Support\Runner\InspectableDispatcher;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\Units\ExitingNode;
+use NeuronCore\IQ\Tests\Stub\Units\FramingAdapter;
+use NeuronCore\IQ\Tests\Support\Runner\InspectableDispatcher;
 
 use function array_map;
 use function dirname;
@@ -38,7 +38,7 @@ const WORKFLOW_ID = 'order:123';
 
 $store = new InMemoryPersistence();
 $queue = new InspectableDispatcher();
-$thread = (new NeuronCloud('test-api-key', null, 'https://platform.test', new FakePlatform()))
+$thread = (new IQ('test-api-key', null, 'https://platform.test', new FakePlatform()))
     ->setPersistence(static fn (): PersistenceInterface => $store)
     ->setDispatcher($queue)
     ->register('farewell', static fn (): Workflow => (new Workflow())->addNodes([new ExitingNode()]))

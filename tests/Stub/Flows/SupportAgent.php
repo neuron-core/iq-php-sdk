@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Flows;
+namespace NeuronCore\IQ\Tests\Stub\Flows;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Chat\History\MessageStoreInterface;
 use NeuronAI\Providers\AIProviderInterface;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * The chat agent of the Laravel example: a factory can rebuild it from the

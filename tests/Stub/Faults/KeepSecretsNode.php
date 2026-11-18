@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Faults;
+namespace NeuronCore\IQ\Tests\Stub\Faults;
 
 use DateTimeImmutable;
 use NeuronAI\Agent\Interrupt\Action;
 use NeuronAI\Agent\Interrupt\ApprovalRequest;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
-use NeuronCore\Cloud\Tests\Support\Faults\Markers;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Support\Faults\Markers;
 
 /**
  * Keeps a marker in the state and in a memo, then waits three times: for an

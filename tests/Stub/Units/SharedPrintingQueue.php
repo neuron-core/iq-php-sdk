@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Units;
+namespace NeuronCore\IQ\Tests\Stub\Units;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
 
 use function getmypid;
 

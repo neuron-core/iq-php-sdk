@@ -15,10 +15,10 @@ declare(strict_types=1);
  * Usage: STREAMED_CHAT_HOME=<directory> php -S 127.0.0.1:<port> front-controller.php
  */
 
-namespace NeuronCore\Cloud\Tests\Support\StreamedChat;
+namespace NeuronCore\IQ\Tests\Support\StreamedChat;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\PacedModel;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\PacedModel;
 
 use function dirname;
 use function file_get_contents;
@@ -39,9 +39,9 @@ ignore_user_abort((bool) ($_GET['ignore_abort'] ?? false));
 
 $home = new ChatHome((string) getenv('STREAMED_CHAT_HOME'));
 $model = new PacedModel((int) ($_GET['pause'] ?? 0), new AssistantMessage(ChatServer::ANSWER));
-$cloud = $home->application($model, $home->sentByTheServer, new Broadcast(), (int) ($_GET['lease'] ?? 600));
+$iq = $home->application($model, $home->sentByTheServer, new Broadcast(), (int) ($_GET['lease'] ?? 600));
 
-$response = (new ChatEndpoint($cloud))(json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR));
+$response = (new ChatEndpoint($iq))(json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR));
 
 http_response_code($response->status);
 foreach ($response->headers as $name => $value) {

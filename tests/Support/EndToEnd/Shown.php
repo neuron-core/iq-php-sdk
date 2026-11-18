@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 /**
  * The run object of the protocol, as a test writes one: what the store of an

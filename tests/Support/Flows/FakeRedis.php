@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use function array_shift;
 

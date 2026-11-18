@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use PHPUnit\Framework\Assert;
 
@@ -47,7 +47,7 @@ final class ApplicationProcess
     protected ?string $printed = null;
 
     /**
-     * @param array<string, string> $files what LocalProcessBench::application() builds the NeuronCloud of the process from
+     * @param array<string, string> $files what LocalProcessBench::application() builds the IQ of the process from
      * @param array<string, mixed> $call what ApplicationCall::perform() does in the process
      */
     public function __construct(array $files, array $call)
@@ -62,7 +62,7 @@ final class ApplicationProcess
     }
 
     /**
-     * Wait until the process has built its NeuronCloud and only waits for its order.
+     * Wait until the process has built its IQ and only waits for its order.
      */
     public function awaitReady(): void
     {

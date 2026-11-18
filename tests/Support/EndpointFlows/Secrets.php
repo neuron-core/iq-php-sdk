@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 /**
  * Strings planted wherever an order carries what must never leave the

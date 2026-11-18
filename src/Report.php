@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 use JsonSerializable;
-use NeuronCore\Cloud\Runtime\Protocol;
+use NeuronCore\IQ\Runtime\Protocol;
 use Throwable;
 
 use function get_object_vars;

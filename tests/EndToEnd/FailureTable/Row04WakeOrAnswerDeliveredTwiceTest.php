@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\FailureTable;
+namespace NeuronCore\IQ\Tests\EndToEnd\FailureTable;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\FailureTableTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\PlannedFailure;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Support\EndToEnd\FailureTableTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\PlannedFailure;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Verb;
 
 use function array_column;
 use function array_filter;

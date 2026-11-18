@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Runner;
+namespace NeuronCore\IQ\Tests\Stub\Runner;
 
 use NeuronAI\Workflow\Events\Event;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
 
 /**
  * Its own start event is one that none of its nodes handles.

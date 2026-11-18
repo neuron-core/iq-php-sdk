@@ -2,29 +2,29 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Boundary;
+namespace NeuronCore\IQ\Tests\Boundary;
 
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Faults\FaultyPersistence;
-use NeuronCore\Cloud\Tests\Stub\Faults\SecretiveWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Faults\SecretStart;
-use NeuronCore\Cloud\Tests\Stub\Faults\StoreFailed;
-use NeuronCore\Cloud\Tests\Stub\Faults\ThrowAnonymousNode;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\Faults\FaultMode;
-use NeuronCore\Cloud\Tests\Support\Faults\Markers;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreJournal;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Faults\FaultyPersistence;
+use NeuronCore\IQ\Tests\Stub\Faults\SecretiveWorkflow;
+use NeuronCore\IQ\Tests\Stub\Faults\SecretStart;
+use NeuronCore\IQ\Tests\Stub\Faults\StoreFailed;
+use NeuronCore\IQ\Tests\Stub\Faults\ThrowAnonymousNode;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\Faults\FaultMode;
+use NeuronCore\IQ\Tests\Support\Faults\Markers;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreJournal;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use ReflectionClass;
 
@@ -59,7 +59,7 @@ use const PHP_URL_PATH;
  * the platform refusing every announcement and report first, so that all of
  * them reach it from the queue; and the starts that never run.
  */
-class WireBoundaryTest extends CloudTestCase
+class WireBoundaryTest extends IQTestCase
 {
     protected const ANNOUNCEMENTS = '/v1/announcements';
 
@@ -135,7 +135,7 @@ class WireBoundaryTest extends CloudTestCase
                 && ($request->uri === TestBench::PLATFORM_URL . self::ANNOUNCEMENTS || $request->uri === TestBench::PLATFORM_URL . self::REPORTS)
                 && array_keys($request->headers) === ['Authorization', 'User-Agent']
                 && $request->headers['Authorization'] === 'Bearer ' . TestBench::API_KEY
-                && preg_match('#^neuron-cloud-php/\d+\.\d+\.\d+$#D', $request->headers['User-Agent']) === 1;
+                && preg_match('#^iq-php/\d+\.\d+\.\d+$#D', $request->headers['User-Agent']) === 1;
 
             if (!$listed) {
                 $strays[] = json_encode([$request->method->value, $request->uri, $request->headers], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
@@ -197,9 +197,9 @@ class WireBoundaryTest extends CloudTestCase
     public function test_an_exception_of_an_anonymous_class_reaches_the_platform_without_the_path_of_its_file(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('nameless', static fn (): Workflow => (new Workflow())->addNode(new ThrowAnonymousNode()));
+        $bench->iq->register('nameless', static fn (): Workflow => (new Workflow())->addNode(new ThrowAnonymousNode()));
 
-        $bench->cloud->invoke($this->start(Origin::PLATFORM, 'nameless', 'case:nameless'));
+        $bench->iq->invoke($this->start(Origin::PLATFORM, 'nameless', 'case:nameless'));
 
         $errorClass = (string) $this->recorded($bench, self::REPORTS)[0]['errorClass'];
         $sent = 'The platform was sent the class name ' . json_encode($errorClass, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . '.';
@@ -214,7 +214,7 @@ class WireBoundaryTest extends CloudTestCase
         $this->fault = StoreFault::none();
         $executions = $bench->executions;
 
-        $bench->cloud
+        $bench->iq
             ->setPersistence(fn (): PersistenceInterface => new FaultyPersistence(($bench->persistence)(), $this->journal, $this->fault))
             ->register('vault', static fn (): SecretiveWorkflow => new SecretiveWorkflow())
             ->register('greeting', static fn (): CompletingWorkflow => new CompletingWorkflow($executions))
@@ -238,7 +238,7 @@ class WireBoundaryTest extends CloudTestCase
         $approval = $this->deliver($start, $platformDown);
         $this->deliver($start, $platformDown);
         // As after a job that died: a worker observes the start, with no outcome to carry.
-        $this->bench->cloud->invoke($this->observe($start));
+        $this->bench->iq->invoke($this->observe($start));
 
         $answer = $this->continuation(Verb::Answer, $approval, ['payload' => base64_encode(serialize(['call_1' => ['reject', Markers::ANSWER]]))]);
         $event = $this->deliver($answer, $platformDown);
@@ -256,20 +256,20 @@ class WireBoundaryTest extends CloudTestCase
 
     protected function playTheStartsThatNeverRun(): void
     {
-        $cloud = $this->bench->cloud;
+        $iq = $this->bench->iq;
 
         // Rejected: no node of "greeting" handles the event the start carries.
-        $cloud->invoke($this->start(Origin::APPLICATION, 'greeting', 'case:invalid', ['event' => $this->carriedStart()]));
+        $iq->invoke($this->start(Origin::APPLICATION, 'greeting', 'case:invalid', ['event' => $this->carriedStart()]));
         // Rejected: past its use-by time.
-        $cloud->invoke($this->start(Origin::PLATFORM, 'vault', 'case:late', ['expiresAt' => time() - 1]));
+        $iq->invoke($this->start(Origin::PLATFORM, 'vault', 'case:late', ['expiresAt' => time() - 1]));
 
         // Aborted: the store fails at the claim.
         $this->fault = StoreFault::at(FaultMode::BeforeOperation, 1);
-        $cloud->invoke($this->start(Origin::PLATFORM, 'vault', 'case:down'));
+        $iq->invoke($this->start(Origin::PLATFORM, 'vault', 'case:down'));
         $this->fault = StoreFault::none();
 
         // Aborted: the factory throws.
-        $cloud->invoke($this->start(Origin::PLATFORM, 'broken', 'case:broken'));
+        $iq->invoke($this->start(Origin::PLATFORM, 'broken', 'case:broken'));
     }
 
     /**
@@ -280,12 +280,12 @@ class WireBoundaryTest extends CloudTestCase
     protected function deliver(Invocation $order, bool $platformDown): Report
     {
         if (!$platformDown) {
-            return $this->bench->cloud->invoke($order);
+            return $this->bench->iq->invoke($order);
         }
 
         $this->bench->platform->failNext(2);
-        $report = $this->bench->cloud->invoke($order);
-        $this->bench->dispatcher->runAll($this->bench->cloud);
+        $report = $this->bench->iq->invoke($order);
+        $this->bench->dispatcher->runAll($this->bench->iq);
 
         return $report;
     }

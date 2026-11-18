@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use DateTimeImmutable;
 use Generator;
@@ -24,28 +24,28 @@ use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Execution;
-use NeuronCore\Cloud\Runtime\Settlement;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NarrateNode;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Stub\Units\EndForwardingNode;
-use NeuronCore\Cloud\Tests\Stub\Units\FramingAdapter;
-use NeuronCore\Cloud\Tests\Stub\Units\NarratingWorkflowSeenAs;
-use NeuronCore\Cloud\Tests\Stub\Units\RunOverridingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Units\UnframableAdapter;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Execution;
+use NeuronCore\IQ\Runtime\Settlement;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NarrateNode;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Stub\Units\EndForwardingNode;
+use NeuronCore\IQ\Tests\Stub\Units\FramingAdapter;
+use NeuronCore\IQ\Tests\Stub\Units\NarratingWorkflowSeenAs;
+use NeuronCore\IQ\Tests\Stub\Units\RunOverridingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Units\UnframableAdapter;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\TestWith;
 use Psr\EventDispatcher\EventDispatcherInterface;
@@ -68,7 +68,7 @@ use function unlink;
  * One request given to Neuron: the settlement says how the call ended, and
  * the caller gets back what a direct call to Neuron would have given it.
  */
-class ExecutionTest extends CloudTestCase
+class ExecutionTest extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -954,7 +954,7 @@ class ExecutionTest extends CloudTestCase
 
     public function test_a_workflow_is_released_with_the_call_that_executed_it(): void
     {
-        $log = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-');
+        $log = (string) tempnam(sys_get_temp_dir(), 'iq-');
         $workflow = (new Workflow())->addNode(new CompleteNode(new ExecutionLog($log)));
         $released = WeakReference::create($workflow);
         $collecting = gc_enabled();

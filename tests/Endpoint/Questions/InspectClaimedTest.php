@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function hash;
@@ -77,7 +77,7 @@ class InspectClaimedTest extends QuestionsTestCase
     public function test_claimed_is_true_for_the_holder_whose_start_the_application_dispatched_to_its_queue(string $backend): void
     {
         $bench = $this->ordersOn($backend);
-        $runId = $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->dispatch();
+        $runId = $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->dispatch();
         $this->work();
 
         $answer = $this->deliver($this->inspect($runId));
@@ -90,7 +90,7 @@ class InspectClaimedTest extends QuestionsTestCase
     public function test_claimed_is_false_for_the_holder_whose_start_ran_in_the_calling_process_although_it_ran(string $backend): void
     {
         $bench = $this->ordersOn($backend);
-        $runId = (string) $bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
+        $runId = (string) $bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID)->start()->run()->getRunId();
         $this->work();
 
         $answer = $this->deliver($this->inspect($runId));
@@ -144,7 +144,7 @@ class InspectClaimedTest extends QuestionsTestCase
     {
         $executions = $this->benchOn($backend)->executions;
         $this->afterTheFirstSegmentOf(static fn (): Workflow => new CompletingWorkflow($executions));
-        $this->bench->cloud->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
+        $this->bench->iq->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
         $this->deliver($this->start(['invocationId' => 'inv_second', 'runId' => self::OTHER_RUN_ID]));
         $this->work();
 

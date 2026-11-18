@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -122,7 +122,7 @@ class QueuedInvocationTest extends RequestTestCase
     {
         $this->shop(TestBench::IN_MEMORY);
         $executions = $this->bench->executions;
-        $this->cloud = (new NeuronCloud(TestBench::API_KEY, $this->bench->platform->signingKey))
+        $this->iq = (new IQ(TestBench::API_KEY, $this->bench->platform->signingKey))
             ->setDispatcher($this->queue)
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 

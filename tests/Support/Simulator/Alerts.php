@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Simulator;
+namespace NeuronCore\IQ\Tests\Support\Simulator;
 
 /**
  * Rule 18: what the platform tells a person, in a list a test can read. An

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use DateTimeImmutable;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Stub\Units\OrderPlaced;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use TypeError;
@@ -151,7 +151,7 @@ class InvocationTest extends TestCase
     {
         try {
             Invocation::observeOf($notice);
-        } catch (CloudException $refused) {
+        } catch (IQException $refused) {
             self::assertSame(Code::InvalidRequest, $refused->reason);
             self::assertStringContainsString("'{$notice->invocationId}'", $refused->getMessage());
 

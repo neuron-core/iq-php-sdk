@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\StreamedChat;
+namespace NeuronCore\IQ\Tests\Support\StreamedChat;
 
 /**
  * Strings planted wherever a chat turn carries what must never leave the

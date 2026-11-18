@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Exceptions\PersistenceException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\MisroutedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnstorableStart;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnstorableStartNode;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Stub\Runner\HookedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\HookFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\MisroutedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\UnstorableStart;
+use NeuronCore\IQ\Tests\Stub\Runner\UnstorableStartNode;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function base64_encode;
@@ -35,7 +35,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchWithMisrouted($backend);
 
-        $report = $bench->cloud->invoke($this->start('misrouted'));
+        $report = $bench->iq->invoke($this->start('misrouted'));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::InvalidStart->value, $report->code);
@@ -52,7 +52,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchWithMisrouted($backend);
 
-        $report = $bench->cloud->invoke($this->start('misrouted'));
+        $report = $bench->iq->invoke($this->start('misrouted'));
 
         self::assertNull($report->claimed);
         self::assertNull($this->ledgerRecord());
@@ -63,7 +63,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchWithMisrouted($backend);
 
-        $bench->cloud->invoke($this->start('misrouted'));
+        $bench->iq->invoke($this->start('misrouted'));
 
         self::assertSame([], $this->announcementsSent());
         self::assertSame([], $this->queue->dispatched());
@@ -74,7 +74,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('greeting', self::APPLICATION, ['event' => $this->carried(new PaymentSettled())]));
+        $report = $bench->iq->invoke($this->start('greeting', self::APPLICATION, ['event' => $this->carried(new PaymentSettled())]));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::InvalidStart->value, $report->code);
@@ -86,12 +86,12 @@ class StartEventTest extends RunnerTestCase
     public function test_a_start_whose_event_neuron_cannot_store_with_a_run_is_rejected_as_invalid_start(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register(
+        $bench->iq->register(
             'unstorable',
             static fn (): Workflow => (new Workflow())->addNode(new UnstorableStartNode())->setStartEvent(new UnstorableStart()),
         );
 
-        $report = $bench->cloud->invoke($this->start('unstorable'));
+        $report = $bench->iq->invoke($this->start('unstorable'));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::InvalidStart->value, $report->code);
@@ -105,7 +105,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchWithHooked($backend, $hook, failures: 1);
 
-        $report = $bench->cloud->invoke($this->start('hooked'));
+        $report = $bench->iq->invoke($this->start('hooked'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -135,10 +135,10 @@ class StartEventTest extends RunnerTestCase
     public function test_a_start_a_hook_aborted_runs_once_when_it_is_sent_again(string $backend, string $hook): void
     {
         $bench = $this->benchWithHooked($backend, $hook, failures: 1);
-        $bench->cloud->invoke($this->start('hooked'));
+        $bench->iq->invoke($this->start('hooked'));
 
-        $sentAgain = $bench->cloud->invoke($this->start('hooked'));
-        $copy = $bench->cloud->invoke($this->start('hooked'));
+        $sentAgain = $bench->iq->invoke($this->start('hooked'));
+        $copy = $bench->iq->invoke($this->start('hooked'));
 
         self::assertSame(Outcome::Completed, $sentAgain->outcome);
         self::assertSame(Code::AlreadyClaimed->value, $copy->code);
@@ -155,9 +155,9 @@ class StartEventTest extends RunnerTestCase
                 throw new PersistenceException('The store a hook reads is down.');
             }
         };
-        $bench->cloud->register('hooked', static fn (): HookedWorkflow => new HookedWorkflow($executions, $storeIsDown));
+        $bench->iq->register('hooked', static fn (): HookedWorkflow => new HookedWorkflow($executions, $storeIsDown));
 
-        $report = $bench->cloud->invoke($this->start('hooked'));
+        $report = $bench->iq->invoke($this->start('hooked'));
 
         self::assertSame(Outcome::Aborted, $report->outcome, 'Neuron\'s own exception classes are not a broken rule when a hook throws them.');
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -170,7 +170,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchWithMisrouted($backend);
 
-        $report = $bench->cloud->invoke($this->start('misrouted', self::APPLICATION, ['event' => $this->carried(new StartEvent())]));
+        $report = $bench->iq->invoke($this->start('misrouted', self::APPLICATION, ['event' => $this->carried(new StartEvent())]));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
@@ -181,7 +181,7 @@ class StartEventTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('greeting', fields: ['expiresAt' => null]));
+        $report = $bench->iq->invoke($this->start('greeting', fields: ['expiresAt' => null]));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::Expired->value, $report->code);
@@ -199,7 +199,7 @@ class StartEventTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register('misrouted', static fn (): MisroutedWorkflow => new MisroutedWorkflow($executions));
+        $bench->iq->register('misrouted', static fn (): MisroutedWorkflow => new MisroutedWorkflow($executions));
 
         return $bench;
     }
@@ -217,7 +217,7 @@ class StartEventTest extends RunnerTestCase
             }
         };
 
-        $bench->cloud->register('hooked', static fn (): HookedWorkflow => new HookedWorkflow($executions, $failing));
+        $bench->iq->register('hooked', static fn (): HookedWorkflow => new HookedWorkflow($executions, $failing));
 
         return $bench;
     }

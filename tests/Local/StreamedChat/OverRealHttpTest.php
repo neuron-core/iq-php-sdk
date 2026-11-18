@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\StreamedChat;
+namespace NeuronCore\IQ\Tests\Local\StreamedChat;
 
 use NeuronAI\Chat\Messages\AssistantMessage;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Support\InspectablePlatform;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Broadcast;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatEndpoint;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatHome;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatServer;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Notices;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Support\InspectablePlatform;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Broadcast;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatEndpoint;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatHome;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatServer;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Notices;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\TestCase;
 
 use function array_map;
@@ -78,8 +78,8 @@ class OverRealHttpTest extends TestCase
     /** Where the agent's own channel delivers in the worker of the test process. */
     protected Broadcast $broadcast;
 
-    /** The NeuronCloud of the worker: the test process, on the store and the queue of the server. */
-    protected NeuronCloud $worker;
+    /** The IQ of the worker: the test process, on the store and the queue of the server. */
+    protected IQ $worker;
 
     protected function setUp(): void
     {

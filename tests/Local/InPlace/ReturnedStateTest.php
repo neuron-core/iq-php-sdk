@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\InPlace;
+namespace NeuronCore\IQ\Tests\Local\InPlace;
 
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MatrixWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Support\InPlace\InPlaceTestCase;
-use NeuronCore\Cloud\Tests\Support\InPlace\Kind;
-use NeuronCore\Cloud\Tests\Support\InPlace\Stage;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Tests\Stub\Matrix\MatrixWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Support\InPlace\InPlaceTestCase;
+use NeuronCore\IQ\Tests\Support\InPlace\Kind;
+use NeuronCore\IQ\Tests\Support\InPlace\Stage;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**

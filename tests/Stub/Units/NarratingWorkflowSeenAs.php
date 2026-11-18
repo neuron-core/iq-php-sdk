@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Units;
+namespace NeuronCore\IQ\Tests\Stub\Units;
 
 use Closure;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
 
 /**
  * Streams as NarratingWorkflow does, and shows of its run what a test says:

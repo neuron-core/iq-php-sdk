@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpRequest;
@@ -10,9 +10,9 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PDO;
 use PHPUnit\Framework\TestCase;
 
@@ -27,27 +27,27 @@ use const JSON_THROW_ON_ERROR;
  */
 abstract class SyncTestCase extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const PLATFORM_URL = 'https://platform.test';
 
     protected const API_KEY = 'nck_5d1c0e7a';
 
-    protected const ENDPOINT = 'https://shop.example.com/neuron-cloud';
+    protected const ENDPOINT = 'https://shop.example.com/iq';
 
     /**
      * bin/sync.php of a deployment that has registered nothing yet.
      */
-    protected static function deployment(HttpClientInterface $platform, string $platformUrl = self::PLATFORM_URL): NeuronCloud
+    protected static function deployment(HttpClientInterface $platform, string $platformUrl = self::PLATFORM_URL): IQ
     {
-        return (new NeuronCloud(self::API_KEY, null, $platformUrl, $platform))
+        return (new IQ(self::API_KEY, null, $platformUrl, $platform))
             ->setPersistence(static fn (): PersistenceInterface => new DatabasePersistence(new PDO('sqlite::memory:')));
     }
 
     /**
      * A deployment whose code holds versions 1 and 2 of "order-fulfilment", and "nightly-reconciliation".
      */
-    protected static function shop(HttpClientInterface $platform): NeuronCloud
+    protected static function shop(HttpClientInterface $platform): IQ
     {
         return self::deployment($platform)
             ->register('order-fulfilment', self::workflow(...))

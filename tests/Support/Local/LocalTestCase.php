@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Local;
+namespace NeuronCore\IQ\Tests\Support\Local;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\Runner\InspectableDispatcher;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\Runner\InspectableDispatcher;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 
 use function array_map;
 
@@ -18,15 +18,15 @@ use function array_map;
  * A test of what the application's own code calls: it reads what the call
  * handed to the queue, and lets the fake worker run it.
  */
-abstract class LocalTestCase extends CloudTestCase
+abstract class LocalTestCase extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const WORKFLOW_ID = Queued::WORKFLOW_ID;
 
     protected const RUN_ID = Queued::RUN_ID;
 
-    /** The queue the cloud hands its messages to, in place of the bench's own, whose messages cannot be read. */
+    /** The queue the service hands its messages to, in place of the bench's own, whose messages cannot be read. */
     protected InspectableDispatcher $queue;
 
     protected function assertPostConditions(): void
@@ -39,7 +39,7 @@ abstract class LocalTestCase extends CloudTestCase
         $bench = parent::benchOn($backend);
 
         $this->queue = new InspectableDispatcher();
-        $bench->cloud->setDispatcher($this->queue);
+        $bench->iq->setDispatcher($this->queue);
 
         return $bench;
     }

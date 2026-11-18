@@ -2,26 +2,26 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function time;
@@ -29,7 +29,7 @@ use function time;
 /**
  * The orders of the platform, played through invoke() against the two fakes.
  */
-class SmokeTest extends CloudTestCase
+class SmokeTest extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -45,7 +45,7 @@ class SmokeTest extends CloudTestCase
     {
         $bench = $this->benchWithStubs($backend);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $report->executedAttempt);
@@ -61,9 +61,9 @@ class SmokeTest extends CloudTestCase
     public function test_the_same_start_delivered_again_is_rejected_as_already_claimed_and_runs_nothing(string $backend): void
     {
         $bench = $this->benchWithStubs($backend);
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::AlreadyClaimed->value, $report->code);
@@ -78,7 +78,7 @@ class SmokeTest extends CloudTestCase
     {
         $bench = $this->benchWithStubs($backend);
 
-        $report = $bench->cloud->invoke($this->start('greeting', expiresAt: time() - 1));
+        $report = $bench->iq->invoke($this->start('greeting', expiresAt: time() - 1));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::Expired->value, $report->code);
@@ -95,20 +95,20 @@ class SmokeTest extends CloudTestCase
     {
         $bench = $this->benchWithStubs($backend);
 
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
         self::assertSame(Outcome::Suspended, $started->outcome);
         self::assertSame('wait_for_event', $started->run['wait']['type']);
         self::assertSame(WaitingWorkflow::EVENT, $started->run['wait']['eventName']);
 
         // The deadline of the event wait has passed: the node goes on, to its timer.
-        $afterDeadline = $bench->cloud->invoke($this->wake('order', $started));
+        $afterDeadline = $bench->iq->invoke($this->wake('order', $started));
         self::assertSame(Outcome::Suspended, $afterDeadline->outcome);
         self::assertSame(2, $afterDeadline->executedAttempt);
         self::assertSame('sleep_until', $afterDeadline->run['wait']['type']);
         self::assertSame(0, $afterDeadline->run['wait']['wakeAt']);
 
         // The timer is due: the run completes.
-        $afterTimer = $bench->cloud->invoke($this->wake('order', $afterDeadline));
+        $afterTimer = $bench->iq->invoke($this->wake('order', $afterDeadline));
         self::assertSame(Outcome::Completed, $afterTimer->outcome);
         self::assertSame(3, $afterTimer->executedAttempt);
         self::assertNull($afterTimer->run);
@@ -123,11 +123,11 @@ class SmokeTest extends CloudTestCase
     public function test_the_same_wake_delivered_again_is_refused_as_a_stale_attempt(string $backend): void
     {
         $bench = $this->benchWithStubs($backend);
-        $started = $bench->cloud->invoke($this->start('order'));
-        $afterDeadline = $bench->cloud->invoke($this->wake('order', $started));
+        $started = $bench->iq->invoke($this->start('order'));
+        $afterDeadline = $bench->iq->invoke($this->wake('order', $started));
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->wake('order', $started));
+        $copy = $bench->iq->invoke($this->wake('order', $started));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleAttempt->value, $copy->code);
@@ -141,12 +141,12 @@ class SmokeTest extends CloudTestCase
     public function test_a_wake_delivered_again_after_its_run_completed_is_refused_as_a_stale_run(string $backend): void
     {
         $bench = $this->benchWithStubs($backend);
-        $started = $bench->cloud->invoke($this->start('order'));
-        $afterDeadline = $bench->cloud->invoke($this->wake('order', $started));
-        $bench->cloud->invoke($this->wake('order', $afterDeadline));
+        $started = $bench->iq->invoke($this->start('order'));
+        $afterDeadline = $bench->iq->invoke($this->wake('order', $started));
+        $bench->iq->invoke($this->wake('order', $afterDeadline));
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->wake('order', $afterDeadline));
+        $copy = $bench->iq->invoke($this->wake('order', $afterDeadline));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleRun->value, $copy->code);
@@ -160,13 +160,13 @@ class SmokeTest extends CloudTestCase
     {
         $bench = $this->benchWithStubs($backend);
 
-        $failed = $bench->cloud->invoke($this->start('flaky'));
+        $failed = $bench->iq->invoke($this->start('flaky'));
         self::assertSame(Outcome::Failed, $failed->outcome);
         self::assertSame(NodeFailed::class, $failed->errorClass);
         self::assertSame(1, $failed->executedAttempt);
         self::assertSame('failed', $failed->run['status']);
 
-        $retried = $bench->cloud->invoke($this->wake('flaky', $failed));
+        $retried = $bench->iq->invoke($this->wake('flaky', $failed));
 
         self::assertSame(Outcome::Completed, $retried->outcome);
         self::assertSame(2, $retried->executedAttempt);
@@ -181,19 +181,19 @@ class SmokeTest extends CloudTestCase
         $bench = $this->benchWithStubs($backend);
         $bench->platform->failNext(2);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome, 'Nothing local waits for the platform.');
         $bench->dispatcher->assertDispatched(Verb::Announce, self::WORKFLOW_ID);
         $bench->dispatcher->assertDispatched(Verb::Observe, self::WORKFLOW_ID);
 
-        $delivered = $bench->dispatcher->runAll($bench->cloud);
+        $delivered = $bench->dispatcher->runAll($bench->iq);
 
         self::assertCount(2, $delivered);
         self::assertContainsOnlyInstancesOf(Report::class, $delivered);
         self::assertSame(Outcome::Completed, $delivered[1]->outcome, 'The observe still says how the segment ended.');
         self::assertTrue($delivered[1]->claimed);
-        self::assertSame([], $bench->dispatcher->runAll($bench->cloud), 'The queue is drained.');
+        self::assertSame([], $bench->dispatcher->runAll($bench->iq), 'The queue is drained.');
         self::assertSame(1, $bench->executions->count(CompleteNode::class));
         $bench->platform->assertAnnounced(self::WORKFLOW_ID, Verb::Start);
         $bench->platform->assertReported(self::WORKFLOW_ID, Outcome::Completed);
@@ -208,7 +208,7 @@ class SmokeTest extends CloudTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud
+        $bench->iq
             ->register('greeting', static fn (): CompletingWorkflow => new CompletingWorkflow($executions))
             ->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1))
             ->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions, new DateTimeImmutable('-1 minute')));

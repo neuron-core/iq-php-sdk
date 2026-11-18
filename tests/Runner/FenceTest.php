@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -62,7 +62,7 @@ class FenceTest extends RunnerTestCase
         self::assertCount($sent, $this->bench->platform->received(), 'Nothing is announced or reported for it.');
         self::assertSame([], $this->queue->dispatched());
         self::assertSame($executions, $this->bench->executions->total());
-        self::assertSame($waiting->run, $this->bench->cloud->invoke($this->observeOf($this->start('order')))->run);
+        self::assertSame($waiting->run, $this->bench->iq->invoke($this->observeOf($this->start('order')))->run);
     }
 
     /**
@@ -81,8 +81,8 @@ class FenceTest extends RunnerTestCase
     protected function orderWaitingForPayment(TestBench $bench): Report
     {
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
 
-        return $bench->cloud->invoke($this->start('order'));
+        return $bench->iq->invoke($this->start('order'));
     }
 }

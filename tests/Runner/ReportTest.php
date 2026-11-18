@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use DateTimeImmutable;
 use NeuronAI\HttpClient\HttpMethod;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\Runner\WatchedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\Runner\WatchedWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -41,7 +41,7 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchWithFlaky($backend);
 
-        $report = $bench->cloud->invoke($this->start('flaky'));
+        $report = $bench->iq->invoke($this->start('flaky'));
 
         self::assertSame(Outcome::Failed, $report->outcome);
         self::assertNull($report->code);
@@ -61,8 +61,8 @@ class ReportTest extends RunnerTestCase
         // The report is lost, so the failure also travels through the queue before it is reported.
         $bench->platform->failNext(2);
 
-        $bench->cloud->invoke($this->start('flaky'));
-        $this->queue->runAll($bench->cloud);
+        $bench->iq->invoke($this->start('flaky'));
+        $this->queue->runAll($bench->iq);
 
         $sent = json_encode([$this->announcementsSent(), $this->reportsSent()], JSON_THROW_ON_ERROR);
         self::assertStringContainsString(json_encode(NodeFailed::class, JSON_THROW_ON_ERROR), $sent);
@@ -74,7 +74,7 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchWithFlaky($backend);
 
-        $report = $bench->cloud->invoke($this->start('flaky'));
+        $report = $bench->iq->invoke($this->start('flaky'));
 
         self::assertInstanceOf(NodeFailed::class, $report->exception);
         self::assertSame(self::NODE_FAILURE_MESSAGE, $report->exception->getMessage());
@@ -92,13 +92,13 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
         WatchedWorkflow::$instances = [];
-        $bench->cloud->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
+        $bench->iq->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
         $setting = ini_set('zend.exception_ignore_args', '0');
         $collecting = gc_enabled();
         gc_disable();
 
         try {
-            $report = $bench->cloud->invoke($this->start('watched'));
+            $report = $bench->iq->invoke($this->start('watched'));
             $thrown = $report->exception;
             $heldByTheReport = WatchedWorkflow::alive();
             unset($report, $thrown);
@@ -124,13 +124,13 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
         WatchedWorkflow::$instances = [];
-        $bench->cloud->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
+        $bench->iq->register('watched', static fn (): WatchedWorkflow => new WatchedWorkflow($executions));
         $setting = ini_set('zend.exception_ignore_args', '1');
         $collecting = gc_enabled();
         gc_disable();
 
         try {
-            $report = $bench->cloud->invoke($this->start('watched'));
+            $report = $bench->iq->invoke($this->start('watched'));
             $heldByTheReport = WatchedWorkflow::alive();
         } finally {
             if ($collecting) {
@@ -152,9 +152,9 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchWithFlaky($backend);
         // The report is lost: the failure waits in the queue, and a worker that did not execute the segment reports it.
         $bench->platform->failNext(2);
-        $bench->cloud->invoke($this->start('flaky'));
+        $bench->iq->invoke($this->start('flaky'));
 
-        $delivered = $this->queue->runAll($bench->cloud);
+        $delivered = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $delivered[1]);
         self::assertSame([Outcome::Failed, NodeFailed::class], [$delivered[1]->outcome, $delivered[1]->errorClass]);
@@ -166,12 +166,12 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
 
-        $completed = $bench->cloud->invoke($this->start('greeting'));
-        $rejected = $bench->cloud->invoke($this->start('greeting'));
-        $suspended = $bench->cloud->invoke($this->start('order', fields: ['invocationId' => 'inv_second', 'runId' => '1-0192f3a8-0000-7000-8000-000000000002']));
-        $refused = $bench->cloud->invoke($this->start('order', fields: ['invocationId' => 'inv_third', 'runId' => '1-0192f3a8-0000-7000-8000-000000000003']));
+        $completed = $bench->iq->invoke($this->start('greeting'));
+        $rejected = $bench->iq->invoke($this->start('greeting'));
+        $suspended = $bench->iq->invoke($this->start('order', fields: ['invocationId' => 'inv_second', 'runId' => '1-0192f3a8-0000-7000-8000-000000000002']));
+        $refused = $bench->iq->invoke($this->start('order', fields: ['invocationId' => 'inv_third', 'runId' => '1-0192f3a8-0000-7000-8000-000000000003']));
 
         self::assertSame(
             [Outcome::Completed, Outcome::Rejected, Outcome::Suspended, Outcome::Refused],
@@ -188,7 +188,7 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
         $requests = $bench->platform->received();
         self::assertCount(2, $requests);
@@ -197,7 +197,7 @@ class ReportTest extends RunnerTestCase
         foreach ($requests as $request) {
             self::assertSame(HttpMethod::POST, $request->method);
             self::assertSame('Bearer ' . TestBench::API_KEY, $request->headers['Authorization']);
-            self::assertMatchesRegularExpression('~^neuron-cloud-php/\d+\.\d+\.\d+$~', $request->headers['User-Agent']);
+            self::assertMatchesRegularExpression('~^iq-php/\d+\.\d+\.\d+$~', $request->headers['User-Agent']);
             self::assertSame(3.0, $request->timeout);
         }
     }
@@ -207,7 +207,7 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $bench->cloud->invoke($this->start('greeting'));
+        $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame([], $this->queue->dispatched());
     }
@@ -218,7 +218,7 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->registerPlatformGoingDownMidSegment($bench, status: 503);
 
-        $report = $bench->cloud->invoke($this->start('busy'));
+        $report = $bench->iq->invoke($this->start('busy'));
 
         self::assertSame(Outcome::Completed, $report->outcome, 'Nothing local waits for the platform.');
         self::assertCount(1, $this->queue->dispatched());
@@ -239,7 +239,7 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->registerPlatformGoingDownMidSegment($bench, status: 401);
 
-        $report = $bench->cloud->invoke($this->start('busy'));
+        $report = $bench->iq->invoke($this->start('busy'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertCount(1, $this->queue->dispatched());
@@ -252,17 +252,17 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow(
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow(
             $executions,
             new DateTimeImmutable('-1 minute'),
             new DateTimeImmutable('+1 hour'),
         ));
         // The platform is down for the whole first segment: its announcement and its report wait in the queue.
         $bench->platform->failNext(2);
-        $started = $bench->cloud->invoke($this->start('order'));
-        $woken = $bench->cloud->invoke($this->wake('order', $started));
+        $started = $bench->iq->invoke($this->start('order'));
+        $woken = $bench->iq->invoke($this->wake('order', $started));
 
-        $delivered = $this->queue->runAll($bench->cloud);
+        $delivered = $this->queue->runAll($bench->iq);
 
         self::assertCount(2, $delivered);
         self::assertContainsOnlyInstancesOf(Report::class, $delivered);
@@ -281,9 +281,9 @@ class ReportTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerPlatformGoingDownMidSegment($bench, status: 503);
-        $bench->cloud->setDispatcher(new UnreachableQueue());
+        $bench->iq->setDispatcher(new UnreachableQueue());
 
-        $report = $bench->cloud->invoke($this->start('busy', self::APPLICATION));
+        $report = $bench->iq->invoke($this->start('busy', self::APPLICATION));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $report->executedAttempt);
@@ -297,7 +297,7 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->storeCannotBeReadForTheReport();
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome, 'A store that cannot be read must not hide how the call ended.');
         self::assertFalse($report->snapshotRead);
@@ -312,7 +312,7 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->storeCannotBeReadForTheReport();
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertFalse($report->snapshotRead);
         self::assertSame([], $this->queue->dispatched(), 'The platform asks by itself for a snapshot it was not shown.');
@@ -323,7 +323,7 @@ class ReportTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
 
-        $bench->cloud->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1));
+        $bench->iq->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1));
 
         return $bench;
     }
@@ -337,7 +337,7 @@ class ReportTest extends RunnerTestCase
         $executions = $bench->executions;
         $platform = $bench->platform;
 
-        $bench->cloud->register('busy', static fn (): BusyWorkflow => new BusyWorkflow(
+        $bench->iq->register('busy', static fn (): BusyWorkflow => new BusyWorkflow(
             $executions,
             static function () use ($platform, $status): void {
                 $platform->failNext(1, $status);

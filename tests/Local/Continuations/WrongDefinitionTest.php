@@ -2,27 +2,27 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Continuations\AwaitBuyerNode;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Local\PaidAmountTranslator;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Continuations\AwaitBuyerNode;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Local\PaidAmountTranslator;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -45,7 +45,7 @@ class WrongDefinitionTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(fn (): PendingSegment => $this->prepare($continuation, $lease, ContractWorkflow::EVENT, self::BUYER));
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::WrongDefinition, $thrown->reason);
         self::assertSame([], $this->queuedAfter($queued));
     }
@@ -127,7 +127,7 @@ class WrongDefinitionTest extends ContinuationTestCase
         $this->flakyThatFailed();
         $written = [];
         $persistence = $bench->persistence;
-        $bench->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
+        $bench->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
             $persistence(),
             static function (string $operation, string $partition) use (&$written): void {
                 if ($operation !== 'get') {

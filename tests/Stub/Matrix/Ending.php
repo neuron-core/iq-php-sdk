@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Matrix;
+namespace NeuronCore\IQ\Tests\Stub\Matrix;
 
 /**
  * How the last node of a run ends the segment that reaches it.

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Runner;
+namespace NeuronCore\IQ\Tests\Stub\Runner;
 
 use Closure;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\WorkflowResources;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * Completes in a single segment, and lets a test act inside the hooks Neuron

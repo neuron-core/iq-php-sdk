@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Continuations;
+namespace NeuronCore\IQ\Tests\Local\Continuations;
 
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Continuations\AwaitBuyerNode;
-use NeuronCore\Cloud\Tests\Stub\Continuations\ContractWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Support\Continuations\ContinuationTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Continuations\AwaitBuyerNode;
+use NeuronCore\IQ\Tests\Stub\Continuations\ContractWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Support\Continuations\ContinuationTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_unique;
@@ -39,9 +39,9 @@ class ContinuationStepsTest extends ContinuationTestCase
         $record = static function (string $operation) use (&$operations): void {
             $operations[] = $operation;
         };
-        $bench->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(($bench->persistence)(), $record));
+        $bench->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(($bench->persistence)(), $record));
 
-        $this->prepare($continuation, $bench->cloud->workflow('contract', self::WORKFLOW_ID), ContractWorkflow::EVENT, self::BUYER);
+        $this->prepare($continuation, $bench->iq->workflow('contract', self::WORKFLOW_ID), ContractWorkflow::EVENT, self::BUYER);
 
         self::assertSame(['get'], array_unique($operations));
     }
@@ -181,7 +181,7 @@ class ContinuationStepsTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(static fn (): string => $prepared->dispatch());
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::DispatchFailed, $thrown->reason);
         self::assertSame([WorkflowStatus::Suspended, 1], [$this->storedRun()?->status, $this->storedRun()?->executionAttempt]);
     }
@@ -197,7 +197,7 @@ class ContinuationStepsTest extends ContinuationTestCase
 
         $thrown = self::cloudExceptionFrom(static fn (): WorkflowState => $prepared->run());
 
-        self::assertSame(CloudException::class, $thrown::class);
+        self::assertSame(IQException::class, $thrown::class);
         self::assertSame(Code::DispatchFailed, $thrown->reason);
         self::assertSame(0, $executions->count(AwaitBuyerNode::class));
         self::assertSame([WorkflowStatus::Suspended, 1], [$this->storedRun()?->status, $this->storedRun()?->executionAttempt]);
@@ -224,8 +224,8 @@ class ContinuationStepsTest extends ContinuationTestCase
      */
     protected function contractWhileTheQueueIsDown(): ManagedWorkflow
     {
-        $down = $this->bench->cloud->setDispatcher(new UnreachableQueue())->workflow('contract', self::WORKFLOW_ID);
-        $this->bench->cloud->setDispatcher($this->queue);
+        $down = $this->bench->iq->setDispatcher(new UnreachableQueue())->workflow('contract', self::WORKFLOW_ID);
+        $this->bench->iq->setDispatcher($this->queue);
 
         return $down;
     }

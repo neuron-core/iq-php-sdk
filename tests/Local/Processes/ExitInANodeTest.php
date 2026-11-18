@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Processes;
+namespace NeuronCore\IQ\Tests\Local\Processes;
 
-use NeuronCore\Cloud\Tests\Support\Processes\ScriptProcess;
+use NeuronCore\IQ\Tests\Support\Processes\ScriptProcess;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 

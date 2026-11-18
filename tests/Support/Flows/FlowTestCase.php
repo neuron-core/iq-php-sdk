@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use Closure;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Faults\FaultyPersistence;
-use NeuronCore\Cloud\Tests\Stub\Flows\RedisDispatcher;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreFault;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreJournal;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Faults\FaultyPersistence;
+use NeuronCore\IQ\Tests\Stub\Flows\RedisDispatcher;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\Faults\StoreFault;
+use NeuronCore\IQ\Tests\Support\Faults\StoreJournal;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 
 use function array_filter;
 use function array_map;
@@ -42,7 +42,7 @@ use const PHP_URL_PATH;
  * queue and the worker of the plain PHP example. Every body the flow sent the
  * platform must respect the protocol.
  */
-abstract class FlowTestCase extends CloudTestCase
+abstract class FlowTestCase extends IQTestCase
 {
     protected const ANNOUNCEMENTS = '/v1/announcements';
 
@@ -82,11 +82,11 @@ abstract class FlowTestCase extends CloudTestCase
         $bench = parent::benchOn($backend);
         $this->redis = new FakeRedis();
         $this->worker = new PlainPhpWorker($this->redis);
-        $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'neuron-cloud-'));
+        $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'iq-'));
         $this->journal = new StoreJournal();
 
         $persistence = $bench->persistence;
-        $bench->cloud
+        $bench->iq
             ->setDispatcher(new RedisDispatcher($this->redis))
             ->setPersistence(fn (): PersistenceInterface => new FaultyPersistence($persistence(), $this->journal, StoreFault::none()));
 
@@ -116,7 +116,7 @@ abstract class FlowTestCase extends CloudTestCase
      */
     protected function work(): void
     {
-        $this->worker->work($this->bench->cloud);
+        $this->worker->work($this->bench->iq);
     }
 
     /**

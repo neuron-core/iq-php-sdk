@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\Holder;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\Holder;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use stdClass;
 
@@ -80,7 +80,7 @@ class InspectUnreadableStoreTest extends QuestionsTestCase
     #[DataProvider('backends')]
     public function test_a_factory_that_throws_is_answered_200_with_no_snapshot_and_nothing_of_what_it_threw(string $backend): void
     {
-        $this->benchOn($backend)->cloud->register(
+        $this->benchOn($backend)->iq->register(
             self::DEFINITION,
             static fn (): Workflow => throw new FactoryFailed('The container could not build OrderWorkflow for tenant acme.'),
         );
@@ -96,7 +96,7 @@ class InspectUnreadableStoreTest extends QuestionsTestCase
     public function test_a_factory_that_builds_something_else_than_a_workflow_is_answered_200_with_no_snapshot(string $backend): void
     {
         // @phpstan-ignore argument.type (what the test is about: an application's factory may return anything)
-        $this->benchOn($backend)->cloud->register(self::DEFINITION, static fn (): stdClass => new stdClass());
+        $this->benchOn($backend)->iq->register(self::DEFINITION, static fn (): stdClass => new stdClass());
 
         $answer = $this->deliver($this->inspect());
 
@@ -106,7 +106,7 @@ class InspectUnreadableStoreTest extends QuestionsTestCase
     #[DataProvider('backends')]
     public function test_a_persistence_factory_that_throws_is_answered_200_with_no_snapshot(string $backend): void
     {
-        $this->ordersOn($backend)->cloud->setPersistence(
+        $this->ordersOn($backend)->iq->setPersistence(
             static fn (): PersistenceInterface => throw new StoreUnavailable(self::STORE_FAILURE),
         );
 
@@ -121,7 +121,7 @@ class InspectUnreadableStoreTest extends QuestionsTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $unconfigured = (new NeuronCloud(TestBench::API_KEY, $bench->platform->signingKey))
+        $unconfigured = (new IQ(TestBench::API_KEY, $bench->platform->signingKey))
             ->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
         $answer = $bench->platform->deliver($unconfigured, $this->inspect(self::RUN_ID));
@@ -174,7 +174,7 @@ class InspectUnreadableStoreTest extends QuestionsTestCase
         $answer = $this->whileHeldBy(Holder::WaitingForAnEvent, function () use ($bench): HttpResponse {
             $this->failTheStore();
             $this->deliver($this->inspect(self::RUN_ID));
-            $bench->cloud->setPersistence($bench->persistence);
+            $bench->iq->setPersistence($bench->persistence);
 
             return $this->deliver($this->inspect(self::RUN_ID));
         });

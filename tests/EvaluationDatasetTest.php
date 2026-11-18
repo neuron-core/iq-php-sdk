@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use NeuronAI\Evaluation\Contracts\DatasetInterface;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Evaluation\CloudDataset;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\LocalPlatform;
+use NeuronCore\IQ\Evaluation\IQDataset;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Datasets\RefundRequestsEvaluator;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\LocalPlatform;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 
@@ -64,18 +64,18 @@ class EvaluationDatasetTest extends TestCase
 
     public function test_the_service_gives_a_dataset_neurons_evaluators_accept(): void
     {
-        $dataset = (new NeuronCloud(self::API_KEY))->dataset('refund-requests');
+        $dataset = (new IQ(self::API_KEY))->dataset('refund-requests');
 
-        self::assertInstanceOf(CloudDataset::class, $dataset);
+        self::assertInstanceOf(IQDataset::class, $dataset);
         self::assertInstanceOf(DatasetInterface::class, $dataset);
     }
 
     public function test_the_dataset_is_read_from_the_platform_url_of_the_service_with_its_api_key_through_its_http_client(): void
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{"items":[]}'));
-        $cloud = new NeuronCloud(self::API_KEY, platformUrl: 'https://eu.platform.test', httpClient: $http);
+        $iq = new IQ(self::API_KEY, platformUrl: 'https://eu.platform.test', httpClient: $http);
 
-        $cloud->dataset('refund-requests')->load();
+        $iq->dataset('refund-requests')->load();
 
         [$request] = $http->received();
         self::assertSame(
@@ -88,7 +88,7 @@ class EvaluationDatasetTest extends TestCase
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{"items":[{"input":"a"}]}'));
 
-        $items = (new NeuronCloud(self::API_KEY, httpClient: $http))->dataset('refund-requests')->load();
+        $items = (new IQ(self::API_KEY, httpClient: $http))->dataset('refund-requests')->load();
 
         self::assertSame([['input' => 'a']], $items);
     }
@@ -103,17 +103,17 @@ class EvaluationDatasetTest extends TestCase
     {
         $platform = $this->localPlatform = new LocalPlatform();
         $platform->keepDataset(RefundRequestsEvaluator::DATASET, self::ITEMS);
-        $this->project = sys_get_temp_dir() . '/' . uniqid('neuron-cloud-evaluation-');
+        $this->project = sys_get_temp_dir() . '/' . uniqid('iq-evaluation-');
         mkdir($this->project);
         file_put_contents($this->project . '/evaluation.php', '<?php
-            use NeuronCore\Cloud\NeuronCloud;
-            use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
+            use NeuronCore\IQ\IQ;
+            use NeuronCore\IQ\Tests\Stub\Datasets\RefundRequestsEvaluator;
 
-            $cloud = new NeuronCloud(apiKey: ' . var_export(self::API_KEY, true) . ', platformUrl: ' . var_export($platform->url(), true) . ');
+            $iq = new IQ(apiKey: ' . var_export(self::API_KEY, true) . ', platformUrl: ' . var_export($platform->url(), true) . ');
 
             return [
-                "output" => [$cloud->evaluationOutput("ci")],
-                "resolver" => fn (string $class): object => $class === RefundRequestsEvaluator::class ? new $class($cloud) : new $class(),
+                "output" => [$iq->evaluationOutput("ci")],
+                "resolver" => fn (string $class): object => $class === RefundRequestsEvaluator::class ? new $class($iq) : new $class(),
             ];
         ');
 

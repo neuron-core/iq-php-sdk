@@ -12,7 +12,7 @@ declare(strict_types=1);
  * reads and lets go of the stream. Without it PHP itself ends the request at the first frame it cannot send.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Exceptions\RunInFlightException;
 
@@ -36,7 +36,7 @@ ignore_user_abort((bool) getenv('SHOP_OUTLIVES_ITS_BROWSER'));
 
 $order = json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
 $orderId = (string) $order['orderId'];
-$events = $shop->cloud->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf($orderId))
+$events = $shop->iq->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf($orderId))
     ->start(new OrderPlaced($orderId, (string) ($order['note'] ?? '')))
     ->events();
 

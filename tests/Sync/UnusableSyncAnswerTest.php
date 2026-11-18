@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use ErrorException;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\SyncResult;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\SyncTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\SyncResult;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\SyncTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -27,7 +27,7 @@ use const JSON_THROW_ON_ERROR;
  * A sync the platform accepted (a 200 whose "modified" is a boolean) with
  * lists the SDK cannot use. The platform has replaced its manifest by then,
  * so the deploy must hear either a result of the shape the design gives a
- * SyncResult, or a CloudException that says the answer was unusable: never
+ * SyncResult, or an IQException that says the answer was unusable: never
  * an error of PHP, and never a code that belongs to another call.
  */
 class UnusableSyncAnswerTest extends SyncTestCase
@@ -41,7 +41,7 @@ class UnusableSyncAnswerTest extends SyncTestCase
         $ending = self::endingOfTheSync($answer);
 
         self::assertTrue(
-            $ending instanceof SyncResult || $ending instanceof CloudException,
+            $ending instanceof SyncResult || $ending instanceof IQException,
             'sync() ended with ' . $ending::class . ($ending instanceof Throwable ? ': ' . $ending->getMessage() : ''),
         );
     }
@@ -55,7 +55,7 @@ class UnusableSyncAnswerTest extends SyncTestCase
         $ending = self::endingOfTheSync($answer);
 
         self::assertTrue(
-            $ending instanceof CloudException || ($ending instanceof SyncResult && self::holdsOnlyIntegers($ending)),
+            $ending instanceof IQException || ($ending instanceof SyncResult && self::holdsOnlyIntegers($ending)),
             'sync() ended with ' . ($ending instanceof SyncResult ? self::described($ending) : $ending::class . ': ' . $ending->getMessage()),
         );
     }
@@ -70,7 +70,7 @@ class UnusableSyncAnswerTest extends SyncTestCase
         ]);
 
         self::assertFalse(
-            $ending instanceof CloudException && $ending->reason === Code::UnknownDefinition,
+            $ending instanceof IQException && $ending->reason === Code::UnknownDefinition,
             'The platform accepted the sync: "unknown_definition" is what workflow() throws for a name of the application.',
         );
     }
@@ -123,14 +123,14 @@ class UnusableSyncAnswerTest extends SyncTestCase
      */
     protected static function endingOfTheSync(array $answer): SyncResult|Throwable
     {
-        $cloud = self::shop(self::platformAnswering(200, $answer));
+        $iq = self::shop(self::platformAnswering(200, $answer));
 
         set_error_handler(static function (int $level, string $message, string $file, int $line): never {
             throw new ErrorException($message, 0, $level, $file, $line);
         });
 
         try {
-            return $cloud->sync(self::ENDPOINT);
+            return $iq->sync(self::ENDPOINT);
         } catch (Throwable $thrown) {
             return $thrown;
         } finally {

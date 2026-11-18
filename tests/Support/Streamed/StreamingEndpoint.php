@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MidBody;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Stub\Streamed\TaleWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\Flows\FileQueue;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\Matrix\MidBody;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Stub\Streamed\TaleWorkflow;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\Flows\FileQueue;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PDO;
 use RuntimeException;
 
@@ -75,8 +75,8 @@ final class StreamingEndpoint
 
     public readonly ExecutionLog $executions;
 
-    /** The NeuronCloud of a worker of the application, in the process of the test. */
-    public readonly NeuronCloud $worker;
+    /** The IQ of a worker of the application, in the process of the test. */
+    public readonly IQ $worker;
 
     /** @var resource */
     protected mixed $process;
@@ -90,7 +90,7 @@ final class StreamingEndpoint
 
     public function __construct()
     {
-        $this->directory = sys_get_temp_dir() . '/neuron-cloud-' . bin2hex(random_bytes(8));
+        $this->directory = sys_get_temp_dir() . '/iq-' . bin2hex(random_bytes(8));
         mkdir($this->directory);
         touch($this->directory . '/queue');
         touch($this->directory . '/executions');
@@ -112,7 +112,7 @@ final class StreamingEndpoint
             [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
             $this->pipes,
             null,
-            ['NEURON_CLOUD_STREAM_FILES' => $this->directory],
+            ['IQ_STREAM_FILES' => $this->directory],
         );
 
         if (!is_resource($process)) {
@@ -124,15 +124,15 @@ final class StreamingEndpoint
     }
 
     /**
-     * The NeuronCloud every process of the application builds: its bootstrap.
+     * The IQ every process of the application builds: its bootstrap.
      *
      * @param string $directory where the store, the queue and the log of the node bodies are
      */
-    public static function application(string $directory): NeuronCloud
+    public static function application(string $directory): IQ
     {
         $executions = new ExecutionLog($directory . '/executions');
 
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new FakePlatform()))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, new FakePlatform()))
             ->setPersistence(static fn (): PersistenceInterface => new DatabasePersistence(self::connect($directory)))
             ->setDispatcher(new FileQueue($directory . '/queue'))
             ->register(

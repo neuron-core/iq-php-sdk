@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Evaluation;
+namespace NeuronCore\IQ\Tests\Evaluation;
 
 use DateTimeImmutable;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
@@ -16,14 +16,14 @@ use NeuronAI\Evaluation\Runner\EvaluatorRunner;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Evaluation\CloudOutput;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Tests\Stub\Datasets\RefundRequestsEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CapturesErrorLog;
+use NeuronCore\IQ\Evaluation\IQOutput;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Tests\Stub\Datasets\RefundRequestsEvaluator;
+use NeuronCore\IQ\Tests\Stub\Evaluation\GreetingEvaluator;
+use NeuronCore\IQ\Tests\Stub\Evaluation\ProfileEvaluator;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CapturesErrorLog;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
 
@@ -37,7 +37,7 @@ use function substr_count;
  * The output that sends the results of Neuron's evaluations to the platform:
  * one message for each evaluator of the run.
  */
-class CloudOutputTest extends TestCase
+class IQOutputTest extends TestCase
 {
     use CapturesErrorLog;
 
@@ -95,12 +95,12 @@ class CloudOutputTest extends TestCase
 
     public function test_an_evaluator_on_a_dataset_the_platform_keeps_is_sent_with_the_slug_of_the_dataset(): void
     {
-        $cloud = new NeuronCloud(self::API_KEY, platformUrl: self::PLATFORM_URL, httpClient: new ScriptedHttpClient(
+        $iq = new IQ(self::API_KEY, platformUrl: self::PLATFORM_URL, httpClient: new ScriptedHttpClient(
             new HttpResponse(200, '{"items":[{"dataset_item_id":11,"input":{"order":123},"expected_output":{"contains":"Order 123"}}]}'),
         ));
         $platform = self::takingIn();
 
-        self::cloudOutput($platform)->output(self::reportOf(new RefundRequestsEvaluator($cloud)));
+        self::cloudOutput($platform)->output(self::reportOf(new RefundRequestsEvaluator($iq)));
 
         self::assertSame(['source' => 'platform', 'name' => RefundRequestsEvaluator::DATASET], self::sent($platform)['dataset']);
     }
@@ -252,7 +252,7 @@ class CloudOutputTest extends TestCase
         $logged = self::loggedBy(static fn () => $output->output(self::reportOf(new GreetingEvaluator(), new ProfileEvaluator())));
 
         self::assertCount(2, $platform->received());
-        self::assertSame(2, substr_count($logged, '[NeuronCloudOutput] Failed to send evaluation: The platform answered 503 to /v1/evaluations.'));
+        self::assertSame(2, substr_count($logged, '[IQOutput] Failed to send evaluation: The platform answered 503 to /v1/evaluations.'));
     }
 
     public function test_a_platform_that_gives_no_answer_is_logged_with_what_the_client_threw(): void
@@ -296,9 +296,9 @@ class CloudOutputTest extends TestCase
         return new ScriptedHttpClient(new HttpResponse(200, '{}'));
     }
 
-    protected static function cloudOutput(ScriptedHttpClient $platform, ?string $environment = null): CloudOutput
+    protected static function cloudOutput(ScriptedHttpClient $platform, ?string $environment = null): IQOutput
     {
-        return new CloudOutput(new PlatformClient($platform, self::PLATFORM_URL, self::API_KEY), $environment);
+        return new IQOutput(new PlatformClient($platform, self::PLATFORM_URL, self::API_KEY), $environment);
     }
 
     /**

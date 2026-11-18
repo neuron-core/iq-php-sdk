@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Flows;
+namespace NeuronCore\IQ\Tests\Local\Flows;
 
 use Closure;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -10,24 +10,24 @@ use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\RedisDispatcher;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Stub\Local\PickyQueue;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpTestCase;
-use NeuronCore\Cloud\Tests\Support\Flows\PlainPhpWorker;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\RedisDispatcher;
+use NeuronCore\IQ\Tests\Stub\Flows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Stub\Local\PickyQueue;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpTestCase;
+use NeuronCore\IQ\Tests\Support\Flows\PlainPhpWorker;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -40,12 +40,12 @@ use const JSON_THROW_ON_ERROR;
 
 /**
  * The worker of example (a) of section 5 of the design, given every reason
- * invoke() throws a CloudException with (section 9.5): what it keeps for
+ * invoke() throws an IQException with (section 9.5): what it keeps for
  * later runs when the cron puts it back, and what cannot run is set aside.
  */
 class PlainPhpWorkerTest extends PlainPhpTestCase
 {
-    protected const LEDGER_PARTITION_PREFIX = '__neuron_cloud:';
+    protected const LEDGER_PARTITION_PREFIX = '__iq:';
 
     /** While true, the factory of the current version throws, as when it cannot reach what it builds the workflow from. */
     protected bool $factoryFails = false;
@@ -85,7 +85,7 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
         $this->shop($backend);
         $this->checkoutInTheRequest();
 
-        $this->worker->work($this->workerCloud(platform: $this->platformThatAnswers($status, $code)));
+        $this->worker->work($this->workerIQ(platform: $this->platformThatAnswers($status, $code)));
 
         self::assertSame([Verb::Announce, Verb::Observe], $this->verbsIn(PlainPhpWorker::FAILED));
         self::assertSame([], $this->verbsIn(PlainPhpWorker::LATER));
@@ -97,7 +97,7 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
         $this->shop($backend);
         $this->checkoutInTheRequest();
 
-        $this->worker->work($this->workerCloud(platform: $this->platformThatAnswers($status, $code)));
+        $this->worker->work($this->workerIQ(platform: $this->platformThatAnswers($status, $code)));
 
         self::assertSame([Verb::Announce, Verb::Observe], $this->verbsIn(PlainPhpWorker::LATER));
         self::assertSame([], $this->verbsIn(PlainPhpWorker::FAILED));
@@ -210,7 +210,7 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
         $bench = $this->shop($backend);
         $this->checkoutOnTheQueue();
 
-        $this->worker->work(new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform));
+        $this->worker->work(new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform));
 
         self::assertSame([Verb::Start], $this->verbsIn(PlainPhpWorker::LATER));
         self::assertSame([], $bench->platform->received(), 'Nothing was done and nothing was reported.');
@@ -222,7 +222,7 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
         $bench = $this->shop($backend);
         $this->checkoutOnTheQueue();
 
-        $this->worker->work($this->workerCloud(persistence: $this->storeThatFailsAt(
+        $this->worker->work($this->workerIQ(persistence: $this->storeThatFailsAt(
             static fn (string $operation, string $partition): bool => $operation === 'initializeIfAbsent' && $partition === self::WORKFLOW_ID,
         )));
 
@@ -296,7 +296,7 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
     {
         $bench = parent::shop($backend, $shippingFailures);
 
-        $bench->cloud->register(
+        $bench->iq->register(
             self::DEFINITION,
             fn (): Workflow => $this->factoryFails ? throw new FactoryFailed('The factory reached a service that is down.') : $this->orderWorkflow(),
             version: 2,
@@ -306,52 +306,52 @@ class PlainPhpWorkerTest extends PlainPhpTestCase
     }
 
     /**
-     * The NeuronCloud of another worker of the shop, with what the test changes in its bootstrap.
+     * The IQ of another worker of the shop, with what the test changes in its bootstrap.
      *
      * @param (Closure(): PersistenceInterface)|null $persistence
      * @param int[] $versions the versions of "order-fulfilment" its code holds
      */
-    protected function workerCloud(
+    protected function workerIQ(
         ?HttpClientInterface $platform = null,
         ?DispatcherInterface $queue = null,
         ?Closure $persistence = null,
         array $versions = [1, 2],
-    ): NeuronCloud {
-        $cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $platform ?? $this->bench->platform))
+    ): IQ {
+        $iq = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $platform ?? $this->bench->platform))
             ->setPersistence($persistence ?? $this->bench->persistence)
             ->setDispatcher($queue ?? new RedisDispatcher($this->redis));
 
         foreach ($versions as $version) {
-            $cloud->register(self::DEFINITION, $this->orderWorkflow(...), $version);
+            $iq->register(self::DEFINITION, $this->orderWorkflow(...), $version);
         }
 
-        return $cloud;
+        return $iq;
     }
 
     /**
      * A worker that aborts the start of the application it is given, before the claim.
      */
-    protected function workerThatAborts(Code $abort): NeuronCloud
+    protected function workerThatAborts(Code $abort): IQ
     {
         return match ($abort) {
-            Code::UnknownDefinition => $this->workerCloud(versions: []),
-            Code::UnknownVersion => $this->workerCloud(versions: [1]),
-            Code::AnnounceFailed => $this->workerCloud(
+            Code::UnknownDefinition => $this->workerIQ(versions: []),
+            Code::UnknownVersion => $this->workerIQ(versions: [1]),
+            Code::AnnounceFailed => $this->workerIQ(
                 platform: $this->bench->platform->failNext(),
                 queue: new PickyQueue(new RedisDispatcher($this->redis), Verb::Announce),
             ),
-            Code::Unavailable => $this->workerCloud(persistence: $this->storeThatFailsAt(
+            Code::Unavailable => $this->workerIQ(persistence: $this->storeThatFailsAt(
                 static fn (string $operation, string $partition): bool => str_starts_with($partition, self::LEDGER_PARTITION_PREFIX),
             )),
             default => $this->workerWhoseFactoryThrows(),
         };
     }
 
-    protected function workerWhoseFactoryThrows(): NeuronCloud
+    protected function workerWhoseFactoryThrows(): IQ
     {
         $this->factoryFails = true;
 
-        return $this->bench->cloud;
+        return $this->bench->iq;
     }
 
     /**

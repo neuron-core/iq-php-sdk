@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\FailureTable;
+namespace NeuronCore\IQ\Tests\EndToEnd\FailureTable;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\FailureTableTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Support\EndToEnd\FailureTableTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Verb;
 
 use function array_column;
 use function base64_decode;
@@ -40,7 +40,7 @@ class Row17UnverifiedRequestTest extends FailureTableTestCase
 
     public function test_an_endpoint_that_holds_another_signing_key_answers_401_and_the_platform_stops_until_a_ping_succeeds(): void
     {
-        $this->serveWith(['NEURON_CLOUD_SIGNING_KEY' => self::aSigningKey()]);
+        $this->serveWith(['IQ_SIGNING_KEY' => self::aSigningKey()]);
         $this->startWorkers();
         $runId = $this->fire(self::ORDER);
         $this->await('the platform stopped its deliveries', fn (): bool => $this->platform->manifest()['deliveriesStopped']);

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -30,7 +30,7 @@ use const LOCK_EX;
 use const PHP_URL_PATH;
 
 /**
- * The platform as several processes see it: each one gives its NeuronCloud a
+ * The platform as several processes see it: each one gives its IQ a
  * client on the same file, which keeps every body any of them sent. Every
  * request is answered as recorded.
  */
@@ -57,7 +57,7 @@ final class SharedPlatform implements HttpClientInterface
 
     public function stream(HttpRequest $request): StreamInterface
     {
-        throw HttpException::networkError($request, 'Neuron Cloud has no streaming endpoint.');
+        throw HttpException::networkError($request, 'IQ has no streaming endpoint.');
     }
 
     /**

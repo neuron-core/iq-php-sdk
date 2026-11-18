@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use ErrorException;
 use NeuronAI\Agent\Agent;
@@ -15,25 +15,25 @@ use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\StartEvents;
-use NeuronCore\Cloud\Tests\Stub\PaymentSettled;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnstorableStart;
-use NeuronCore\Cloud\Tests\Stub\Units\BriefingStartEvent;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Units\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Units\PromptingAgent;
-use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
-use NeuronCore\Cloud\Tests\Stub\Units\UnreadableOrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\StartEvents;
+use NeuronCore\IQ\Tests\Stub\PaymentSettled;
+use NeuronCore\IQ\Tests\Stub\Runner\HookedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\HookFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\UnstorableStart;
+use NeuronCore\IQ\Tests\Stub\Units\BriefingStartEvent;
+use NeuronCore\IQ\Tests\Stub\Units\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Units\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\Units\PromptingAgent;
+use NeuronCore\IQ\Tests\Stub\Units\RecordingPersistence;
+use NeuronCore\IQ\Tests\Stub\Units\UnreadableOrderWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use stdClass;
@@ -49,9 +49,9 @@ use function strlen;
 
 use const JSON_THROW_ON_ERROR;
 
-class StartEventsTest extends CloudTestCase
+class StartEventsTest extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const WORKFLOW_ID = 'order:123';
 
@@ -256,9 +256,9 @@ class StartEventsTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $provider = new FakeAIProvider(new AssistantMessage('Reconciled.'));
-        $bench->cloud->register('assistant', static fn (): Agent => (new PromptingAgent())->setAiProvider($provider));
+        $bench->iq->register('assistant', static fn (): Agent => (new PromptingAgent())->setAiProvider($provider));
 
-        $report = $bench->cloud->invoke(Queued::start('assistant', workflowId: self::THREAD_ID));
+        $report = $bench->iq->invoke(Queued::start('assistant', workflowId: self::THREAD_ID));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         $provider->assertCallCount(1);
@@ -271,9 +271,9 @@ class StartEventsTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $provider = new FakeAIProvider(new AssistantMessage('Never asked.'));
-        $bench->cloud->register('assistant', static fn (): Agent => Agent::make()->setAiProvider($provider));
+        $bench->iq->register('assistant', static fn (): Agent => Agent::make()->setAiProvider($provider));
 
-        $report = $bench->cloud->invoke(Queued::start('assistant', workflowId: self::THREAD_ID));
+        $report = $bench->iq->invoke(Queued::start('assistant', workflowId: self::THREAD_ID));
 
         self::assertSame(Outcome::Rejected, $report->outcome);
         self::assertSame(Code::InvalidStart->value, $report->code);
@@ -496,7 +496,7 @@ class StartEventsTest extends CloudTestCase
      */
     public static function carriedValuesThatAreNoEvent(): array
     {
-        $unknownClass = 'NeuronCore\Cloud\Tests\Stub\Units\RemovedByADeploy';
+        $unknownClass = 'NeuronCore\IQ\Tests\Stub\Units\RemovedByADeploy';
 
         return [
             'a string' => [base64_encode(serialize('order:123'))],

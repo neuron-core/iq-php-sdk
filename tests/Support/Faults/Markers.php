@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Faults;
+namespace NeuronCore\IQ\Tests\Support\Faults;
 
 /**
  * Strings planted wherever a workflow keeps what must never leave the

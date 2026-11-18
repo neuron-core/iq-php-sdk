@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\Events\AgentStartEvent;
@@ -11,8 +11,8 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
 use Throwable;
 
 use function base64_decode;
@@ -35,7 +35,7 @@ final class StartEvents
      * the workflow's own.
      *
      * @param string|null $carried the event of the invocation, PHP-serialized and base64-encoded
-     * @throws CloudException invalid_start, when the event breaks a rule
+     * @throws IQException invalid_start, when the event breaks a rule
      * @throws Throwable what a hook of the workflow threw while its event or its graph was built: no rule is broken
      */
     public static function resolve(Workflow $workflow, ?string $carried): Event
@@ -50,7 +50,7 @@ final class StartEvents
      *
      * @param Event|Message|Message[]|null $input
      * @param bool $stream whether the provider streams its answer to the messages
-     * @throws CloudException invalid_start, when the event breaks a rule
+     * @throws IQException invalid_start, when the event breaks a rule
      * @throws Throwable what a hook of the workflow threw while its event or its graph was built: no rule is broken
      */
     public static function from(Workflow $workflow, Event|Message|array|null $input, bool $stream): Event
@@ -64,7 +64,7 @@ final class StartEvents
      * The request that ignites a run with a checked event, under a run ID the
      * SDK reserved. The run carries the name of its definition as its tag.
      *
-     * @throws CloudException invalid_start, when Neuron cannot store the event or the run ID with a run
+     * @throws IQException invalid_start, when Neuron cannot store the event or the run ID with a run
      */
     public static function request(Event $event, string $runId, string $definition): ExecutionRequest
     {
@@ -72,7 +72,7 @@ final class StartEvents
             // recoverFailed stays false: a start only ever creates a run, so a repeated start can never become a retry.
             return ExecutionRequest::start($event, $runId, recoverFailed: false, tag: $definition);
         } catch (Throwable $e) {
-            throw new CloudException('The start cannot be stored with a run: ' . $e->getMessage(), Code::InvalidStart, $e);
+            throw new IQException('The start cannot be stored with a run: ' . $e->getMessage(), Code::InvalidStart, $e);
         }
     }
 
@@ -85,7 +85,7 @@ final class StartEvents
     }
 
     /**
-     * @throws CloudException
+     * @throws IQException
      */
     protected static function decode(string $carried): Event
     {
@@ -98,12 +98,12 @@ final class StartEvents
 
         return $event instanceof Event
             ? $event
-            : throw new CloudException('The queued start event cannot be rebuilt in this process.', Code::InvalidStart);
+            : throw new IQException('The queued start event cannot be rebuilt in this process.', Code::InvalidStart);
     }
 
     /**
      * @param Event|null $given null: the workflow's own start event
-     * @throws CloudException
+     * @throws IQException
      * @throws Throwable
      */
     protected static function checked(Workflow $workflow, ?Event $given): Event
@@ -124,14 +124,14 @@ final class StartEvents
      * respected, with the messages of this turn.
      *
      * @param Message[] $messages
-     * @throws CloudException
+     * @throws IQException
      */
     protected static function conversation(Workflow $workflow, array $messages, bool $stream): AgentStartEvent
     {
         $own = $workflow instanceof Agent ? $workflow->getStartEvent() : null;
 
         if (!$own instanceof AgentStartEvent) {
-            throw new CloudException(
+            throw new IQException(
                 'Messages start an agent whose own start event is an AgentStartEvent: start this workflow with an event.',
                 Code::InvalidStart,
             );
@@ -152,7 +152,7 @@ final class StartEvents
      * A dry build of the graph proves that a node handles the event: Neuron
      * refuses the graph when none does, and touches no store.
      *
-     * @throws CloudException
+     * @throws IQException
      * @throws Throwable
      */
     protected static function assertHandled(Workflow $workflow, Event $event): void
@@ -165,25 +165,25 @@ final class StartEvents
                 throw $refused;
             }
 
-            throw new CloudException('The start event was refused: ' . $refused->getMessage(), Code::InvalidStart, $refused);
+            throw new IQException('The start event was refused: ' . $refused->getMessage(), Code::InvalidStart, $refused);
         }
     }
 
     /**
      * @param Event $own the agent's own start event
-     * @throws CloudException
+     * @throws IQException
      */
     protected static function assertStartsAgent(Event $event, Event $own): void
     {
         if (!$event instanceof AgentStartEvent || $event::class !== $own::class) {
-            throw new CloudException(
+            throw new IQException(
                 'An agent starts with an event of the class of its own start event, ' . $own::class . '.',
                 Code::InvalidStart,
             );
         }
 
         if ($event->messages === []) {
-            throw new CloudException(
+            throw new IQException(
                 'An agent cannot start with no messages: it would ignite and then fail on an empty conversation.',
                 Code::InvalidStart,
             );
@@ -191,7 +191,7 @@ final class StartEvents
 
         foreach ($event->messages as $message) {
             if (!$message instanceof Message) {
-                throw new CloudException(
+                throw new IQException(
                     'An agent starts with Message objects: the list holds ' . get_debug_type($message) . '.',
                     Code::InvalidStart,
                 );

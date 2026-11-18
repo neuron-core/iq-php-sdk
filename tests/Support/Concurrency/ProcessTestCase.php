@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\TestCase;
 
 use function extension_loaded;

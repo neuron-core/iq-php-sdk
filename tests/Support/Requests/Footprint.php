@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Requests;
+namespace NeuronCore\IQ\Tests\Support\Requests;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
 
 /**
  * What a request made the application do behind the endpoint: the stores it

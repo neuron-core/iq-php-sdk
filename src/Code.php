@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 /**
  * The codes of the SDK and of the platform. A refusal by Neuron carries a

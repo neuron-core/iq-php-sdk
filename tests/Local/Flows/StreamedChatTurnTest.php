@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Flows;
+namespace NeuronCore\IQ\Tests\Local\Flows;
 
 use Generator;
 use NeuronAI\Agent\Agent;
@@ -24,14 +24,14 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowState;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Flows\RefundTool;
-use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Flows\RefundTool;
+use NeuronCore\IQ\Tests\Stub\Flows\SupportAgent;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_filter;
@@ -112,7 +112,7 @@ class StreamedChatTurnTest extends LocalTestCase
         iterator_to_array($this->approval());
         $sentByTheRequests = $bench->platform->received();
 
-        $this->queue->runAll($bench->cloud);
+        $this->queue->runAll($bench->iq);
 
         self::assertSame([], $sentByTheRequests, 'A streamed segment calls the platform from no request.');
         self::assertSame([Verb::Announce, Verb::Observe, Verb::Announce, Verb::Observe], $this->verbsQueued());
@@ -170,7 +170,7 @@ class StreamedChatTurnTest extends LocalTestCase
         self::assertInstanceOf(TextChunk::class, $events->current());
 
         unset($events);
-        [, $report] = $this->queue->runAll($bench->cloud);
+        [, $report] = $this->queue->runAll($bench->iq);
 
         self::assertSame(WorkflowStatus::Failed, (new WorkflowEngine(($bench->persistence)()))->inspect(self::THREAD_ID)?->status);
         self::assertInstanceOf(Report::class, $report);
@@ -187,7 +187,7 @@ class StreamedChatTurnTest extends LocalTestCase
         $conversations = new InMemoryMessageStore();
         $provider = $this->provider = self::model();
 
-        $bench->cloud->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
+        $bench->iq->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
 
         return $bench;
     }
@@ -216,7 +216,7 @@ class StreamedChatTurnTest extends LocalTestCase
 
     protected function thread(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow('support-agent', self::THREAD_ID);
+        return $this->bench->iq->workflow('support-agent', self::THREAD_ID);
     }
 
     /**

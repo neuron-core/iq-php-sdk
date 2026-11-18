@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Continuations;
+namespace NeuronCore\IQ\Tests\Stub\Continuations;
 
 use NeuronAI\Tools\Tool;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * A tool with a side effect a person must approve: it counts its executions

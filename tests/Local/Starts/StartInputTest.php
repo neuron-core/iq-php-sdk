@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Flows\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Flows\PaymentReceived;
-use NeuronCore\Cloud\Tests\Stub\Flows\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\MisroutedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnstorableStart;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnstorableStartNode;
-use NeuronCore\Cloud\Tests\Support\Flows\StartTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Flows\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Flows\PaymentReceived;
+use NeuronCore\IQ\Tests\Stub\Flows\ShipOrderNode;
+use NeuronCore\IQ\Tests\Stub\Runner\MisroutedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\UnstorableStart;
+use NeuronCore\IQ\Tests\Stub\Runner\UnstorableStartNode;
+use NeuronCore\IQ\Tests\Support\Flows\StartTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -57,7 +57,7 @@ class StartInputTest extends StartTestCase
 
         $refusal = self::thrownBy(static fn (): PendingSegment => $order->start(new StartEvent()));
 
-        self::assertInstanceOf(CloudException::class, $refusal);
+        self::assertInstanceOf(IQException::class, $refusal);
         self::assertSame(Code::InvalidStart, $refusal->reason);
         self::assertStringContainsString(StartEvent::class, $refusal->getMessage(), 'The refusal names the event.');
     }
@@ -82,8 +82,8 @@ class StartInputTest extends StartTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('misrouted', static fn (): Workflow => new MisroutedWorkflow($executions));
-        $misrouted = $bench->cloud->workflow('misrouted', self::WORKFLOW_ID);
+        $bench->iq->register('misrouted', static fn (): Workflow => new MisroutedWorkflow($executions));
+        $misrouted = $bench->iq->workflow('misrouted', self::WORKFLOW_ID);
 
         $reason = self::reasonThrownBy(static fn (): PendingSegment => $misrouted->start());
 
@@ -94,8 +94,8 @@ class StartInputTest extends StartTestCase
     public function test_a_start_event_neuron_cannot_store_is_refused_as_invalid_start(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unstorable', static fn (): Workflow => (new Workflow())->addNode(new UnstorableStartNode()));
-        $unstorable = $bench->cloud->workflow('unstorable', self::WORKFLOW_ID);
+        $bench->iq->register('unstorable', static fn (): Workflow => (new Workflow())->addNode(new UnstorableStartNode()));
+        $unstorable = $bench->iq->workflow('unstorable', self::WORKFLOW_ID);
 
         $reason = self::reasonThrownBy(static fn (): PendingSegment => $unstorable->start(new UnstorableStart()));
 
@@ -175,12 +175,12 @@ class StartInputTest extends StartTestCase
      */
     protected function refuse(string $refused): void
     {
-        $cloud = $this->bench->cloud;
-        $cloud->register('unstorable', static fn (): Workflow => (new Workflow())->addNode(new UnstorableStartNode()));
+        $iq = $this->bench->iq;
+        $iq->register('unstorable', static fn (): Workflow => (new Workflow())->addNode(new UnstorableStartNode()));
 
         $reason = self::reasonThrownBy(fn (): PendingSegment => match ($refused) {
             'an event no node handles' => $this->order()->start(new StartEvent()),
-            'an event Neuron cannot store' => $cloud->workflow('unstorable', self::WORKFLOW_ID)->start(new UnstorableStart()),
+            'an event Neuron cannot store' => $iq->workflow('unstorable', self::WORKFLOW_ID)->start(new UnstorableStart()),
             default => $this->order()->start(new UserMessage('Where is my order?')),
         });
 

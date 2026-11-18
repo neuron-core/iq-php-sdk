@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Testing;
+namespace NeuronCore\IQ\Testing;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -10,12 +10,12 @@ use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\HttpClient\StreamInterface;
 use NeuronAI\UniqueIdGenerator;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Protocol;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Protocol;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Assert;
 
 use function array_column;
@@ -43,8 +43,8 @@ use const JSON_THROW_ON_ERROR;
 use const PHP_URL_PATH;
 
 /**
- * Neuron Cloud as the SDK sees it over HTTP: it records what it is told and
- * answers as the platform would. Give it to NeuronCloud as its HTTP client.
+ * IQ as the SDK sees it over HTTP: it records what it is told and
+ * answers as the platform would. Give it to IQ as its HTTP client.
  * It takes in traces and the results of evaluations, which assertTraced()
  * and assertEvaluated() look for, and answers the read of a dataset with the
  * items keepDataset() gave it. It also plays the platform's side of the
@@ -127,14 +127,14 @@ class FakePlatform implements HttpClientInterface
      * @param array<string, mixed> $message the body; "protocol" is 1 unless the message says otherwise
      * @param int|null $timestamp when the message was signed; null: now
      */
-    public function deliver(NeuronCloud $cloud, array $message, ?int $timestamp = null): HttpResponse
+    public function deliver(IQ $iq, array $message, ?int $timestamp = null): HttpResponse
     {
         $body = json_encode($message + ['protocol' => Protocol::VERSION], JSON_THROW_ON_ERROR);
         $timestamp ??= time();
         // The invocation ID of a start or a wake is its webhook-id; a question and an abandon carry none.
         $id = is_string($message['invocationId'] ?? null) ? $message['invocationId'] : UniqueIdGenerator::generateId('msg_');
 
-        return $cloud->handle('POST', [
+        return $iq->handle('POST', [
             'webhook-id' => $id,
             'webhook-timestamp' => (string) $timestamp,
             'webhook-signature' => (string) (new Signature($this->signingKey))->sign($id, $timestamp, $body),
@@ -145,7 +145,7 @@ class FakePlatform implements HttpClientInterface
      * Send the endpoint a wake of the run that holds a workflow ID, fenced
      * with the run ID and the attempt of the last report recorded for it.
      */
-    public function wake(NeuronCloud $cloud, string $workflowId): HttpResponse
+    public function wake(IQ $iq, string $workflowId): HttpResponse
     {
         $reports = array_filter(
             $this->recorded(self::REPORTS),
@@ -159,7 +159,7 @@ class FakePlatform implements HttpClientInterface
             "The platform recorded no report that shows a run to wake for workflow ID '{$workflowId}': the last one shows none, or there is none.",
         );
 
-        return $this->deliver($cloud, [
+        return $this->deliver($iq, [
             'verb' => Verb::Wake->value,
             'invocationId' => UniqueIdGenerator::generateId('inv_'),
             'definition' => $last['definition'],
@@ -184,7 +184,7 @@ class FakePlatform implements HttpClientInterface
 
     public function stream(HttpRequest $request): StreamInterface
     {
-        throw HttpException::networkError($request, 'Neuron Cloud has no streaming endpoint.');
+        throw HttpException::networkError($request, 'IQ has no streaming endpoint.');
     }
 
     protected function answer(HttpRequest $request): HttpResponse

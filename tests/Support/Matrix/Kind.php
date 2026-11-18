@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Matrix;
+namespace NeuronCore\IQ\Tests\Support\Matrix;
 
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Opening;
+use NeuronCore\IQ\Tests\Stub\Matrix\Opening;
 
 /**
  * The kinds of invocation the redelivery matrix delivers twice.

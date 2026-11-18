@@ -11,18 +11,18 @@ declare(strict_types=1);
  * Parent and child share the queue, which prints each notice it is handed with the process that handed it.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\Processes;
+namespace NeuronCore\IQ\Tests\Support\Processes;
 
 use NeuronAI\Workflow\Events\InterruptEvent;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Testing\FakePlatform;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Units\SharedPrintingQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Testing\FakePlatform;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Units\SharedPrintingQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 use function dirname;
 use function iterator_to_array;
@@ -39,7 +39,7 @@ pcntl_alarm(30);
 
 $store = new InMemoryPersistence();
 $executions = new ExecutionLog($log);
-$cloud = (new NeuronCloud('test-api-key', null, 'https://platform.test', new FakePlatform()))
+$iq = (new IQ('test-api-key', null, 'https://platform.test', new FakePlatform()))
     ->setPersistence(static fn (): PersistenceInterface => $store)
     ->setDispatcher(new SharedPrintingQueue())
     ->register('narration', static fn (): Workflow => new NarratingWorkflow($executions))
@@ -57,7 +57,7 @@ $forkAChildThatEnds = static function (): void {
 };
 
 if ($where === 'before-the-first-frame') {
-    $events = $cloud->workflow('narration', 'order:123')->start()->events();
+    $events = $iq->workflow('narration', 'order:123')->start()->events();
     $child = pcntl_fork();
 
     if ($child === 0) {
@@ -72,7 +72,7 @@ if ($where === 'before-the-first-frame') {
     exit(0);
 }
 
-$events = $cloud->workflow($where === 'on-the-event-of-the-wait' ? 'order' : 'narration', 'order:123')->start()->events();
+$events = $iq->workflow($where === 'on-the-event-of-the-wait' ? 'order' : 'narration', 'order:123')->start()->events();
 $forked = false;
 
 foreach ($events as $event) {

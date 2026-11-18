@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Concurrency;
+namespace NeuronCore\IQ\Tests\Concurrency;
 
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\PrepareNode;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\StallNode;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessBench;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessTestCase;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\Concurrency\PrepareNode;
+use NeuronCore\IQ\Tests\Stub\Concurrency\StallNode;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessBench;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessTestCase;
 
 use function array_fill;
 use function array_map;

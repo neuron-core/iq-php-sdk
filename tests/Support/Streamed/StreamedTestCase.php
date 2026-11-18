@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
 use Closure;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Streamed\Ending;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Streamed\Ending;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use Throwable;
 
 /**
@@ -17,7 +17,7 @@ use Throwable;
  * provider says so. Whatever a test does, a stage that has a queue must have
  * made no call to the platform from the process that streams.
  */
-abstract class StreamedTestCase extends CloudTestCase
+abstract class StreamedTestCase extends IQTestCase
 {
     protected const ANNOUNCEMENTS = '/v1/announcements';
 
@@ -26,7 +26,7 @@ abstract class StreamedTestCase extends CloudTestCase
     /** @var Stage[] the stages of the test */
     protected array $stages = [];
 
-    /** @var TestBench[] the benches of the test, beside the one CloudTestCase cleans up */
+    /** @var TestBench[] the benches of the test, beside the one IQTestCase cleans up */
     protected array $otherBenches = [];
 
     protected function assertPostConditions(): void

@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -32,7 +32,7 @@ class AnswerAndSignalTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
 
-        $report = $bench->cloud->invoke($this->answer('order', $waiting, self::PAYMENT));
+        $report = $bench->iq->invoke($this->answer('order', $waiting, self::PAYMENT));
 
         self::assertSame(Verb::Answer, $report->verb);
         self::assertSame(Outcome::Suspended, $report->outcome);
@@ -49,10 +49,10 @@ class AnswerAndSignalTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
-        $answered = $bench->cloud->invoke($this->answer('order', $waiting, self::PAYMENT));
+        $answered = $bench->iq->invoke($this->answer('order', $waiting, self::PAYMENT));
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->answer('order', $waiting, self::PAYMENT));
+        $copy = $bench->iq->invoke($this->answer('order', $waiting, self::PAYMENT));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleAttempt->value, $copy->code);
@@ -66,11 +66,11 @@ class AnswerAndSignalTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
-        $answered = $bench->cloud->invoke($this->answer('order', $waiting, self::PAYMENT));
-        self::assertSame(Outcome::Completed, $bench->cloud->invoke($this->wake('order', $answered))->outcome);
+        $answered = $bench->iq->invoke($this->answer('order', $waiting, self::PAYMENT));
+        self::assertSame(Outcome::Completed, $bench->iq->invoke($this->wake('order', $answered))->outcome);
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->answer('order', $waiting, self::PAYMENT));
+        $copy = $bench->iq->invoke($this->answer('order', $waiting, self::PAYMENT));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleRun->value, $copy->code);
@@ -85,7 +85,7 @@ class AnswerAndSignalTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
 
-        $report = $bench->cloud->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
+        $report = $bench->iq->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
 
         self::assertSame(Verb::Signal, $report->verb);
         self::assertSame(Outcome::Suspended, $report->outcome);
@@ -102,10 +102,10 @@ class AnswerAndSignalTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
-        $signalled = $bench->cloud->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
+        $signalled = $bench->iq->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
+        $copy = $bench->iq->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleAttempt->value, $copy->code);
@@ -119,11 +119,11 @@ class AnswerAndSignalTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
-        $signalled = $bench->cloud->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
-        self::assertSame(Outcome::Completed, $bench->cloud->invoke($this->wake('order', $signalled))->outcome);
+        $signalled = $bench->iq->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
+        self::assertSame(Outcome::Completed, $bench->iq->invoke($this->wake('order', $signalled))->outcome);
         $executions = $bench->executions->total();
 
-        $copy = $bench->cloud->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
+        $copy = $bench->iq->invoke($this->signal('order', $waiting, WaitingWorkflow::EVENT, self::PAYMENT));
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::StaleRun->value, $copy->code);
@@ -138,7 +138,7 @@ class AnswerAndSignalTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $waiting = $this->orderWaitingForPayment($bench);
 
-        $report = $bench->cloud->invoke($this->signal('order', $waiting, 'shipment.delayed'));
+        $report = $bench->iq->invoke($this->signal('order', $waiting, 'shipment.delayed'));
 
         self::assertSame(Outcome::Refused, $report->outcome);
         self::assertSame(RefusalReason::NotAwaited->value, $report->code);
@@ -181,8 +181,8 @@ class AnswerAndSignalTest extends RunnerTestCase
     protected function orderWaitingForPayment(TestBench $bench): Report
     {
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
 
-        return $bench->cloud->invoke($this->start('order'));
+        return $bench->iq->invoke($this->start('order'));
     }
 }

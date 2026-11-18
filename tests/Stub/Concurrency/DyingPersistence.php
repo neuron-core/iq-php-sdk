@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Concurrency;
+namespace NeuronCore\IQ\Tests\Stub\Concurrency;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
@@ -19,7 +19,7 @@ use const SIGKILL;
  */
 class DyingPersistence implements PersistenceInterface
 {
-    protected const LEDGER_PARTITION_PREFIX = '__neuron_cloud:';
+    protected const LEDGER_PARTITION_PREFIX = '__iq:';
 
     protected bool $claimed = false;
 

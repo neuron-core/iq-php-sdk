@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Faults;
+namespace NeuronCore\IQ\Tests\Stub\Faults;
 
 use RuntimeException;
 

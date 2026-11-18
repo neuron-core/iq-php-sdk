@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 use FilesystemIterator;
 use RecursiveDirectoryIterator;
@@ -26,7 +26,7 @@ final class Workspace
 
     public function __construct()
     {
-        $this->directory = sys_get_temp_dir() . '/neuron-cloud-e2e-' . bin2hex(random_bytes(8));
+        $this->directory = sys_get_temp_dir() . '/iq-e2e-' . bin2hex(random_bytes(8));
         mkdir($this->directory);
     }
 

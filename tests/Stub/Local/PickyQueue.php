@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Local;
+namespace NeuronCore\IQ\Tests\Stub\Local;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Verb;
 use RuntimeException;
 
 /**

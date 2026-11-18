@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use Closure;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_combine;

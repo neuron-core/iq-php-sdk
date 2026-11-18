@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\SyncResult;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\SyncResult;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function sys_get_temp_dir;
@@ -23,11 +23,11 @@ use function sys_get_temp_dir;
  * App Sync, the last step of a deploy, against the fake platform. A sync needs
  * a store every process shares: these tests run on SQLite.
  */
-class AppSyncTest extends CloudTestCase
+class AppSyncTest extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
-    protected const ENDPOINT = 'https://shop.example.com/neuron-cloud.php';
+    protected const ENDPOINT = 'https://shop.example.com/iq.php';
 
     protected function assertPostConditions(): void
     {
@@ -38,12 +38,12 @@ class AppSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
 
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
 
         self::assertSame(
             [
                 'protocols' => [1],
-                'sdk' => 'neuron-cloud-php/1.0.0',
+                'sdk' => 'iq-php/1.0.0',
                 'endpoint' => self::ENDPOINT,
                 'definitions' => [
                     ['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600],
@@ -58,12 +58,12 @@ class AppSyncTest extends CloudTestCase
 
     public function test_sync_posts_to_the_sync_path_with_the_api_key_and_fifteen_seconds(): void
     {
-        $this->deployment()->cloud->sync(self::ENDPOINT);
+        $this->deployment()->iq->sync(self::ENDPOINT);
 
         $request = $this->published();
         self::assertSame([HttpMethod::POST, TestBench::PLATFORM_URL . '/v1/sync'], [$request->method, $request->uri]);
         self::assertSame('Bearer ' . TestBench::API_KEY, $request->headers['Authorization']);
-        self::assertSame('neuron-cloud-php/1.0.0', $request->headers['User-Agent']);
+        self::assertSame('iq-php/1.0.0', $request->headers['User-Agent']);
         self::assertSame(15.0, $request->timeout);
     }
 
@@ -71,15 +71,15 @@ class AppSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
 
-        $first = $bench->cloud->sync(self::ENDPOINT);
-        $again = $bench->cloud->sync(self::ENDPOINT);
+        $first = $bench->iq->sync(self::ENDPOINT);
+        $again = $bench->iq->sync(self::ENDPOINT);
 
         self::assertSame([true, false], [$first->modified, $again->modified]);
     }
 
     public function test_sync_lists_the_older_versions_no_run_is_open_on_as_retirable(): void
     {
-        $result = $this->deployment()->cloud->sync(self::ENDPOINT);
+        $result = $this->deployment()->iq->sync(self::ENDPOINT);
 
         self::assertSame(['order-fulfilment' => [1]], $result->retirable);
         self::assertSame([], $result->stranded);
@@ -88,9 +88,9 @@ class AppSyncTest extends CloudTestCase
     public function test_sync_refuses_an_in_memory_store_before_it_publishes_anything(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->register('order-fulfilment', static fn (): Workflow => new Workflow());
+        $bench->iq->register('order-fulfilment', static fn (): Workflow => new Workflow());
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync(self::ENDPOINT));
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->iq->sync(self::ENDPOINT));
 
         self::assertSame(Code::UnsuitablePersistence, $reason);
         self::assertSame([], $bench->platform->received());
@@ -99,9 +99,9 @@ class AppSyncTest extends CloudTestCase
     public function test_sync_refuses_a_file_store_before_it_publishes_anything(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->setPersistence(static fn (): PersistenceInterface => new FilePersistence(sys_get_temp_dir()));
+        $bench->iq->setPersistence(static fn (): PersistenceInterface => new FilePersistence(sys_get_temp_dir()));
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync(self::ENDPOINT));
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->iq->sync(self::ENDPOINT));
 
         self::assertSame(Code::UnsuitablePersistence, $reason);
         self::assertSame([], $bench->platform->received());
@@ -110,9 +110,9 @@ class AppSyncTest extends CloudTestCase
     public function test_sync_before_a_persistence_is_set_is_refused_as_not_configured(): void
     {
         $platform = $this->benchOn(TestBench::IN_MEMORY)->platform;
-        $cloud = new NeuronCloud(TestBench::API_KEY, httpClient: $platform);
+        $iq = new IQ(TestBench::API_KEY, httpClient: $platform);
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $cloud->sync(self::ENDPOINT));
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $iq->sync(self::ENDPOINT));
 
         self::assertSame(Code::NotConfigured, $reason);
         self::assertSame([], $platform->received());
@@ -121,9 +121,9 @@ class AppSyncTest extends CloudTestCase
     public function test_sync_given_no_url_publishes_the_one_set_with_set_endpoint_url(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->setEndpointUrl(self::ENDPOINT);
+        $bench->iq->setEndpointUrl(self::ENDPOINT);
 
-        $bench->cloud->sync();
+        $bench->iq->sync();
 
         self::assertSame(self::ENDPOINT, $this->published()->body['endpoint'] ?? null);
     }
@@ -131,9 +131,9 @@ class AppSyncTest extends CloudTestCase
     public function test_a_url_given_to_sync_is_published_instead_of_the_one_set(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->setEndpointUrl('https://old.example.com/neuron-cloud');
+        $bench->iq->setEndpointUrl('https://old.example.com/iq');
 
-        $bench->cloud->sync(self::ENDPOINT);
+        $bench->iq->sync(self::ENDPOINT);
 
         self::assertSame(self::ENDPOINT, $this->published()->body['endpoint'] ?? null);
     }
@@ -142,7 +142,7 @@ class AppSyncTest extends CloudTestCase
     {
         $bench = $this->deployment();
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync());
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->iq->sync());
 
         self::assertSame(Code::NotConfigured, $reason);
         self::assertSame([], $bench->platform->received());
@@ -151,9 +151,9 @@ class AppSyncTest extends CloudTestCase
     public function test_an_endpoint_url_the_platform_cannot_call_is_taken_when_it_is_set_and_refused_when_sync_uses_it(): void
     {
         $bench = $this->deployment();
-        $bench->cloud->setEndpointUrl('http://shop.example.com/neuron-cloud.php');
+        $bench->iq->setEndpointUrl('http://shop.example.com/iq.php');
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync());
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->iq->sync());
 
         self::assertSame(Code::InvalidRequest, $reason);
         self::assertSame([], $bench->platform->received());
@@ -165,7 +165,7 @@ class AppSyncTest extends CloudTestCase
         $bench = $this->deployment();
         $bench->platform->failNext(1, $status);
 
-        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->cloud->sync(self::ENDPOINT));
+        $reason = self::reasonThrownBy(static fn (): SyncResult => $bench->iq->sync(self::ENDPOINT));
 
         self::assertSame($expected, $reason);
     }
@@ -191,7 +191,7 @@ class AppSyncTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::SQLITE);
 
-        $bench->cloud
+        $bench->iq
             ->register('order-fulfilment', static fn (): Workflow => new Workflow())
             ->register('order-fulfilment', static fn (): Workflow => new Workflow(), version: 2, leaseTimeout: 900)
             ->register('nightly-reconciliation', static fn (): Workflow => new Workflow());

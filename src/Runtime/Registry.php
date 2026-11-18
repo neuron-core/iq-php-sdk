@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
 
 use function array_keys;
 use function max;
@@ -24,12 +24,12 @@ final class Registry
     protected array $definitions = [];
 
     /**
-     * @throws CloudException when the protocol could not carry the name, the version or the lease
+     * @throws IQException when the protocol could not carry the name, the version or the lease
      */
     public function register(Definition $definition): void
     {
         if (!Format::isDefinition($definition->name)) {
-            throw new CloudException(
+            throw new IQException(
                 "'{$definition->name}' cannot name a definition: use at most 64 lowercase letters, digits, dots, "
                 . 'underscores or hyphens, starting with a letter or a digit.',
                 Code::InvalidRequest,
@@ -37,7 +37,7 @@ final class Registry
         }
 
         if ($definition->version < 1 || $definition->version > self::HIGHEST_VERSION) {
-            throw new CloudException(
+            throw new IQException(
                 "Version {$definition->version} of '{$definition->name}' cannot be carried by a run ID: "
                 . 'use a number from 1 to ' . self::HIGHEST_VERSION . '.',
                 Code::InvalidRequest,
@@ -45,7 +45,7 @@ final class Registry
         }
 
         if ($definition->leaseTimeout < 1) {
-            throw new CloudException(
+            throw new IQException(
                 "A lease of {$definition->leaseTimeout} seconds cannot be given to '{$definition->name}': use at least 1 second.",
                 Code::InvalidRequest,
             );
@@ -57,14 +57,14 @@ final class Registry
     /**
      * The definition a run executes on.
      *
-     * @throws CloudException unknown_definition, unknown_version
+     * @throws IQException unknown_definition, unknown_version
      */
     public function pinned(string $name, string $runId): Definition
     {
         $versions = $this->versionsOf($name);
         $version = $this->pinnedVersion($versions, $runId);
 
-        return $versions[$version] ?? throw new CloudException(
+        return $versions[$version] ?? throw new IQException(
             "Version {$version} of '{$name}' is not registered in this process.",
             Code::UnknownVersion,
         );
@@ -73,7 +73,7 @@ final class Registry
     /**
      * The definition a new run starts on: the highest registered version.
      *
-     * @throws CloudException unknown_definition
+     * @throws IQException unknown_definition
      */
     public function current(string $name): Definition
     {
@@ -86,7 +86,7 @@ final class Registry
      * A definition to read the store with: every version of a name shares one
      * store, so the current one stands in for a version this process lacks.
      *
-     * @throws CloudException unknown_definition
+     * @throws IQException unknown_definition
      */
     public function reader(string $name, string $runId): Definition
     {
@@ -115,11 +115,11 @@ final class Registry
 
     /**
      * @return non-empty-array<int, Definition>
-     * @throws CloudException unknown_definition
+     * @throws IQException unknown_definition
      */
     protected function versionsOf(string $name): array
     {
-        return $this->definitions[$name] ?? throw new CloudException(
+        return $this->definitions[$name] ?? throw new IQException(
             "No definition is registered as '{$name}' in this process.",
             Code::UnknownDefinition,
         );

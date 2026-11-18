@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Evaluation;
+namespace NeuronCore\IQ\Tests\Evaluation;
 
 use NeuronAI\Evaluation\Dataset\ArrayDataset;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Tests\Support\Units\LocalPlatform;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Tests\Support\Units\LocalPlatform;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 
@@ -34,12 +34,12 @@ use const JSON_THROW_ON_ERROR;
 use const PHP_BINARY;
 
 /**
- * uploadDataset() and vendor/bin/neuron-cloud-dataset: the items of a dataset
+ * uploadDataset() and vendor/bin/iq-dataset: the items of a dataset
  * of the application, sent to a dataset the platform keeps.
  */
 class DatasetUploadTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const API_KEY = 'test-api-key';
 
@@ -67,7 +67,7 @@ class DatasetUploadTest extends TestCase
     {
         $http = self::answering(['slug' => 'refund-requests', 'created' => true, 'added' => 2, 'updated' => 0, 'unchanged' => 0]);
 
-        $upload = self::cloud($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS), 'Refund requests');
+        $upload = self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS), 'Refund requests');
 
         [$request] = $http->received();
         self::assertSame(
@@ -83,7 +83,7 @@ class DatasetUploadTest extends TestCase
         $http = self::answering(['slug' => 'refund-requests', 'created' => false, 'added' => 3, 'updated' => 2, 'unchanged' => 1]);
         $items = array_fill(0, PlatformClient::UPLOAD_ITEMS * 2 + 5, ['input' => 'A']);
 
-        $upload = self::cloud($http)->uploadDataset('refund-requests', new ArrayDataset($items));
+        $upload = self::iq($http)->uploadDataset('refund-requests', new ArrayDataset($items));
 
         self::assertSame(
             [PlatformClient::UPLOAD_ITEMS, PlatformClient::UPLOAD_ITEMS, 5],
@@ -96,7 +96,7 @@ class DatasetUploadTest extends TestCase
     {
         $http = self::answering(['slug' => 'refund-requests', 'created' => true, 'added' => 0, 'updated' => 0, 'unchanged' => 0]);
 
-        $upload = self::cloud($http)->uploadDataset('refund-requests', new ArrayDataset([]));
+        $upload = self::iq($http)->uploadDataset('refund-requests', new ArrayDataset([]));
 
         self::assertCount(1, $http->received());
         self::assertSame([], $http->received()[0]->body['items']);
@@ -110,7 +110,7 @@ class DatasetUploadTest extends TestCase
             'errors' => ['items' => ['Item 2 has the key "output".']],
         ])));
 
-        $thrown = self::thrownBy(fn () => self::cloud($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS)));
+        $thrown = self::thrownBy(fn () => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS)));
 
         self::assertSame(Code::InvalidRequest, $thrown?->reason);
         self::assertSame(
@@ -125,7 +125,7 @@ class DatasetUploadTest extends TestCase
 
         self::assertSame(
             Code::ReportUndelivered,
-            self::reasonThrownBy(fn () => self::cloud($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS))),
+            self::reasonThrownBy(fn () => self::iq($http)->uploadDataset('refund-requests', new ArrayDataset(self::ITEMS))),
         );
     }
 
@@ -133,7 +133,7 @@ class DatasetUploadTest extends TestCase
     {
         $http = self::answering(['slug' => 'a/b', 'created' => true, 'added' => 0, 'updated' => 0, 'unchanged' => 0]);
 
-        self::cloud($http)->uploadDataset('a/b', new ArrayDataset([]));
+        self::iq($http)->uploadDataset('a/b', new ArrayDataset([]));
 
         self::assertSame(self::PLATFORM_URL . '/v1/datasets/a%2Fb/items', $http->received()[0]->uri);
     }
@@ -142,11 +142,11 @@ class DatasetUploadTest extends TestCase
     public function test_the_command_sends_a_json_file_and_prints_what_the_platform_did(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $this->file = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-dataset-');
+        $this->file = (string) tempnam(sys_get_temp_dir(), 'iq-dataset-');
         file_put_contents($this->file, (string) json_encode(self::ITEMS));
 
         [$exit, $printed] = $this->command(
-            'NEURON_CLOUD_API_KEY=' . self::API_KEY . ' NEURON_CLOUD_PLATFORM_URL=' . escapeshellarg($platform->url()),
+            'IQ_API_KEY=' . self::API_KEY . ' IQ_PLATFORM_URL=' . escapeshellarg($platform->url()),
             ['refund-requests', $this->file, '--name=Refund requests'],
         );
 
@@ -161,23 +161,23 @@ class DatasetUploadTest extends TestCase
 
     public function test_the_command_with_no_api_key_exits_2(): void
     {
-        [$exit, $printed] = $this->command('env -u NEURON_CLOUD_API_KEY', ['refund-requests', __FILE__]);
+        [$exit, $printed] = $this->command('env -u IQ_API_KEY', ['refund-requests', __FILE__]);
 
         self::assertSame(2, $exit);
-        self::assertStringContainsString('NEURON_CLOUD_API_KEY', $printed);
+        self::assertStringContainsString('IQ_API_KEY', $printed);
     }
 
     public function test_the_command_without_a_slug_and_a_file_exits_2_with_its_usage(): void
     {
-        [$exit, $printed] = $this->command('NEURON_CLOUD_API_KEY=' . self::API_KEY, ['refund-requests']);
+        [$exit, $printed] = $this->command('IQ_API_KEY=' . self::API_KEY, ['refund-requests']);
 
         self::assertSame(2, $exit);
-        self::assertStringStartsWith('Usage: neuron-cloud-dataset <slug> <file.json>', $printed);
+        self::assertStringStartsWith('Usage: iq-dataset <slug> <file.json>', $printed);
     }
 
     public function test_the_command_with_a_file_that_is_not_there_exits_2(): void
     {
-        [$exit, $printed] = $this->command('NEURON_CLOUD_API_KEY=' . self::API_KEY, ['refund-requests', '/no/such/dataset.json']);
+        [$exit, $printed] = $this->command('IQ_API_KEY=' . self::API_KEY, ['refund-requests', '/no/such/dataset.json']);
 
         self::assertSame([2, 'Dataset file not found: /no/such/dataset.json'], [$exit, $printed]);
     }
@@ -185,11 +185,11 @@ class DatasetUploadTest extends TestCase
     public function test_the_command_with_a_file_that_is_not_a_json_array_exits_2_and_sends_nothing(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $this->file = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-dataset-');
+        $this->file = (string) tempnam(sys_get_temp_dir(), 'iq-dataset-');
         file_put_contents($this->file, '{"input": "a"');
 
         [$exit, $printed] = $this->command(
-            'NEURON_CLOUD_API_KEY=' . self::API_KEY . ' NEURON_CLOUD_PLATFORM_URL=' . escapeshellarg($platform->url()),
+            'IQ_API_KEY=' . self::API_KEY . ' IQ_PLATFORM_URL=' . escapeshellarg($platform->url()),
             ['refund-requests', $this->file],
         );
 
@@ -205,9 +205,9 @@ class DatasetUploadTest extends TestCase
         return new ScriptedHttpClient(new HttpResponse(200, (string) json_encode($answer)));
     }
 
-    protected static function cloud(ScriptedHttpClient $http): NeuronCloud
+    protected static function iq(ScriptedHttpClient $http): IQ
     {
-        return new NeuronCloud(self::API_KEY, platformUrl: self::PLATFORM_URL, httpClient: $http);
+        return new IQ(self::API_KEY, platformUrl: self::PLATFORM_URL, httpClient: $http);
     }
 
     /**
@@ -218,7 +218,7 @@ class DatasetUploadTest extends TestCase
     {
         $exit = 0;
         $lines = [];
-        $command = $environment . ' ' . PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/../../bin/neuron-cloud-dataset')
+        $command = $environment . ' ' . PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/../../bin/iq-dataset')
             . ' ' . implode(' ', array_map(escapeshellarg(...), $arguments)) . ' 2>&1';
 
         exec($command, $lines, $exit);

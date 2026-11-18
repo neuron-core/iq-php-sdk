@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Flows;
+namespace NeuronCore\IQ\Tests\Stub\Flows;
 
 use Closure;
 use NeuronAI\Agent\Agent;

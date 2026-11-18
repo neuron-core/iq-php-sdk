@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support;
+namespace NeuronCore\IQ\Tests\Support;
 
 use PHPUnit\Framework\TestCase;
 
@@ -10,7 +10,7 @@ use PHPUnit\Framework\TestCase;
  * A test that runs on a TestBench, once per backend with the "backends" data
  * provider. The bench is cleaned up when the test ends.
  */
-abstract class CloudTestCase extends TestCase
+abstract class IQTestCase extends TestCase
 {
     protected TestBench $bench;
 

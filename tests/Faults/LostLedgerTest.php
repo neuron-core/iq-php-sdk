@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Faults;
+namespace NeuronCore\IQ\Tests\Faults;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\FlakyNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\FlakyNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function hash;
@@ -24,7 +24,7 @@ use function time;
  * the workflow ID, the copy must not execute it: a start only ever creates a
  * run (9.5).
  */
-class LostLedgerTest extends CloudTestCase
+class LostLedgerTest extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -33,7 +33,7 @@ class LostLedgerTest extends CloudTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1));
+        $bench->iq->register('flaky', static fn (): FlakyWorkflow => new FlakyWorkflow($executions, failures: 1));
         $start = Invocation::fromArray([
             'invocationId' => 'inv_start',
             'verb' => Verb::Start->value,
@@ -43,10 +43,10 @@ class LostLedgerTest extends CloudTestCase
             'runId' => '1-0192f3a8-7c1e-7d3a-9b1c-2f4e6a8c0d12',
             'expiresAt' => time() + 900,
         ]);
-        $failed = $bench->cloud->invoke($start);
+        $failed = $bench->iq->invoke($start);
         $this->loseTheLedgerRecord($bench);
 
-        $copy = $bench->cloud->invoke($start);
+        $copy = $bench->iq->invoke($start);
 
         self::assertSame(Outcome::Refused, $copy->outcome);
         self::assertSame(RefusalReason::RunInFlight->value, $copy->code);
@@ -58,7 +58,7 @@ class LostLedgerTest extends CloudTestCase
     protected function loseTheLedgerRecord(TestBench $bench): void
     {
         $store = ($bench->persistence)();
-        $partition = '__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID);
+        $partition = '__iq:' . hash('sha256', self::WORKFLOW_ID);
 
         self::assertTrue(
             $store->deleteIfUnchanged($partition, 'starts', (string) $store->get($partition, 'starts')),

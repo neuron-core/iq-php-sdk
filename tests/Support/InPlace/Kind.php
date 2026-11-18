@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\InPlace;
+namespace NeuronCore\IQ\Tests\Support\InPlace;
 
-use NeuronCore\Cloud\Tests\Stub\Matrix\Opening;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Stub\Matrix\Opening;
+use NeuronCore\IQ\Verb;
 
 /**
  * The kinds of segment an application runs in its own process.

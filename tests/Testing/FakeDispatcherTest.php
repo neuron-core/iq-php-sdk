@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Testing;
+namespace NeuronCore\IQ\Tests\Testing;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
 use function time;
 
-class FakeDispatcherTest extends CloudTestCase
+class FakeDispatcherTest extends IQTestCase
 {
     protected function setUp(): void
     {
@@ -58,7 +58,7 @@ class FakeDispatcherTest extends CloudTestCase
     {
         $this->register('greeting');
         $this->bench->dispatcher->dispatch(Queued::start('greeting'));
-        $this->bench->dispatcher->runAll($this->bench->cloud);
+        $this->bench->dispatcher->runAll($this->bench->iq);
 
         $this->bench->dispatcher->assertDispatched(Verb::Start, Queued::WORKFLOW_ID);
     }
@@ -97,7 +97,7 @@ class FakeDispatcherTest extends CloudTestCase
         $this->bench->dispatcher->dispatch(Queued::start('greeting', workflowId: 'order:1'));
         $this->bench->dispatcher->dispatch(Queued::start('greeting', workflowId: 'order:2'));
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['order:1 completed', 'order:2 completed'], self::told($results));
         self::assertSame(2, $this->bench->executions->count(CompleteNode::class));
@@ -107,9 +107,9 @@ class FakeDispatcherTest extends CloudTestCase
     {
         $this->register('greeting');
         $this->bench->dispatcher->dispatch(Queued::start('greeting'));
-        $this->bench->dispatcher->runAll($this->bench->cloud);
+        $this->bench->dispatcher->runAll($this->bench->iq);
 
-        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->cloud));
+        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->iq));
     }
 
     public function test_run_all_twice_delivers_every_message_a_second_time_right_after_the_first(): void
@@ -118,7 +118,7 @@ class FakeDispatcherTest extends CloudTestCase
         $this->bench->dispatcher->dispatch(Queued::start('greeting', workflowId: 'order:1'));
         $this->bench->dispatcher->dispatch(Queued::start('greeting', workflowId: 'order:2'));
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud, 2);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq, 2);
 
         self::assertSame(
             ['order:1 completed', 'order:1 rejected', 'order:2 completed', 'order:2 rejected'],
@@ -131,7 +131,7 @@ class FakeDispatcherTest extends CloudTestCase
         $this->register('greeting');
         $this->bench->dispatcher->dispatch(Queued::start('greeting'));
 
-        $this->bench->dispatcher->runAll($this->bench->cloud, 2);
+        $this->bench->dispatcher->runAll($this->bench->iq, 2);
 
         self::assertSame(1, $this->bench->executions->count(CompleteNode::class));
         $this->bench->platform->assertReported(Queued::WORKFLOW_ID, Outcome::Rejected, Code::AlreadyClaimed->value);
@@ -143,8 +143,8 @@ class FakeDispatcherTest extends CloudTestCase
         $this->bench->platform->failNext(2);
         $this->bench->dispatcher->dispatch(Queued::start('greeting'));
 
-        $segment = $this->bench->dispatcher->runAll($this->bench->cloud);
-        $notices = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $segment = $this->bench->dispatcher->runAll($this->bench->iq);
+        $notices = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['order:123 completed'], self::told($segment));
         self::assertCount(2, $notices, 'The announcement and the observe the job queued ran after it, not with it.');
@@ -155,7 +155,7 @@ class FakeDispatcherTest extends CloudTestCase
         $this->bench->platform->failNext(1);
         $this->bench->dispatcher->dispatch(Queued::announcementOf(Queued::start('greeting')));
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['thrown report_undelivered'], self::told($results));
     }
@@ -164,9 +164,9 @@ class FakeDispatcherTest extends CloudTestCase
     {
         $this->bench->platform->failNext(1);
         $this->bench->dispatcher->dispatch(Queued::announcementOf(Queued::start('greeting')));
-        $this->bench->dispatcher->runAll($this->bench->cloud);
+        $this->bench->dispatcher->runAll($this->bench->iq);
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['order:123 observed'], self::told($results));
         $this->bench->platform->assertAnnounced(Queued::WORKFLOW_ID, Verb::Start);
@@ -176,10 +176,10 @@ class FakeDispatcherTest extends CloudTestCase
     {
         $this->register('greeting', version: 2);
         $this->bench->dispatcher->dispatch(Queued::start('greeting', Origin::APPLICATION, runId: '1-0192f3a8'));
-        $aborted = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $aborted = $this->bench->dispatcher->runAll($this->bench->iq);
         $this->register('greeting', version: 1);
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['thrown unknown_version'], self::told($aborted));
         self::assertSame(['order:123 completed'], self::told($results));
@@ -191,19 +191,19 @@ class FakeDispatcherTest extends CloudTestCase
         $this->bench->platform->failNext(1, $status);
         $this->bench->dispatcher->dispatch(Queued::announcementOf(Queued::start('greeting')));
 
-        $refused = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $refused = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(["thrown {$reason->value}"], self::told($refused));
-        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->cloud));
+        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->iq));
     }
 
     public function test_a_message_that_throws_at_both_of_two_deliveries_is_queued_again_once(): void
     {
         $this->bench->platform->failNext(2);
         $this->bench->dispatcher->dispatch(Queued::announcementOf(Queued::start('greeting')));
-        $this->bench->dispatcher->runAll($this->bench->cloud, 2);
+        $this->bench->dispatcher->runAll($this->bench->iq, 2);
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertCount(1, $results);
     }
@@ -213,10 +213,10 @@ class FakeDispatcherTest extends CloudTestCase
         $spent = new Invocation('inv_start', Verb::Start, Origin::APPLICATION, 'retired', Queued::WORKFLOW_ID, Queued::RUN_ID, expiresAt: time() - 1);
         $this->bench->dispatcher->dispatch($spent);
 
-        $aborted = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $aborted = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['thrown unknown_definition'], self::told($aborted));
-        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->cloud));
+        self::assertSame([], $this->bench->dispatcher->runAll($this->bench->iq));
     }
 
     public function test_an_undelivered_notice_stays_queued_whatever_its_use_by_time(): void
@@ -224,9 +224,9 @@ class FakeDispatcherTest extends CloudTestCase
         $announce = Queued::announcementOf(Queued::start('greeting'));
         $this->bench->platform->failNext(1);
         $this->bench->dispatcher->dispatch(Invocation::fromArray(['expiresAt' => time() - 1] + $announce->toArray()));
-        $undelivered = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $undelivered = $this->bench->dispatcher->runAll($this->bench->iq);
 
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         self::assertSame(['thrown report_undelivered'], self::told($undelivered));
         self::assertSame(['order:123 observed'], self::told($results));
@@ -240,7 +240,7 @@ class FakeDispatcherTest extends CloudTestCase
         ]);
 
         $this->bench->dispatcher->dispatch($answer);
-        $results = $this->bench->dispatcher->runAll($this->bench->cloud);
+        $results = $this->bench->dispatcher->runAll($this->bench->iq);
 
         // No run holds the workflow ID: Neuron answers the fence before it looks at the payload.
         self::assertSame(['order:123 refused'], self::told($results));
@@ -259,13 +259,13 @@ class FakeDispatcherTest extends CloudTestCase
     }
 
     /**
-     * @param array<int, Report|CloudException> $results
+     * @param array<int, Report|IQException> $results
      * @return string[] what every invoke() told, in order: the workflow ID and the outcome of a report, or the reason it threw
      */
     protected static function told(array $results): array
     {
         return array_map(
-            static fn (Report|CloudException $result): string => $result instanceof Report
+            static fn (Report|IQException $result): string => $result instanceof Report
                 ? "{$result->workflowId} {$result->outcome->value}"
                 : "thrown {$result->reason->value}",
             $results,
@@ -276,6 +276,6 @@ class FakeDispatcherTest extends CloudTestCase
     {
         $executions = $this->bench->executions;
 
-        $this->bench->cloud->register($definition, static fn (): Workflow => new CompletingWorkflow($executions), $version);
+        $this->bench->iq->register($definition, static fn (): Workflow => new CompletingWorkflow($executions), $version);
     }
 }

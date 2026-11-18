@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 /**
  * What bootstrap.php hands the endpoint, the two web scripts, the worker and
@@ -15,7 +15,7 @@ final class Shop
     public const DEFINITION = 'order-fulfilment';
 
     public function __construct(
-        public readonly NeuronCloud $cloud,
+        public readonly IQ $iq,
         public readonly Spool $spool,
         public readonly Faults $faults,
     ) {

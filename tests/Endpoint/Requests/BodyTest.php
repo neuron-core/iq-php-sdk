@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -66,7 +66,7 @@ class BodyTest extends RequestTestCase
 
         // Handed over beside post(): the schema check that follows every exchange needs the message as a PHP
         // object, and PHP has no object with such a property.
-        $answer = $this->cloud->handle('POST', $this->signed($body), $body);
+        $answer = $this->iq->handle('POST', $this->signed($body), $body);
 
         self::assertSame([200, '{"protocols":[1]}'], self::statusAndBody($answer));
     }

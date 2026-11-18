@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function base64_decode;
 use function is_array;
@@ -35,7 +35,7 @@ abstract class StartTestCase extends LocalTestCase
 {
     protected Transcript $transcript;
 
-    /** @var string[] the PersistenceInterface method of every operation the cloud asked of its store, in order */
+    /** @var string[] the PersistenceInterface method of every operation the service asked of its store, in order */
     protected array $storeOperations = [];
 
     protected function tearDown(): void
@@ -53,10 +53,10 @@ abstract class StartTestCase extends LocalTestCase
     protected function benchOn(string $backend): TestBench
     {
         $bench = parent::benchOn($backend);
-        $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'neuron-cloud-'));
+        $this->transcript = new Transcript((string) tempnam(sys_get_temp_dir(), 'iq-'));
 
         $persistence = $bench->persistence;
-        $bench->cloud->setPersistence(fn (): PersistenceInterface => new InterceptedPersistence(
+        $bench->iq->setPersistence(fn (): PersistenceInterface => new InterceptedPersistence(
             $persistence(),
             function (string $operation, string $partition): void {
                 $this->storeOperations[] = $operation;
@@ -64,14 +64,14 @@ abstract class StartTestCase extends LocalTestCase
         ));
 
         [$executions, $transcript] = [$bench->executions, $this->transcript];
-        $bench->cloud->register('order', static fn (): OrderWorkflow => new OrderWorkflow($executions, $transcript));
+        $bench->iq->register('order', static fn (): OrderWorkflow => new OrderWorkflow($executions, $transcript));
 
         return $bench;
     }
 
     protected function order(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow('order', self::WORKFLOW_ID);
+        return $this->bench->iq->workflow('order', self::WORKFLOW_ID);
     }
 
     /**
@@ -114,7 +114,7 @@ abstract class StartTestCase extends LocalTestCase
      */
     protected function workOnce(): Report
     {
-        $results = $this->queue->runAll($this->bench->cloud);
+        $results = $this->queue->runAll($this->bench->iq);
         self::assertCount(1, $results, 'The worker did not run exactly one message.');
         self::assertInstanceOf(Report::class, $results[0], 'The worker was thrown the message back.');
 

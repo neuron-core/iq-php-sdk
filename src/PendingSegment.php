@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 use Closure;
 use Generator;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Runtime\LocalSegment;
+use NeuronCore\IQ\Runtime\LocalSegment;
 use Throwable;
 
 /**
@@ -32,7 +32,7 @@ final class PendingSegment
      * the dispatcher: with a queue behind it, no call to the platform sits on
      * the caller.
      *
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ran
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ran
      * @throws Throwable what Neuron throws: a refusal, or the exception of a node
      */
     public function run(): WorkflowState
@@ -57,7 +57,7 @@ final class PendingSegment
      * passed.
      *
      * @return Generator<int, object, mixed, WorkflowState> it throws what Neuron throws: a refusal, or the exception of a node
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ran
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ran
      */
     public function events(): Generator
     {
@@ -69,7 +69,7 @@ final class PendingSegment
      *
      * @return string the run ID
      * @throws RunInFlightException when a start meets a run that holds the workflow ID
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the segment
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take the segment
      */
     public function dispatch(): string
     {

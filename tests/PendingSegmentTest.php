@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Exceptions\RunInFlightException;
@@ -11,20 +11,20 @@ use NeuronAI\Workflow\Observability\WorkflowEnd;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -102,7 +102,7 @@ class PendingSegmentTest extends LocalTestCase
         $runId = $this->workflow('order')->start()->dispatch();
 
         self::assertSame(0, $bench->executions->total(), 'Nothing runs in the process that dispatches.');
-        [$report] = $this->queue->runAll($bench->cloud);
+        [$report] = $this->queue->runAll($bench->iq);
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(Outcome::Suspended, $report->outcome);
         self::assertSame($runId, $report->run['runId']);
@@ -138,7 +138,7 @@ class PendingSegmentTest extends LocalTestCase
     public function test_a_segment_whose_only_use_failed_is_used_all_the_same(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
-        $bench->cloud->setDispatcher(new UnreachableQueue());
+        $bench->iq->setDispatcher(new UnreachableQueue());
         $start = $this->workflow('greeting')->start();
         self::assertSame(Code::DispatchFailed, self::reasonThrownBy(static fn (): mixed => $start->run()));
 
@@ -267,7 +267,7 @@ class PendingSegmentTest extends LocalTestCase
     {
         $executions = $this->bench->executions;
 
-        return $this->bench->cloud
+        return $this->bench->iq
             ->register('greeting', static fn (): Workflow => new CompletingWorkflow($executions))
             ->register('order', static fn (): Workflow => new WaitingWorkflow($executions))
             ->register('flaky', static fn (): Workflow => new FlakyWorkflow($executions))
@@ -281,7 +281,7 @@ class PendingSegmentTest extends LocalTestCase
     {
         $executions = $this->bench->executions;
 
-        return $this->bench->cloud
+        return $this->bench->iq
             ->register('narration', static fn (): Workflow => new NarratingWorkflow($executions))
             ->workflow('narration', self::WORKFLOW_ID);
     }

@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Runner;
+namespace NeuronCore\IQ\Tests\Support\Runner;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\RacingPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\RacingPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 
 use function base64_encode;
 use function hash;
@@ -32,7 +32,7 @@ use const PHP_URL_PATH;
  * A test of the runner: invocations are built as a queue would hand them to
  * invoke(), and the test reads what reached the platform, the queue and the store.
  */
-abstract class RunnerTestCase extends CloudTestCase
+abstract class RunnerTestCase extends IQTestCase
 {
     protected const WORKFLOW_ID = 'order:123';
 
@@ -46,7 +46,7 @@ abstract class RunnerTestCase extends CloudTestCase
 
     protected const REPORTS = '/v1/reports';
 
-    /** The queue the cloud hands its messages to, in place of the bench's own, whose messages cannot be read. */
+    /** The queue the service hands its messages to, in place of the bench's own, whose messages cannot be read. */
     protected InspectableDispatcher $queue;
 
     protected function assertPostConditions(): void
@@ -63,7 +63,7 @@ abstract class RunnerTestCase extends CloudTestCase
         $executions = $bench->executions;
 
         $this->queue = new InspectableDispatcher();
-        $bench->cloud
+        $bench->iq
             ->setDispatcher($this->queue)
             ->register('greeting', static fn (): CompletingWorkflow => new CompletingWorkflow($executions));
 
@@ -149,11 +149,11 @@ abstract class RunnerTestCase extends CloudTestCase
     /**
      * What invoke() throws for an invocation it did not deal with.
      */
-    protected function thrownBy(Invocation $invocation): CloudException
+    protected function thrownBy(Invocation $invocation): IQException
     {
         try {
-            $this->bench->cloud->invoke($invocation);
-        } catch (CloudException $notDealtWith) {
+            $this->bench->iq->invoke($invocation);
+        } catch (IQException $notDealtWith) {
             return $notDealtWith;
         }
 
@@ -161,7 +161,7 @@ abstract class RunnerTestCase extends CloudTestCase
     }
 
     /**
-     * From now on the test steps into every store the cloud builds, just before each operation.
+     * From now on the test steps into every store the service builds, just before each operation.
      *
      * @param Closure(string $operation, string $partition): void $before
      */
@@ -169,7 +169,7 @@ abstract class RunnerTestCase extends CloudTestCase
     {
         $persistence = $this->bench->persistence;
 
-        $this->bench->cloud->setPersistence(
+        $this->bench->iq->setPersistence(
             static fn (): PersistenceInterface => new InterceptedPersistence($persistence(), $before),
         );
     }
@@ -190,7 +190,7 @@ abstract class RunnerTestCase extends CloudTestCase
 
     /**
      * From now on another process claims a start of the same workflow ID just before each of the first
-     * $races conditional writes of the cloud.
+     * $races conditional writes of the service.
      */
     protected function rivalsWinTheLedger(int $races): void
     {
@@ -201,7 +201,7 @@ abstract class RunnerTestCase extends CloudTestCase
             $rival->claim(self::WORKFLOW_ID, '1-rival-' . ++$rivals, time() + 900);
         });
 
-        $this->bench->cloud->setPersistence(static fn (): PersistenceInterface => $store);
+        $this->bench->iq->setPersistence(static fn (): PersistenceInterface => $store);
     }
 
     /**
@@ -219,7 +219,7 @@ abstract class RunnerTestCase extends CloudTestCase
      */
     protected function ledgerPartition(): string
     {
-        return '__neuron_cloud:' . hash('sha256', self::WORKFLOW_ID);
+        return '__iq:' . hash('sha256', self::WORKFLOW_ID);
     }
 
     /**
@@ -236,7 +236,7 @@ abstract class RunnerTestCase extends CloudTestCase
     }
 
     /**
-     * @return array<int, array<string, mixed>> the announcements the cloud posted, recorded by the platform or not, in order
+     * @return array<int, array<string, mixed>> the announcements the service posted, recorded by the platform or not, in order
      */
     protected function announcementsSent(): array
     {
@@ -244,7 +244,7 @@ abstract class RunnerTestCase extends CloudTestCase
     }
 
     /**
-     * @return array<int, array<string, mixed>> the reports the cloud posted, recorded by the platform or not, in order
+     * @return array<int, array<string, mixed>> the reports the service posted, recorded by the platform or not, in order
      */
     protected function reportsSent(): array
     {

@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 use Closure;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Confidential;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Shop;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Confidential;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\ExampleApp\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Shop;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\AssertionFailedError;
 
 use function array_column;
@@ -298,7 +298,7 @@ abstract class FailureTableTestCase extends EndToEndTestCase
     {
         return Http::send(
             'POST',
-            "{$this->shop->url()}/neuron-cloud.php",
+            "{$this->shop->url()}/iq.php",
             $body,
             array_map(static fn (string $name, string $value): string => "{$name}: {$value}", array_keys($headers), $headers),
         )['status'];

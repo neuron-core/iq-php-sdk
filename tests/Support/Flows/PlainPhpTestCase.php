@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 /**
  * A test of example (a) of section 5 of the design: the shop whose checkout
@@ -36,7 +36,7 @@ abstract class PlainPhpTestCase extends FlowTestCase
         $bench = $this->benchOn($backend);
         $this->shippingFailures = $shippingFailures;
 
-        $bench->cloud->register(self::DEFINITION, $this->orderWorkflow(...));
+        $bench->iq->register(self::DEFINITION, $this->orderWorkflow(...));
 
         return $bench;
     }
@@ -48,7 +48,7 @@ abstract class PlainPhpTestCase extends FlowTestCase
 
     protected function order(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow(self::DEFINITION, self::WORKFLOW_ID);
+        return $this->bench->iq->workflow(self::DEFINITION, self::WORKFLOW_ID);
     }
 
     /**

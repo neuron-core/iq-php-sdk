@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use Closure;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -32,7 +32,7 @@ class DefinitionTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('retired'));
+        $report = $bench->iq->invoke($this->start('retired'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::UnknownDefinition->value, $report->code);
@@ -62,7 +62,7 @@ class DefinitionTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('retired'));
+        $report = $bench->iq->invoke($this->start('retired'));
 
         // No registered version can build a workflow to read the store with: the platform asks by itself.
         self::assertFalse($report->snapshotRead);
@@ -76,7 +76,7 @@ class DefinitionTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $bench->platform->failNext();
 
-        $bench->cloud->invoke($this->start('retired'));
+        $bench->iq->invoke($this->start('retired'));
 
         self::assertCount(1, $this->queue->dispatched());
         self::assertSame(Verb::Observe, $this->queue->dispatched()[0]->verb);
@@ -89,9 +89,9 @@ class DefinitionTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $bench->platform->failNext();
-        $bench->cloud->invoke($this->start('retired'));
+        $bench->iq->invoke($this->start('retired'));
 
-        $delivered = $this->queue->runAll($bench->cloud);
+        $delivered = $this->queue->runAll($bench->iq);
 
         self::assertCount(1, $delivered);
         self::assertInstanceOf(Report::class, $delivered[0]);
@@ -100,7 +100,7 @@ class DefinitionTest extends RunnerTestCase
         self::assertFalse($delivered[0]->snapshotRead);
         self::assertNull($delivered[0]->run);
         self::assertNull($delivered[0]->claimed);
-        self::assertSame([], $this->queue->runAll($bench->cloud), 'The observe is not tried again: the platform recorded its report.');
+        self::assertSame([], $this->queue->runAll($bench->iq), 'The observe is not tried again: the platform recorded its report.');
         $bench->platform->assertReported(self::WORKFLOW_ID, Outcome::Aborted, Code::UnknownDefinition->value);
     }
 
@@ -109,7 +109,7 @@ class DefinitionTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('greeting', fields: ['runId' => self::NEWER_RUN_ID]));
+        $report = $bench->iq->invoke($this->start('greeting', fields: ['runId' => self::NEWER_RUN_ID]));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::UnknownVersion->value, $report->code);
@@ -138,10 +138,10 @@ class DefinitionTest extends RunnerTestCase
     public function test_a_wake_for_a_run_of_a_version_this_worker_lacks_is_aborted_and_leaves_the_run_as_it_was(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $this->registerOrder($bench->cloud, $bench);
+        $this->registerOrder($bench->iq, $bench);
         $started = $this->deployedWithVersionTwo($bench)->invoke($this->start('order', fields: ['runId' => self::NEWER_RUN_ID]));
 
-        $report = $bench->cloud->invoke($this->wake('order', $started));
+        $report = $bench->iq->invoke($this->wake('order', $started));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::UnknownVersion->value, $report->code);
@@ -155,9 +155,9 @@ class DefinitionTest extends RunnerTestCase
     public function test_a_platform_start_whose_factory_throws_is_aborted_as_not_executed_with_the_exception_class(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
-        $report = $bench->cloud->invoke($this->start('unbuildable'));
+        $report = $bench->iq->invoke($this->start('unbuildable'));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -171,9 +171,9 @@ class DefinitionTest extends RunnerTestCase
     public function test_the_report_of_a_platform_start_whose_factory_throws_holds_what_the_factory_threw(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
-        $report = $bench->cloud->invoke($this->start('unbuildable'));
+        $report = $bench->iq->invoke($this->start('unbuildable'));
 
         self::assertInstanceOf(FactoryFailed::class, $report->exception);
         self::assertSame('The container could not build the workflow.', $report->exception->getMessage());
@@ -185,7 +185,7 @@ class DefinitionTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
 
-        $report = $bench->cloud->invoke($this->start('unregistered'));
+        $report = $bench->iq->invoke($this->start('unregistered'));
 
         self::assertSame([Outcome::Aborted, Code::UnknownDefinition->value], [$report->outcome, $report->code]);
         self::assertNull($report->exception);
@@ -195,7 +195,7 @@ class DefinitionTest extends RunnerTestCase
     public function test_an_application_start_whose_factory_throws_is_reported_then_thrown_as_not_executed(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
         $thrown = $this->thrownBy($this->start('unbuildable', self::APPLICATION));
 
@@ -207,7 +207,7 @@ class DefinitionTest extends RunnerTestCase
     public function test_the_exception_thrown_for_an_abort_carries_the_throwable_that_caused_it_as_its_previous(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
         $thrown = $this->thrownBy($this->start('unbuildable', self::APPLICATION));
 
@@ -219,7 +219,7 @@ class DefinitionTest extends RunnerTestCase
     public function test_the_exception_thrown_for_an_abort_names_the_definition_the_workflow_id_and_the_run_id(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
         $thrown = $this->thrownBy($this->start('unbuildable', self::APPLICATION));
 
@@ -232,9 +232,9 @@ class DefinitionTest extends RunnerTestCase
     public function test_a_start_whose_factory_throws_claims_nothing(string $backend): void
     {
         $bench = $this->benchOn($backend);
-        $bench->cloud->register('unbuildable', $this->failingFactory());
+        $bench->iq->register('unbuildable', $this->failingFactory());
 
-        $report = $bench->cloud->invoke($this->start('unbuildable'));
+        $report = $bench->iq->invoke($this->start('unbuildable'));
 
         self::assertNull($report->claimed);
         self::assertNull($this->ledgerRecord());
@@ -251,25 +251,25 @@ class DefinitionTest extends RunnerTestCase
     /**
      * "order" waits for an event that only a signal or an answer delivers.
      */
-    protected function registerOrder(NeuronCloud $cloud, TestBench $bench, int $version = 1): void
+    protected function registerOrder(IQ $iq, TestBench $bench, int $version = 1): void
     {
         $executions = $bench->executions;
 
-        $cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions), $version);
+        $iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions), $version);
     }
 
     /**
      * A worker of the same application that already runs the next deploy: it knows version 2 of "order".
      */
-    protected function deployedWithVersionTwo(TestBench $bench): NeuronCloud
+    protected function deployedWithVersionTwo(TestBench $bench): IQ
     {
-        $cloud = (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
+        $iq = (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $bench->platform))
             ->setPersistence($bench->persistence)
             ->setDispatcher($this->queue);
 
-        $this->registerOrder($cloud, $bench);
-        $this->registerOrder($cloud, $bench, 2);
+        $this->registerOrder($iq, $bench);
+        $this->registerOrder($iq, $bench, 2);
 
-        return $cloud;
+        return $iq;
     }
 }

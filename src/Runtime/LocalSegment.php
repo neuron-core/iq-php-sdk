@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use Generator;
@@ -13,11 +13,11 @@ use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Verb;
 use Throwable;
 
 use function time;
@@ -72,7 +72,7 @@ final class LocalSegment
      * observe handed to the queue.
      *
      * @param (Closure(Workflow): mixed)|null $configure adjusts the workflow before it executes
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ignited
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ignited
      */
     public function run(?Closure $configure = null): Execution
     {
@@ -95,7 +95,7 @@ final class LocalSegment
      *
      * @param (Closure(Workflow): mixed)|null $configure adjusts the workflow before it executes
      * @return Generator<int, object, mixed, WorkflowState> what Neuron's own events() yields, returns and throws
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ignited
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take the announcement: nothing ignited
      */
     public function events(?Closure $configure = null): Generator
     {
@@ -111,7 +111,7 @@ final class LocalSegment
      *
      * @return string the run ID
      * @throws RunInFlightException when a start meets a run that holds the workflow ID
-     * @throws CloudException segment_used; dispatch_failed, when the queue did not take it
+     * @throws IQException segment_used; dispatch_failed, when the queue did not take it
      */
     public function dispatch(): string
     {
@@ -129,12 +129,12 @@ final class LocalSegment
     /**
      * A second use would execute the same run ID again.
      *
-     * @throws CloudException segment_used
+     * @throws IQException segment_used
      */
     protected function useOnce(): void
     {
         if ($this->used) {
-            throw new CloudException(
+            throw new IQException(
                 'This segment was already used by run(), events() or dispatch(): prepare a new one with start(), submitInputs() or signal().',
                 Code::SegmentUsed,
             );
@@ -156,7 +156,7 @@ final class LocalSegment
     }
 
     /**
-     * @throws CloudException dispatch_failed
+     * @throws IQException dispatch_failed
      */
     protected function announce(): void
     {
@@ -235,14 +235,14 @@ final class LocalSegment
     }
 
     /**
-     * @throws CloudException dispatch_failed
+     * @throws IQException dispatch_failed
      */
     protected function hand(Invocation $message): void
     {
         try {
             $this->dispatcher->dispatch($message);
         } catch (Throwable $undispatched) {
-            throw new CloudException(
+            throw new IQException(
                 "The queue did not take the '{$message->verb->value}' of '{$message->definition}' for workflow ID "
                 . "'{$message->workflowId}' (run ID '{$message->runId}'): nothing ran in this process.",
                 Code::DispatchFailed,

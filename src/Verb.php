@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud;
+namespace NeuronCore\IQ;
 
 /**
  * What an invocation asks for: a segment of a run (start, wake, answer,

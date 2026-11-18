@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyNode;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyNode;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -92,17 +92,17 @@ class WakeTest extends RunnerTestCase
                 return;
             }
 
-            $running = $bench->cloud->invoke($this->observeOf($this->start('slow')));
+            $running = $bench->iq->invoke($this->observeOf($this->start('slow')));
             $this->holdUntil($running->run['leaseExpiresAt']);
-            $takeover = $bench->cloud->invoke($this->wake('slow', $running));
+            $takeover = $bench->iq->invoke($this->wake('slow', $running));
         };
-        $bench->cloud->register(
+        $bench->iq->register(
             'slow',
             static fn (): BusyWorkflow => new BusyWorkflow($executions, $outlivesItsLease),
             leaseTimeout: 1,
         );
 
-        $bench->cloud->invoke($this->start('slow'));
+        $bench->iq->invoke($this->start('slow'));
 
         self::assertInstanceOf(Report::class, $takeover);
         self::assertSame(Outcome::Completed, $takeover->outcome, 'The guard stops a wake only when the run has no lease.');
@@ -114,10 +114,10 @@ class WakeTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench, paymentDeadline: new DateTimeImmutable('-1 minute'), deliveryAt: new DateTimeImmutable('+1 hour'));
-        $started = $bench->cloud->invoke($this->start('order'));
-        $sleeping = $bench->cloud->invoke($this->wake('order', $started));
+        $started = $bench->iq->invoke($this->start('order'));
+        $sleeping = $bench->iq->invoke($this->wake('order', $started));
 
-        $early = $bench->cloud->invoke($this->wake('order', $sleeping));
+        $early = $bench->iq->invoke($this->wake('order', $sleeping));
 
         self::assertSame(Outcome::Suspended, $early->outcome);
         self::assertNull($early->executedAttempt, 'A wake that comes too early opens no segment.');
@@ -131,9 +131,9 @@ class WakeTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench, paymentDeadline: new DateTimeImmutable('+1 hour'));
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
 
-        $early = $bench->cloud->invoke($this->wake('order', $started));
+        $early = $bench->iq->invoke($this->wake('order', $started));
 
         self::assertSame(Outcome::Suspended, $early->outcome);
         self::assertNull($early->executedAttempt);
@@ -147,10 +147,10 @@ class WakeTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench, paymentDeadline: new DateTimeImmutable('-1 minute'));
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
         $this->failStoreOn('get', self::WORKFLOW_ID);
 
-        $report = $bench->cloud->invoke($this->wake('order', $started));
+        $report = $bench->iq->invoke($this->wake('order', $started));
 
         self::assertSame(Outcome::Aborted, $report->outcome);
         self::assertSame(Code::NotExecuted->value, $report->code);
@@ -165,7 +165,7 @@ class WakeTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $this->registerOrder($bench, paymentDeadline: new DateTimeImmutable('-1 minute'));
-        $started = $bench->cloud->invoke($this->start('order'));
+        $started = $bench->iq->invoke($this->start('order'));
         $this->failStoreOn('get', self::WORKFLOW_ID);
 
         $thrown = $this->thrownBy($this->wake('order', $started, self::APPLICATION));
@@ -180,7 +180,7 @@ class WakeTest extends RunnerTestCase
         $executions = $bench->executions;
         $deliveryAt ??= new DateTimeImmutable('@0');
 
-        $bench->cloud->register(
+        $bench->iq->register(
             'order',
             static fn (): WaitingWorkflow => new WaitingWorkflow($executions, $paymentDeadline, $deliveryAt),
         );
@@ -200,12 +200,12 @@ class WakeTest extends RunnerTestCase
         ?int $fencedAttempt = null,
     ): Report {
         $executions = $bench->executions;
-        $bench->cloud->register('legacy', static fn (): BusyWorkflow => new BusyWorkflow($executions, static function (): void {
+        $bench->iq->register('legacy', static fn (): BusyWorkflow => new BusyWorkflow($executions, static function (): void {
         }));
 
         $report = null;
         $outside = (new BusyWorkflow($executions, function () use ($bench, $fencedRunId, $fencedAttempt, &$outside, &$report): void {
-            $report = $bench->cloud->invoke($this->wakeFencedWith($outside->inspect(), $fencedRunId, $fencedAttempt));
+            $report = $bench->iq->invoke($this->wakeFencedWith($outside->inspect(), $fencedRunId, $fencedAttempt));
         }))->for(self::WORKFLOW_ID)->setPersistence(($bench->persistence)());
 
         self::assertSame(WorkflowStatus::Completed, $outside->run()->getStatus(), 'The run was not disturbed.');

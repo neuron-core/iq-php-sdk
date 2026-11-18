@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Evaluation;
+namespace NeuronCore\IQ\Tests\Evaluation;
 
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Evaluation\EvaluationGate;
-use NeuronCore\Cloud\Evaluation\RunContext;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Evaluation\EvaluationGate;
+use NeuronCore\IQ\Evaluation\RunContext;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
 use PHPUnit\Framework\TestCase;
 
 use function array_fill;
@@ -142,10 +142,10 @@ class EvaluationGateTest extends TestCase
         $exit = 0;
         $lines = [];
 
-        exec('env -u NEURON_CLOUD_API_KEY ' . PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/../../bin/neuron-cloud-gate') . ' 2>&1', $lines, $exit);
+        exec('env -u IQ_API_KEY ' . PHP_BINARY . ' ' . escapeshellarg(__DIR__ . '/../../bin/iq-gate') . ' 2>&1', $lines, $exit);
 
         self::assertSame(2, $exit);
-        self::assertStringContainsString('NEURON_CLOUD_API_KEY', implode("\n", $lines));
+        self::assertStringContainsString('IQ_API_KEY', implode("\n", $lines));
     }
 
     /**
@@ -159,7 +159,7 @@ class EvaluationGateTest extends TestCase
     protected function gate(ScriptedHttpClient $http, ?string $suiteId = 'github-7-1'): EvaluationGate
     {
         return new EvaluationGate(
-            new NeuronCloud('key', platformUrl: 'https://platform.test', httpClient: $http),
+            new IQ('key', platformUrl: 'https://platform.test', httpClient: $http),
             new RunContext($suiteId),
             function (string $line): void {
                 $this->lines[] = $line;

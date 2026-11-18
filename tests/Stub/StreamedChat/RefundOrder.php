@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\StreamedChat;
+namespace NeuronCore\IQ\Tests\Stub\StreamedChat;
 
 use NeuronAI\Tools\PropertyType;
 use NeuronAI\Tools\Tool;
 use NeuronAI\Tools\ToolProperty;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Confidential;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Confidential;
 
 /**
  * Moves money, so every call of it waits for a person. It counts its

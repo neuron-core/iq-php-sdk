@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Matrix;
+namespace NeuronCore\IQ\Tests\Support\Matrix;
 
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Matrix\Ending;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Matrix\Ending;
 
 /**
  * The state of the first copy of an invocation when the second one arrives.

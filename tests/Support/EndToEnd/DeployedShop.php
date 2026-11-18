@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndToEnd;
+namespace NeuronCore\IQ\Tests\Support\EndToEnd;
 
 use NeuronAI\Workflow\Interrupt\SleepUntilRequest;
 use NeuronAI\Workflow\Interrupt\WaitForEventRequest;
@@ -10,11 +10,11 @@ use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Home;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\NodeRuns;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Spool;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Home;
+use NeuronCore\IQ\Tests\Support\ExampleApp\NodeRuns;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Spool;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
 use RuntimeException;
 
 use function base64_decode;
@@ -83,9 +83,9 @@ final class DeployedShop
         $this->environment = $environment + [
             'SHOP_HOME' => $this->home->directory,
             'SHOP_URL' => self::PUBLIC_URL,
-            'NEURON_CLOUD_API_KEY' => SimulatedPlatform::API_KEY,
-            'NEURON_CLOUD_SIGNING_KEY' => $platform->signingKey,
-            'NEURON_CLOUD_PLATFORM_URL' => $platform->url(),
+            'IQ_API_KEY' => SimulatedPlatform::API_KEY,
+            'IQ_SIGNING_KEY' => $platform->signingKey,
+            'IQ_PLATFORM_URL' => $platform->url(),
         ];
 
         $this->migration = $this->spawn('migrate', [], []);

@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 use RuntimeException;
@@ -25,7 +25,7 @@ use function array_slice;
 
 class PlatformClientTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     protected const PLATFORM_URL = 'https://platform.test';
 
@@ -37,8 +37,8 @@ class PlatformClientTest extends TestCase
 
     protected const MANIFEST = [
         'protocols' => [1],
-        'sdk' => 'neuron-cloud-php/1.0.0',
-        'endpoint' => 'https://shop.example.com/neuron-cloud.php',
+        'sdk' => 'iq-php/1.0.0',
+        'endpoint' => 'https://shop.example.com/iq.php',
         'definitions' => [['definition' => 'order-fulfilment', 'version' => 1, 'leaseSeconds' => 600]],
     ];
 
@@ -101,7 +101,7 @@ class PlatformClientTest extends TestCase
 
         self::client($http)->announce(self::ANNOUNCEMENT);
 
-        self::assertMatchesRegularExpression('~^neuron-cloud-php/\d+\.\d+\.\d+$~D', self::sent($http)->headers['User-Agent']);
+        self::assertMatchesRegularExpression('~^iq-php/\d+\.\d+\.\d+$~D', self::sent($http)->headers['User-Agent']);
     }
 
     public function test_a_request_is_given_three_seconds(): void
@@ -279,7 +279,7 @@ class PlatformClientTest extends TestCase
 
         [$trace, $evaluation] = $http->received();
         self::assertSame(
-            ['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'neuron-cloud-php/1.0.0'],
+            ['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'iq-php/1.0.0'],
             array_intersect_key($trace->headers, ['Authorization' => true, 'User-Agent' => true]),
         );
         self::assertSame($trace->headers, $evaluation->headers);
@@ -354,7 +354,7 @@ class PlatformClientTest extends TestCase
         self::client($http)->dataset('refund-requests');
 
         self::assertSame(
-            [['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'neuron-cloud-php/1.0.0'], null, 15.0],
+            [['Authorization' => 'Bearer ' . self::API_KEY, 'User-Agent' => 'iq-php/1.0.0'], null, 15.0],
             [array_intersect_key(self::sent($http)->headers, ['Authorization' => true, 'User-Agent' => true]), self::sent($http)->body, self::sent($http)->timeout],
         );
     }
@@ -531,8 +531,8 @@ class PlatformClientTest extends TestCase
         return [
             'no trailing slash' => ['https://platform.test', 'https://platform.test'],
             'a trailing slash' => ['https://platform.test/', 'https://platform.test'],
-            'a path' => ['https://example.com/neuron-cloud', 'https://example.com/neuron-cloud'],
-            'a path and a trailing slash' => ['https://example.com/neuron-cloud/', 'https://example.com/neuron-cloud'],
+            'a path' => ['https://example.com/iq', 'https://example.com/iq'],
+            'a path and a trailing slash' => ['https://example.com/iq/', 'https://example.com/iq'],
             'a port' => ['http://127.0.0.1:8080', 'http://127.0.0.1:8080'],
         ];
     }
@@ -629,7 +629,7 @@ class PlatformClientTest extends TestCase
     /**
      * What announcing through that client threw, or null when the platform recorded the announcement.
      */
-    protected static function refusalBy(ScriptedHttpClient $http): ?CloudException
+    protected static function refusalBy(ScriptedHttpClient $http): ?IQException
     {
         return self::thrownBy(static function () use ($http): void {
             self::client($http)->announce(self::ANNOUNCEMENT);

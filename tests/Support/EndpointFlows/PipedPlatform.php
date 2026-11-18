@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpClientInterface;
@@ -54,6 +54,6 @@ final class PipedPlatform implements HttpClientInterface
 
     public function stream(HttpRequest $request): StreamInterface
     {
-        throw HttpException::networkError($request, 'Neuron Cloud has no streaming endpoint.');
+        throw HttpException::networkError($request, 'IQ has no streaming endpoint.');
     }
 }

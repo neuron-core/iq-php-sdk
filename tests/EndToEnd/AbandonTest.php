@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd;
+namespace NeuronCore\IQ\Tests\EndToEnd;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Deployment;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\EndToEndTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\SimulatedPlatform;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Faults;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\FaultyStore;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\Shop;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Deployment;
+use NeuronCore\IQ\Tests\Support\EndToEnd\EndToEndTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\SimulatedPlatform;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Faults;
+use NeuronCore\IQ\Tests\Support\ExampleApp\FaultyStore;
+use NeuronCore\IQ\Tests\Support\ExampleApp\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\ExampleApp\Shop;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
 
 use function array_column;
 

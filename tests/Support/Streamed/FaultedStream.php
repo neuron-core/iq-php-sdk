@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Streamed;
+namespace NeuronCore\IQ\Tests\Support\Streamed;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Support\Faults\StoreOperation;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Support\Faults\StoreOperation;
+use NeuronCore\IQ\Verb;
 
 use function count;
 

@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\FilePersistence;
 use NeuronAI\Workflow\Persistence\InMemoryPersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\PlatformClient;
-use NeuronCore\Cloud\Runtime\Registry;
-use NeuronCore\Cloud\Runtime\Sync;
-use NeuronCore\Cloud\SyncResult;
-use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\PlatformClient;
+use NeuronCore\IQ\Runtime\Registry;
+use NeuronCore\IQ\Runtime\Sync;
+use NeuronCore\IQ\SyncResult;
+use NeuronCore\IQ\Tests\Stub\Units\RecordingPersistence;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
 
@@ -29,9 +29,9 @@ use const JSON_THROW_ON_ERROR;
 
 class SyncTest extends TestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
-    protected const ENDPOINT = 'https://shop.example.com/neuron-cloud.php';
+    protected const ENDPOINT = 'https://shop.example.com/iq.php';
 
     public function test_the_list_it_publishes_is_every_registered_version_with_its_lease(): void
     {
@@ -42,7 +42,7 @@ class SyncTest extends TestCase
         self::assertSame(
             [
                 'protocols' => [1],
-                'sdk' => 'neuron-cloud-php/1.0.0',
+                'sdk' => 'iq-php/1.0.0',
                 'endpoint' => self::ENDPOINT,
                 'definitions' => [
                     ['definition' => 'order-fulfilment', 'version' => 2, 'leaseSeconds' => 600],

@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Concurrency;
+namespace NeuronCore\IQ\Tests\Concurrency;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\PrepareNode;
-use NeuronCore\Cloud\Tests\Stub\Concurrency\StallNode;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessBench;
-use NeuronCore\Cloud\Tests\Support\Concurrency\ProcessTestCase;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\Concurrency\PrepareNode;
+use NeuronCore\IQ\Tests\Stub\Concurrency\StallNode;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessBench;
+use NeuronCore\IQ\Tests\Support\Concurrency\ProcessTestCase;
 
 /**
  * Row 8 of "When things go wrong": a queue worker that stays inside a node

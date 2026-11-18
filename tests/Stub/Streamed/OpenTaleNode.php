@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Streamed;
+namespace NeuronCore\IQ\Tests\Stub\Streamed;
 
 use Generator;
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Node;
 use NeuronAI\Workflow\WorkflowState;
-use NeuronCore\Cloud\Tests\Stub\Matrix\MidBody;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Stub\Matrix\MidBody;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 class OpenTaleNode extends Node
 {

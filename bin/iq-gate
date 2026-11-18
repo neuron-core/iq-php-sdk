@@ -1,0 +1,38 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use NeuronCore\IQ\Evaluation\EvaluationGate;
+use NeuronCore\IQ\Evaluation\RunContext;
+use NeuronCore\IQ\IQ;
+
+$autoload = $_composer_autoload_path ?? __DIR__ . '/../vendor/autoload.php';
+
+if (!is_file($autoload)) {
+    fwrite(STDERR, "Run composer install first.\n");
+    exit(2);
+}
+
+require $autoload;
+
+$apiKey = getenv('IQ_API_KEY');
+
+if ($apiKey === false || $apiKey === '') {
+    fwrite(STDERR, "Set IQ_API_KEY: the API key of the IQ project.\n");
+    exit(EvaluationGate::UNKNOWN);
+}
+
+$platformUrl = getenv('IQ_PLATFORM_URL');
+$iq = is_string($platformUrl) && $platformUrl !== ''
+    ? new IQ($apiKey, platformUrl: $platformUrl)
+    : new IQ($apiKey);
+
+try {
+    exit((new EvaluationGate($iq, RunContext::detect(), static function (string $line): void {
+        echo $line, PHP_EOL;
+    }))->run());
+} catch (Throwable $e) {
+    fwrite(STDERR, $e->getMessage() . PHP_EOL);
+    exit(EvaluationGate::UNKNOWN);
+}

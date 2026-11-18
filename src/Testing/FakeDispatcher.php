@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Testing;
+namespace NeuronCore\IQ\Testing;
 
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Assert;
 
 use function array_filter;
@@ -48,9 +48,9 @@ class FakeDispatcher implements DispatcherInterface
      * for stays queued for the next call, as a worker would try it again later,
      * unless the platform refused it for good or its use-by time has passed.
      *
-     * @return array<int, Report|CloudException> what every invoke() returned or threw, in order
+     * @return array<int, Report|IQException> what every invoke() returned or threw, in order
      */
-    public function runAll(NeuronCloud $cloud, int $times = 1): array
+    public function runAll(IQ $iq, int $times = 1): array
     {
         $messages = $this->queue;
         $this->queue = [];
@@ -61,8 +61,8 @@ class FakeDispatcher implements DispatcherInterface
 
             for ($delivery = 1; $delivery <= $times; $delivery++) {
                 try {
-                    $results[] = $cloud->invoke($invocation);
-                } catch (CloudException $notDealtWith) {
+                    $results[] = $iq->invoke($invocation);
+                } catch (IQException $notDealtWith) {
                     $results[] = $notDealtWith;
 
                     if ($delivery === 1 && $this->triesAgain($invocation, $notDealtWith)) {
@@ -80,7 +80,7 @@ class FakeDispatcher implements DispatcherInterface
      * the platform refused for good and one that is past its use-by time, and
      * tries any other again. An undelivered notice has no time limit.
      */
-    protected function triesAgain(Invocation $invocation, CloudException $notDealtWith): bool
+    protected function triesAgain(Invocation $invocation, IQException $notDealtWith): bool
     {
         $final = in_array($notDealtWith->reason, self::FINAL_REASONS, true);
         $spent = $notDealtWith->reason !== Code::ReportUndelivered

@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Flows;
+namespace NeuronCore\IQ\Tests\Endpoint\Flows;
 
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Move;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlatformSimulator;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\PlaysOneFlow;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\Shop;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Move;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlatformSimulator;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\PlaysOneFlow;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\Shop;
 use PHPUnit\Framework\TestCase;
 
 use function count;
@@ -103,7 +103,7 @@ class TimerWokenTooEarlyTest extends TestCase
 
     protected static function play(Shop $shop): void
     {
-        $platform = new PlatformSimulator($shop->platform, $shop->cloud, Shop::DEFINITION, Shop::WORKFLOW_ID, clockAhead: self::CLOCK_AHEAD);
+        $platform = new PlatformSimulator($shop->platform, $shop->iq, Shop::DEFINITION, Shop::WORKFLOW_ID, clockAhead: self::CLOCK_AHEAD);
 
         $platform->start();
         $shop->work();

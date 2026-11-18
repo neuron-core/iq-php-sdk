@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Local;
+namespace NeuronCore\IQ\Tests\Stub\Local;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * The workflow of the plain PHP example: it starts with an OrderPlaced, waits

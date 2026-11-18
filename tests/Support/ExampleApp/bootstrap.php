@@ -7,20 +7,20 @@ declare(strict_types=1);
  * and the sync script. The environment configures it:
  *
  *   SHOP_HOME                   the directory with the SQLite files of the workflow store and of the queue
- *   NEURON_CLOUD_API_KEY        the API key
- *   NEURON_CLOUD_SIGNING_KEY    the signing key; only the endpoint needs it
- *   NEURON_CLOUD_PLATFORM_URL   where the platform is
+ *   IQ_API_KEY        the API key
+ *   IQ_SIGNING_KEY    the signing key; only the endpoint needs it
+ *   IQ_PLATFORM_URL   where the platform is
  *   SHOP_LEASE                  seconds of the lease of a segment (600); a sync refuses less than 60
  *   SHOP_VERSIONS               the versions of the definition this code holds, separated by commas (1)
  *   SHOP_PAYMENT_DEADLINE       seconds an order waits for its payment (3600)
  *   SHOP_SHIPS_AFTER            seconds between the payment and the moment the order ships (86400)
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 use function array_map;
 use function dirname;
@@ -39,17 +39,17 @@ $runs = new NodeRuns($home->executions());
 $paymentDeadline = (int) (getenv('SHOP_PAYMENT_DEADLINE') ?: 3600);
 $shipsAfter = (int) (getenv('SHOP_SHIPS_AFTER') ?: 86400);
 
-$cloud = (new NeuronCloud(
-    apiKey: (string) getenv('NEURON_CLOUD_API_KEY'),
-    signingKey: getenv('NEURON_CLOUD_SIGNING_KEY') ?: null,
-    platformUrl: (string) getenv('NEURON_CLOUD_PLATFORM_URL'),
+$iq = (new IQ(
+    apiKey: (string) getenv('IQ_API_KEY'),
+    signingKey: getenv('IQ_SIGNING_KEY') ?: null,
+    platformUrl: (string) getenv('IQ_PLATFORM_URL'),
 ))
     ->setPersistence(static fn (): PersistenceInterface => new FaultyStore(new DatabasePersistence($pdo), $faults))
     ->setDispatcher(new SpoolDispatcher($spool));
 
 // One register() call per version: a deploy that still has runs on an old version keeps it registered.
 foreach (array_map(intval(...), explode(',', getenv('SHOP_VERSIONS') ?: '1')) as $version) {
-    $cloud->register(
+    $iq->register(
         Shop::DEFINITION,
         static fn (): OrderWorkflow => new OrderWorkflow($runs, $faults, $paymentDeadline, $shipsAfter),
         $version,
@@ -57,4 +57,4 @@ foreach (array_map(intval(...), explode(',', getenv('SHOP_VERSIONS') ?: '1')) as
     );
 }
 
-return new Shop($cloud, $spool, $faults);
+return new Shop($iq, $spool, $faults);

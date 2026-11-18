@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Questions;
+namespace NeuronCore\IQ\Tests\Endpoint\Questions;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Questions\QuestionsTestCase;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Questions\QuestionsTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -135,7 +135,7 @@ class FactoryCallTest extends QuestionsTestCase
         $executions = $this->benchOn($backend)->executions;
 
         foreach ($versions as $version) {
-            $this->bench->cloud->register(
+            $this->bench->iq->register(
                 self::DEFINITION,
                 function (mixed ...$arguments) use ($version, $executions): Workflow {
                     $this->built[] = [$version, $arguments];

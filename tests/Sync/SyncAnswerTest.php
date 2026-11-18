@@ -2,22 +2,22 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Sync;
+namespace NeuronCore\IQ\Tests\Sync;
 
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\EndpointFlows\SyncTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\EndpointFlows\SyncTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Throwable;
 
 /**
- * What NeuronCloud::sync() makes of each answer of the platform: a result,
- * or a CloudException whose reason tells the deploy what went wrong.
+ * What IQ::sync() makes of each answer of the platform: a result,
+ * or an IQException whose reason tells the deploy what went wrong.
  */
 class SyncAnswerTest extends SyncTestCase
 {
@@ -108,7 +108,7 @@ class SyncAnswerTest extends SyncTestCase
 
         $refusal = self::thrownBy(static fn (): mixed => self::shop($platform)->sync(self::ENDPOINT));
 
-        self::assertInstanceOf(CloudException::class, $refusal);
+        self::assertInstanceOf(IQException::class, $refusal);
         self::assertStringContainsString('422', $refusal->getMessage());
         self::assertStringContainsString('/v1/sync', $refusal->getMessage());
     }
@@ -281,10 +281,10 @@ class SyncAnswerTest extends SyncTestCase
     {
         try {
             self::shop($platform)->sync(self::ENDPOINT);
-        } catch (CloudException $refusal) {
+        } catch (IQException $refusal) {
             return $refusal->reason;
         } catch (Throwable $other) {
-            self::fail('sync() let out something else than a CloudException: ' . $other::class);
+            self::fail('sync() let out something else than an IQException: ' . $other::class);
         }
 
         return null;

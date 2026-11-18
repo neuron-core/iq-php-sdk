@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Units\RunOverridingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Units\RunOverridingWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 /**
  * A class of the application may override Workflow::run(). Whatever executes
@@ -53,7 +53,7 @@ class OverriddenRunTest extends LocalTestCase
         $this->workflow(failures: 0)->start()->dispatch();
         $callsInTheRequest = $bench->executions->count(RunOverridingWorkflow::class);
 
-        [$report] = $this->queue->runAll($bench->cloud);
+        [$report] = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame([0, 1], [$callsInTheRequest, $bench->executions->count(RunOverridingWorkflow::class)]);
@@ -66,7 +66,7 @@ class OverriddenRunTest extends LocalTestCase
     {
         $executions = $this->bench->executions;
 
-        return $this->bench->cloud
+        return $this->bench->iq
             ->register('audited', static fn (): Workflow => new RunOverridingWorkflow($executions, $failures))
             ->workflow('audited', self::WORKFLOW_ID);
     }

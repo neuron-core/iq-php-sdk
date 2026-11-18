@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
 use Closure;
 use NeuronAI\Exceptions\RunInFlightException;
@@ -14,32 +14,32 @@ use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Definition;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Runtime\LocalSegment;
-use NeuronCore\Cloud\Runtime\Origin;
-use NeuronCore\Cloud\Runtime\WorkflowBuilder;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\DeliverNode;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\InPlace\WatchedQueue;
-use NeuronCore\Cloud\Tests\Stub\Local\PickyQueue;
-use NeuronCore\Cloud\Tests\Stub\NarratingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\NodeFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\UnreachableQueue;
-use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Local\LocalTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Definition;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Runtime\LocalSegment;
+use NeuronCore\IQ\Runtime\Origin;
+use NeuronCore\IQ\Runtime\WorkflowBuilder;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\DeliverNode;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\InPlace\WatchedQueue;
+use NeuronCore\IQ\Tests\Stub\Local\PickyQueue;
+use NeuronCore\IQ\Tests\Stub\NarratingWorkflow;
+use NeuronCore\IQ\Tests\Stub\NodeFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\UnreachableQueue;
+use NeuronCore\IQ\Tests\Stub\Units\RecordingPersistence;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Local\LocalTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -165,7 +165,7 @@ class LocalSegmentTest extends LocalTestCase
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $this->startOf($this->order())->run();
 
-        [, $report] = $this->queue->runAll($bench->cloud);
+        [, $report] = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(Verb::Start, $report->verb);
@@ -181,7 +181,7 @@ class LocalSegmentTest extends LocalTestCase
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $this->startOf($this->order())->run();
 
-        [, $report] = $this->queue->runAll($bench->cloud);
+        [, $report] = $this->queue->runAll($bench->iq);
 
         self::assertFalse((new Ledger($bench->persistence))->has(self::WORKFLOW_ID, self::RUN_ID));
         self::assertInstanceOf(Report::class, $report);
@@ -359,7 +359,7 @@ class LocalSegmentTest extends LocalTestCase
         $bench = $this->benchOn($backend);
         $this->startOf($this->greeting())->dispatch();
 
-        [$report] = $this->queue->runAll($bench->cloud);
+        [$report] = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(Outcome::Completed, $report->outcome);
@@ -371,7 +371,7 @@ class LocalSegmentTest extends LocalTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $order = $this->order();
-        $waiting = $bench->cloud->invoke(Queued::start('order'));
+        $waiting = $bench->iq->invoke(Queued::start('order'));
         $before = time();
 
         $runId = $this->segment(Verb::Answer, $order, ExecutionRequest::resume(self::PAYMENT, self::RUN_ID, $waiting->run['attempt']))->dispatch();
@@ -390,7 +390,7 @@ class LocalSegmentTest extends LocalTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $order = $this->order();
-        $waiting = $bench->cloud->invoke(Queued::start('order'));
+        $waiting = $bench->iq->invoke(Queued::start('order'));
         $signal = ExecutionRequest::signal(WaitingWorkflow::EVENT, self::PAYMENT, self::RUN_ID, $waiting->run['attempt']);
 
         $this->segment(Verb::Signal, $order, $signal)->dispatch();
@@ -406,7 +406,7 @@ class LocalSegmentTest extends LocalTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $order = $this->order();
-        $waiting = $bench->cloud->invoke(Queued::start('order'));
+        $waiting = $bench->iq->invoke(Queued::start('order'));
         $store = new RecordingPersistence(($bench->persistence)());
         $answer = ExecutionRequest::resume(self::PAYMENT, self::RUN_ID, $waiting->run['attempt']);
 
@@ -420,10 +420,10 @@ class LocalSegmentTest extends LocalTestCase
     {
         $bench = $this->benchOn($backend);
         $order = $this->order();
-        $waiting = $bench->cloud->invoke(Queued::start('order'));
+        $waiting = $bench->iq->invoke(Queued::start('order'));
         $this->segment(Verb::Answer, $order, ExecutionRequest::resume(self::PAYMENT, self::RUN_ID, $waiting->run['attempt']))->dispatch();
 
-        [$report] = $this->queue->runAll($bench->cloud);
+        [$report] = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(Verb::Answer, $report->verb);
@@ -436,7 +436,7 @@ class LocalSegmentTest extends LocalTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $order = $this->order();
-        $waiting = $bench->cloud->invoke(Queued::start('order'));
+        $waiting = $bench->iq->invoke(Queued::start('order'));
 
         $execution = $this->segment(Verb::Answer, $order, ExecutionRequest::resume(self::PAYMENT, self::RUN_ID, $waiting->run['attempt']))->run();
 
@@ -551,7 +551,7 @@ class LocalSegmentTest extends LocalTestCase
         $events->current();
         unset($events);
 
-        [, $report] = $this->queue->runAll($bench->cloud);
+        [, $report] = $this->queue->runAll($bench->iq);
 
         self::assertInstanceOf(Report::class, $report);
         self::assertSame(
@@ -587,7 +587,7 @@ class LocalSegmentTest extends LocalTestCase
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         iterator_to_array($this->startOf($this->order())->events());
 
-        [, $report] = $this->queue->runAll($bench->cloud);
+        [, $report] = $this->queue->runAll($bench->iq);
 
         self::assertFalse((new Ledger($bench->persistence))->has(self::WORKFLOW_ID, self::RUN_ID));
         self::assertInstanceOf(Report::class, $report);
@@ -701,7 +701,7 @@ class LocalSegmentTest extends LocalTestCase
      */
     protected function define(string $name, Closure $factory): Definition
     {
-        $this->bench->cloud->register($name, $factory, leaseTimeout: self::LEASE);
+        $this->bench->iq->register($name, $factory, leaseTimeout: self::LEASE);
 
         return new Definition($name, 1, $factory, self::LEASE);
     }

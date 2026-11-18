@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Continuations;
+namespace NeuronCore\IQ\Tests\Stub\Continuations;
 
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
 
 /**
  * A contract that two parties sign: it waits for the event "contract.signed"

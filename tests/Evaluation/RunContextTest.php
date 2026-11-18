@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Evaluation;
+namespace NeuronCore\IQ\Tests\Evaluation;
 
-use NeuronCore\Cloud\Evaluation\RunContext;
+use NeuronCore\IQ\Evaluation\RunContext;
 use PHPUnit\Framework\TestCase;
 
 class RunContextTest extends TestCase

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use Closure;
 use NeuronAI\Agent\Agent;
@@ -13,18 +13,18 @@ use NeuronAI\Exceptions\WorkflowException;
 use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\Flows\HookedAgent;
-use NeuronCore\Cloud\Tests\Stub\Runner\FactoryFailed;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookedWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\HookFailed;
-use NeuronCore\Cloud\Tests\Support\Flows\StartTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\Flows\HookedAgent;
+use NeuronCore\IQ\Tests\Stub\Runner\FactoryFailed;
+use NeuronCore\IQ\Tests\Stub\Runner\HookedWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\HookFailed;
+use NeuronCore\IQ\Tests\Support\Flows\StartTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 
@@ -90,7 +90,7 @@ class StartHookTest extends StartTestCase
 
         $refusal = self::thrownBy(fn (): PendingSegment => $this->hooked()->start());
 
-        self::assertInstanceOf(CloudException::class, $refusal);
+        self::assertInstanceOf(IQException::class, $refusal);
         self::assertSame(Code::InvalidStart, $refusal->reason);
         self::assertSame($this->failure, $refusal->getPrevious());
     }
@@ -114,8 +114,8 @@ class StartHookTest extends StartTestCase
     {
         $bench = $this->benchOn($backend);
         $failure = new FactoryFailed('The factory reached a service that is down.');
-        $bench->cloud->register('unbuildable', static fn (): Workflow => throw $failure);
-        $unbuildable = $bench->cloud->workflow('unbuildable', self::WORKFLOW_ID);
+        $bench->iq->register('unbuildable', static fn (): Workflow => throw $failure);
+        $unbuildable = $bench->iq->workflow('unbuildable', self::WORKFLOW_ID);
 
         try {
             $unbuildable->start();
@@ -132,9 +132,9 @@ class StartHookTest extends StartTestCase
         $this->hooked()->start()->dispatch();
         $this->failure = new HookFailed("The {$hook}() hook reached a service that is down.");
 
-        [$thrown] = $this->queue->runAll($bench->cloud);
+        [$thrown] = $this->queue->runAll($bench->iq);
 
-        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertInstanceOf(IQException::class, $thrown);
         self::assertSame(Code::NotExecuted, $thrown->reason);
         self::assertSame($this->failure, $thrown->getPrevious());
     }
@@ -146,7 +146,7 @@ class StartHookTest extends StartTestCase
         $runId = $this->hooked()->start()->dispatch();
         $this->failure = new HookFailed("The {$hook}() hook reached a service that is down.");
 
-        $this->queue->runAll($bench->cloud);
+        $this->queue->runAll($bench->iq);
 
         [$report] = $this->reportsSent();
         self::assertSame(
@@ -162,7 +162,7 @@ class StartHookTest extends StartTestCase
         $bench = $this->benchWithHooked($backend, $hook);
         $this->hooked()->start()->dispatch();
         $this->failure = new HookFailed("The {$hook}() hook reached a service that is down.");
-        $this->queue->runAll($bench->cloud);
+        $this->queue->runAll($bench->iq);
 
         $this->failure = null;
         $report = $this->workOnce();
@@ -213,11 +213,11 @@ class StartHookTest extends StartTestCase
         $this->hooked()->start(new UserMessage('Refund order 123.'))->dispatch();
         $this->failure = new HookFailed('The startEvent() hook reached a service that is down.');
 
-        [$thrown] = $this->queue->runAll($bench->cloud);
+        [$thrown] = $this->queue->runAll($bench->iq);
         $this->failure = null;
         $report = $this->workOnce();
 
-        self::assertInstanceOf(CloudException::class, $thrown);
+        self::assertInstanceOf(IQException::class, $thrown);
         self::assertSame(Code::NotExecuted, $thrown->reason);
         self::assertInstanceOf(HookFailed::class, $thrown->getPrevious());
         self::assertSame(Outcome::Completed, $report->outcome);
@@ -256,7 +256,7 @@ class StartHookTest extends StartTestCase
         $executions = $bench->executions;
         $this->failingHook = $hook;
 
-        $bench->cloud->register('hooked', fn (): Workflow => new HookedWorkflow($executions, function (string $called): void {
+        $bench->iq->register('hooked', fn (): Workflow => new HookedWorkflow($executions, function (string $called): void {
             if ($called === $this->failingHook && $this->failure instanceof Throwable) {
                 throw $this->failure;
             }
@@ -273,7 +273,7 @@ class StartHookTest extends StartTestCase
         $bench = $this->benchOn($backend);
         $provider = new FakeAIProvider(new AssistantMessage('Done.'));
 
-        $bench->cloud->register('hooked', fn (): Agent => (new HookedAgent(function (): void {
+        $bench->iq->register('hooked', fn (): Agent => (new HookedAgent(function (): void {
             if ($this->failure instanceof Throwable) {
                 throw $this->failure;
             }
@@ -284,7 +284,7 @@ class StartHookTest extends StartTestCase
 
     protected function hooked(): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow('hooked', self::WORKFLOW_ID);
+        return $this->bench->iq->workflow('hooked', self::WORKFLOW_ID);
     }
 
     /**

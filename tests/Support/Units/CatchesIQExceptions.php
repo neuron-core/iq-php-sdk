@@ -2,27 +2,27 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Units;
+namespace NeuronCore\IQ\Tests\Support\Units;
 
 use Closure;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
 
 /**
- * PHPUnit's expectException() cannot read the reason of a CloudException,
+ * PHPUnit's expectException() cannot read the reason of an IQException,
  * which is what tells a caller what to do next.
  */
-trait CatchesCloudExceptions
+trait CatchesIQExceptions
 {
     /**
      * @param Closure(): mixed $call
-     * @return CloudException|null null when the call threw nothing
+     * @return IQException|null null when the call threw nothing
      */
-    protected static function thrownBy(Closure $call): ?CloudException
+    protected static function thrownBy(Closure $call): ?IQException
     {
         try {
             $call();
-        } catch (CloudException $thrown) {
+        } catch (IQException $thrown) {
             return $thrown;
         }
 

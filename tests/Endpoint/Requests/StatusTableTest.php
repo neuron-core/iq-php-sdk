@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use Closure;
 use NeuronAI\Agent\Agent;
@@ -14,12 +14,12 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
-use NeuronCore\Cloud\Tests\Stub\Requests\FailingQueue;
-use NeuronCore\Cloud\Tests\Stub\Requests\UnencodableRunWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Units\RecordingPersistence;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Stub\Flows\SupportAgent;
+use NeuronCore\IQ\Tests\Stub\Requests\FailingQueue;
+use NeuronCore\IQ\Tests\Stub\Requests\UnencodableRunWorkflow;
+use NeuronCore\IQ\Tests\Stub\Units\RecordingPersistence;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -58,9 +58,9 @@ class StatusTableTest extends RequestTestCase
             '200 for a ping' => [static fn (self $table): HttpResponse => $table->post(self::PING), 200, null],
             '200 for a sync the platform asks for' => [
                 static function (self $table): HttpResponse {
-                    $table->cloud
+                    $table->iq
                         ->setPersistence(static fn (): PersistenceInterface => new RecordingPersistence())
-                        ->setEndpointUrl('https://shop.example.com/neuron-cloud');
+                        ->setEndpointUrl('https://shop.example.com/iq');
 
                     return $table->deliver(['verb' => 'sync']);
                 },
@@ -161,7 +161,7 @@ class StatusTableTest extends RequestTestCase
             ],
             '503 dispatch_failed when the queue fails' => [
                 static function (self $table): HttpResponse {
-                    $table->cloud->setDispatcher(new FailingQueue(new RuntimeException('The queue is down.')));
+                    $table->iq->setDispatcher(new FailingQueue(new RuntimeException('The queue is down.')));
 
                     return $table->deliver($table->start());
                 },
@@ -179,7 +179,7 @@ class StatusTableTest extends RequestTestCase
             ],
             '500 internal_error for anything else that is thrown' => [
                 static function (self $table): HttpResponse {
-                    $table->cloud->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
+                    $table->iq->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
 
                     return $table->deliver($table->inspect());
                 },
@@ -208,7 +208,7 @@ class StatusTableTest extends RequestTestCase
     protected function underAnotherDefinition(array $message): array
     {
         $executions = $this->bench->executions;
-        $this->cloud->register('nightly-reconciliation', static fn (): Workflow => new WaitingWorkflow($executions));
+        $this->iq->register('nightly-reconciliation', static fn (): Workflow => new WaitingWorkflow($executions));
         $this->orderWaitingForPayment();
 
         return ['definition' => 'nightly-reconciliation'] + $message;
@@ -224,8 +224,8 @@ class StatusTableTest extends RequestTestCase
         $executions = $this->bench->executions;
         $conversations = new InMemoryMessageStore();
         $provider = new FakeAIProvider(new ToolCallMessage(null, [new ToolCall('refund', 'call_refund_1', ['iban' => 'IT60X0542811101000000123456'])]));
-        $this->cloud->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
+        $this->iq->register('support-agent', static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
 
-        return (string) $this->cloud->workflow('support-agent', self::THREAD_ID)->start(new UserMessage('Refund order 123.'))->run()->getRunId();
+        return (string) $this->iq->workflow('support-agent', self::THREAD_ID)->start(new UserMessage('Refund order 123.'))->run()->getRunId();
     }
 }

@@ -1,10 +1,10 @@
 # Orchestration in Laravel
 
-Orchestration is the advanced stage of Neuron Cloud. Read this file only when the developer asks for it: durable runs, timers, retries or scheduled starts the platform drives, runs that survive a crash, a deploy or a wait of days, or one of its pieces by name (definitions, the queues, the endpoint, `neuron-cloud:sync`, `InvocationSettled`).
+Orchestration is the advanced stage of IQ. Read this file only when the developer asks for it: durable runs, timers, retries or scheduled starts the platform drives, runs that survive a crash, a deploy or a wait of days, or one of its pieces by name (definitions, the queues, the endpoint, `iq:sync`, `InvocationSettled`).
 
-It comes after the stages of the skill, and changes none of them: the package is installed, `NEURON_CLOUD_API_KEY` is set, and tracing and evaluation keep working as they are. This stage wires the rest of the package: the definitions, the workflow store, two queues, the endpoint the platform calls and the sync of a deploy. Then the turns of every registered agent go through `$cloud->workflow()`.
+It comes after the stages of the skill, and changes none of them: the package is installed, `IQ_API_KEY` is set, and tracing and evaluation keep working as they are. This stage wires the rest of the package: the definitions, the workflow store, two queues, the endpoint the platform calls and the sync of a deploy. Then the turns of every registered agent go through `$iq->workflow()`.
 
-It stands on two other skills. **neuron-laravel-integration** lays the Laravel foundations of Neuron: the `App\Neuron` layout, `NeuronServiceProvider`, the tables, agents built by the container, the error mapping. **neuron-cloud** (its `references/orchestration.md`) says what a segment is and the rules every run obeys. Read both before wiring this stage: this file only adds what is Laravel-shaped about it.
+It stands on two other skills. **neuron-laravel-integration** lays the Laravel foundations of Neuron: the `App\Neuron` layout, `NeuronServiceProvider`, the tables, agents built by the container, the error mapping. **iq-php** (its `references/orchestration.md`) says what a segment is and the rules every run obeys. Read both before wiring this stage: this file only adds what is Laravel-shaped about it.
 
 ## The Mental Model
 
@@ -12,40 +12,40 @@ It stands on two other skills. **neuron-laravel-integration** lays the Laravel f
 
 | Piece | Where | Notes |
 |---|---|---|
-| `NeuronCloud` | The lazy singleton of the package, built from `config/neuron-cloud.php` | Inject it in controllers and jobs. Never build your own |
-| Definitions | `config/neuron-cloud.php`, name => class | The container builds each class, from the workflow ID alone |
+| `IQ` | The lazy singleton of the package, built from `config/iq.php` | Inject it in controllers and jobs. Never build your own |
+| Definitions | `config/iq.php`, name => class | The container builds each class, from the workflow ID alone |
 | The workflow store | Your `PersistenceInterface` binding in `NeuronServiceProvider` | The package asks the container for it at every build: `bind()`, never `singleton()` |
-| Segments | `RunInvocation` jobs on the `neuron-cloud-php` queue | One job, one segment, run once |
-| Notices | `ObserveRun` jobs on the `neuron-cloud-observe` queue | Announcements and reports for the platform, retried until recorded |
-| The endpoint | `POST /neuron-cloud`, registered by the package | Outside every middleware group |
-| The deploy | `php artisan neuron-cloud:sync` | Publishes the definitions and `APP_URL/neuron-cloud` |
+| Segments | `RunInvocation` jobs on the `iq-php` queue | One job, one segment, run once |
+| Notices | `ObserveRun` jobs on the `iq-observe` queue | Announcements and reports for the platform, retried until recorded |
+| The endpoint | `POST /iq`, registered by the package | Outside every middleware group |
+| The deploy | `php artisan iq:sync` | Publishes the definitions and `APP_URL/iq` |
 | The outcome of a queued segment | The `InvocationSettled` event | Where you close a browser stream or tell a user |
-| Traces of segments | The SDK's own listener, when `NEURON_CLOUD_TRACING` is on | One trace per run, named after the definition |
+| Traces of segments | The SDK's own listener, when `IQ_TRACING` is on | One trace per run, named after the definition |
 
-Rules that decide correctness, beside those of **neuron-cloud**:
+Rules that decide correctness, beside those of **iq-php**:
 
-- **Every turn goes through `$cloud->workflow($name, $threadId)`.** Once an agent is a definition, never call `chat()`, `stream()` or `run()` on it for a real conversation: the platform would not hear of the run. Evaluations and tests are the exception (Tracing and Evaluation of Definitions).
+- **Every turn goes through `$iq->workflow($name, $threadId)`.** Once an agent is a definition, never call `chat()`, `stream()` or `run()` on it for a real conversation: the platform would not hear of the run. Evaluations and tests are the exception (Tracing and Evaluation of Definitions).
 - **A worker has no request.** The agent takes everything from the thread ID, and names where a background segment streams in its own `streamAdapter()` and `channel()` hooks.
 - **The queue never retries a segment.** No `$tries`, no `release()`, no job of your own around a turn: the platform retries a failed run with a new message.
 - **`env()` only inside `config/*.php`**, as everywhere in Laravel: the keys of this stage are read with `config()`.
 
 ## Setup
 
-Check first: an application already orchestrated lists its definitions in `config/neuron-cloud.php` (`grep -sA4 "'definitions'" config/neuron-cloud.php` shows a non-empty list), and `grep -rlsE 'DispatchFailed|->workflow\(' bootstrap app` lists `bootstrap/app.php` and the controllers that start runs. Lay the foundations of **neuron-laravel-integration** before these steps (steps 1 to 6 of its Setup): the tables and `NeuronServiceProvider` are used as they are, except for the `PersistenceInterface` binding of its step 5 ("Container wiring"), which step 3 below replaces.
+Check first: an application already orchestrated lists its definitions in `config/iq.php` (`grep -sA4 "'definitions'" config/iq.php` shows a non-empty list), and `grep -rlsE 'DispatchFailed|->workflow\(' bootstrap app` lists `bootstrap/app.php` and the controllers that start runs. Lay the foundations of **neuron-laravel-integration** before these steps (steps 1 to 6 of its Setup): the tables and `NeuronServiceProvider` are used as they are, except for the `PersistenceInterface` binding of its step 5 ("Container wiring"), which step 3 below replaces.
 
 **1. The config and the signing key.** Publish the config, unless an earlier stage already did:
 
 ```bash
-php artisan vendor:publish --tag=neuron-cloud-config
+php artisan vendor:publish --tag=iq-config
 ```
 
 Add the signing key beside the API key, in `.env` and in the environment of every worker:
 
 ```dotenv
-NEURON_CLOUD_SIGNING_KEY=...    # verifies what the platform sends; without it the endpoint answers 401
+IQ_SIGNING_KEY=...    # verifies what the platform sends; without it the endpoint answers 401
 ```
 
-**2. Definitions**, in `config/neuron-cloud.php`. Class names only, so that `config:cache` works.
+**2. Definitions**, in `config/iq.php`. Class names only, so that `config:cache` works.
 
 ```php
 'definitions' => [
@@ -58,19 +58,19 @@ NEURON_CLOUD_SIGNING_KEY=...    # verifies what the platform sends; without it t
 'timeout' => 300,         // seconds a worker gives one segment; must exceed the longest segment
 ```
 
-A name is at most 64 lowercase letters, digits, dots, underscores or hyphens, starting with a letter or a digit; a version is a number from 1. A definition the SDK refuses fails the build of `NeuronCloud` with `invalid_request`, which names it: `$cloud->workflow()`, the endpoint (503) and `neuron-cloud:sync` fail until it is fixed. With tracing on, the agents the container builds still run, untraced, and the exception is reported once per process, as stage 1 of [SKILL.md](../SKILL.md) says.
+A name is at most 64 lowercase letters, digits, dots, underscores or hyphens, starting with a letter or a digit; a version is a number from 1. A definition the SDK refuses fails the build of `IQ` with `invalid_request`, which names it: `$iq->workflow()`, the endpoint (503) and `iq:sync` fail until it is fixed. With tracing on, the agents the container builds still run, untraced, and the exception is reported once per process, as stage 1 of [SKILL.md](../SKILL.md) says.
 
 A definition that needs a closure or a lease of its own is registered in `NeuronServiceProvider::register()` with `extend()`, never `afterResolving()`:
 
 ```php
-$this->app->extend(NeuronCloud::class, fn (NeuronCloud $cloud): NeuronCloud => $cloud->register(
+$this->app->extend(IQ::class, fn (IQ $iq): IQ => $iq->register(
     'nightly-import',
     fn (string $workflowId) => new NightlyImport($workflowId),
     leaseTimeout: 1800,
 ));
 ```
 
-A `CloudException` thrown in an `extend()` fails the build of `NeuronCloud` in the same way: `app(NeuronCloud::class)` throws it, and with tracing on the agents still run untraced.
+An `IQException` thrown in an `extend()` fails the build of `IQ` in the same way: `app(IQ::class)` throws it, and with tracing on the agents still run untraced.
 
 **3. The store binding.** Replace the binding of the Laravel guide with this one, in `NeuronServiceProvider::register()`:
 
@@ -93,20 +93,20 @@ A `DatabasePersistence` keeps the PDO it is given, and `getPdo()` hands out the 
 **4. The queue.** A connection that keeps jobs for a worker: `database`, `redis`, `sqs` or `beanstalkd`. `sync`, `null`, `deferred` and `background` are refused. Its `retry_after` must exceed the `timeout` of step 2: Laravel ships 90, so set `DB_QUEUE_RETRY_AFTER=360` (`REDIS_QUEUE_RETRY_AFTER` on Redis). Run a worker on each of the two queues, in local development too:
 
 ```bash
-php artisan queue:work --queue=neuron-cloud            # one process per segment that runs at the same time
-php artisan queue:work --queue=neuron-cloud-observe    # the notices: a platform outage never delays a segment
+php artisan queue:work --queue=iq            # one process per segment that runs at the same time
+php artisan queue:work --queue=iq-observe    # the notices: a platform outage never delays a segment
 ```
 
-**5. The endpoint.** Nothing to write: the package registers `POST /neuron-cloud` outside every middleware group, and the SDK verifies each request's signature over its raw body. Keep it bare: no global middleware that authenticates, rate-limits or rewrites the body, and no firewall rule that answers in its place. `APP_URL` must be the public `https` address: the sync publishes `APP_URL/neuron-cloud`.
+**5. The endpoint.** Nothing to write: the package registers `POST /iq` outside every middleware group, and the SDK verifies each request's signature over its raw body. Keep it bare: no global middleware that authenticates, rate-limits or rewrites the body, and no firewall rule that answers in its place. `APP_URL` must be the public `https` address: the sync publishes `APP_URL/iq`.
 
 **6. The error mapping**, added to the one of the Laravel guide in `bootstrap/app.php`:
 
 ```php
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
 
 // The queue did not take a message, or this process runs older code than the run: both pass. Any other reason is a bug.
-$exceptions->render(fn (CloudException $e) => in_array($e->reason, [Code::DispatchFailed, Code::UnknownVersion], true)
+$exceptions->render(fn (IQException $e) => in_array($e->reason, [Code::DispatchFailed, Code::UnknownVersion], true)
     ? response()->json(['message' => 'The conversation is unavailable. Retry later.'], 503, ['Retry-After' => 5])
     : null);
 ```
@@ -117,12 +117,12 @@ The guide's renderers already turn what the SDK lets through into statuses: `Inp
 
 ```bash
 php artisan queue:restart       # a worker on old code cannot build a new version
-php artisan neuron-cloud:sync   # publishes the definitions and the endpoint
+php artisan iq:sync   # publishes the definitions and the endpoint
 ```
 
 The sync fails, and publishes nothing, when a key is missing, the queue driver keeps no job, `retry_after` does not exceed `timeout`, no store is bound, nothing is registered or `APP_URL` is not `https`. Its message names the cause: fix that, never work around the check. Local development needs an HTTPS tunnel to be synced.
 
-An owner can also request a sync from the platform's dashboard. The endpoint then answers with what the command would publish, `APP_URL/neuron-cloud` included, whatever host the request came through: nothing to configure. Where the SDK would refuse to publish, the endpoint answers `409 sync_refused` without the reason: run `neuron-cloud:sync` to read it.
+An owner can also request a sync from the platform's dashboard. The endpoint then answers with what the command would publish, `APP_URL/iq` included, whatever host the request came through: nothing to configure. Where the SDK would refuse to publish, the endpoint answers `409 sync_refused` without the reason: run `iq:sync` to read it.
 
 ## The Agent
 
@@ -149,25 +149,25 @@ protected function channel(): StreamingChannelInterface
 
 - **Add the two hooks**, with the `ChannelFactory` of the guide injected in the constructor (`protected ChannelFactory $channels`). A background segment is built by the container in a worker: nothing there can call `setStreamAdapter()` or `setChannel()` for it.
 - **The channel is named from the thread alone**: a worker has no run ID of a browser's request, so the guide's `make($threadId, $runId)` loses its second argument.
-- **Remove `recoverFailedTurn()`**: `$cloud->workflow(...)->recover()` replaces it.
+- **Remove `recoverFailedTurn()`**: `$iq->workflow(...)->recover()` replaces it.
 - **Leave `leaseTimeout()` alone**: the `lease_timeout` of the config replaces it.
 
 ## Controllers
 
-Inject `NeuronCloud`, bind the thread with `workflow()`, and prepare one segment per call. The thread is authorized by the FormRequest before, as in the guide.
+Inject `IQ`, bind the thread with `workflow()`, and prepare one segment per call. The thread is authorized by the FormRequest before, as in the guide.
 
 **A streamed turn.** The guide's streaming endpoint with the SDK in place of the direct agent calls:
 
 ```php
 // app/Http/Controllers/ChatController.php
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
-public function stream(RunAgentRequest $request, NeuronCloud $cloud): StreamedResponse
+public function stream(RunAgentRequest $request, IQ $iq): StreamedResponse
 {
     $threadId = $request->threadId();
     Cache::forget(SupportAgent::stopKey($threadId));
 
-    $thread = $cloud->workflow('support-agent', $threadId);
+    $thread = $iq->workflow('support-agent', $threadId);
     $thread->recover();                                   // finishes a failed turn; it streams where the agent's hooks say
 
     $adapter = new AGUIAdapter(threadId: $threadId, runId: $request->input('runId'), messages: $request->input('messages'), state: $request->array('state'));
@@ -199,9 +199,9 @@ public function stream(RunAgentRequest $request, NeuronCloud $cloud): StreamedRe
 
 ```php
 // app/Http/Controllers/BackgroundChatController.php
-public function dispatch(BackgroundRunRequest $request, NeuronCloud $cloud): JsonResponse
+public function dispatch(BackgroundRunRequest $request, IQ $iq): JsonResponse
 {
-    $thread = $cloud->workflow('support-agent', $request->threadId());
+    $thread = $iq->workflow('support-agent', $request->threadId());
 
     $segment = $request->has('decisions')
         ? $thread->submitInputs($request->array('decisions'), new ApprovalTranslator())
@@ -217,11 +217,11 @@ public function dispatch(BackgroundRunRequest $request, NeuronCloud $cloud): Jso
 
 ```php
 // app/Http/Controllers/OrderController.php
-$runId = $cloud->workflow('order-fulfilment', "order:{$orderId}")->start(new OrderPlaced($orderId))->dispatch();
+$runId = $iq->workflow('order-fulfilment', "order:{$orderId}")->start(new OrderPlaced($orderId))->dispatch();
 
 // The webhook of the payment provider. A run that is not at that wait is a 409: the provider calls again.
 try {
-    $cloud->workflow('order-fulfilment', "order:{$orderId}")->signal('payment.received', ['amount' => $amount])->dispatch();
+    $iq->workflow('order-fulfilment', "order:{$orderId}")->signal('payment.received', ['amount' => $amount])->dispatch();
 } catch (InputTranslationException|WorkflowRefusedException) {
     return response()->noContent(409);
 }
@@ -230,7 +230,7 @@ try {
 - **Prime before returning**, as in the guide: `$events->valid()` turns a refusal into a status.
 - **`configure()` is for this request only.** The browser's AG-UI seed and frontend tools exist only here: a turn that needs them continues with `events()` in the request, never with `dispatch()`.
 - **Dispatch after commit.** With `after_commit` on the queue connection, a segment dispatched inside a transaction is queued when it commits. Never wrap a turn in a transaction.
-- **Reading is unchanged**: reload a conversation with `MessageStoreInterface` and `WorkflowEngine::inspect()`, as the guide does. Only starts and answers go through `NeuronCloud`.
+- **Reading is unchanged**: reload a conversation with `MessageStoreInterface` and `WorkflowEngine::inspect()`, as the guide does. Only starts and answers go through `IQ`.
 - **`resetConversation()` and `abandon()` stay Neuron's own**: call them on the container's agent bound with `for($threadId)`.
 
 ### What the SDK replaces in the Laravel guide
@@ -238,15 +238,15 @@ try {
 | The guide | With the package |
 |---|---|
 | `RunSupportAgent` job, `$tries = 3`, `settle()`, `release()` | Deleted. `->dispatch()` queues the segment; the platform retries with a new message |
-| `$agent->recoverFailedTurn()` | `$cloud->workflow(...)->recover()` |
-| `$agent->for($threadId)->chat()` / `stream()` / `submitInputs()` | `$cloud->workflow('support-agent', $threadId)->start()` / `submitInputs()`, then `run()`, `events()` or `dispatch()` |
+| `$agent->recoverFailedTurn()` | `$iq->workflow(...)->recover()` |
+| `$agent->for($threadId)->chat()` / `stream()` / `submitInputs()` | `$iq->workflow('support-agent', $threadId)->start()` / `submitInputs()`, then `run()`, `events()` or `dispatch()` |
 | The job sets the stream adapter and the channel | The agent's `streamAdapter()` and `channel()` hooks; `configure()` for a segment run in the request |
 | `failed()` closes the browser stream | A listener of `InvocationSettled` |
-| `leaseTimeout()` on the class | `lease_timeout` in `config/neuron-cloud.php` |
+| `leaseTimeout()` on the class | `lease_timeout` in `config/iq.php` |
 
 ## Telling the Browser How a Queued Segment Ended
 
-`NeuronCore\Cloud\Laravel\Events\InvocationSettled` carries the SDK's `Report` of every segment a job ran. It fires once more, with the outcome `observed`, when the queue gave a job up (a timeout, a killed worker): the report then says what the store shows. It replaces the `failed()` method of the guide's job: listen to it to close the stream of a segment that ended without telling the browsers.
+`NeuronCore\IQ\Laravel\Events\InvocationSettled` carries the SDK's `Report` of every segment a job ran. It fires once more, with the outcome `observed`, when the queue gave a job up (a timeout, a killed worker): the report then says what the store shows. It replaces the `failed()` method of the guide's job: listen to it to close the stream of a segment that ended without telling the browsers.
 
 ```php
 // app/Providers/AppServiceProvider.php, in boot()
@@ -275,51 +275,51 @@ Read [invocation-settled.md](invocation-settled.md) when writing it: it has the 
 
 Stages 1 and 2 of the skill keep working as they are. What changes once agents are definitions:
 
-- **Every segment the SDK executes is traced**, in a web request or in a worker, when `NEURON_CLOUD_TRACING` is on: one OpenTelemetry trace per run, named after its definition (`invoke_agent support-agent`), and every segment of a run lands in the same trace.
+- **Every segment the SDK executes is traced**, in a web request or in a worker, when `IQ_TRACING` is on: one OpenTelemetry trace per run, named after its definition (`invoke_agent support-agent`), and every segment of a run lands in the same trace.
 - **Once, by the SDK.** The container builds the workflow of a definition, so the package's hook gives it a listener as well. The SDK's own listener claims the segment, and the package's sends nothing for it: no second trace, and nothing to configure.
 - **It is best effort.** A trace the platform refuses is written to PHP's error log and dropped: it never changes the segment or its report.
-- **Set `NEURON_CLOUD_TRACING` in the environment of the workers too**, and restart them (`php artisan queue:restart`): a worker reads its config once. With `config:cache`, cache again.
-- **Evaluators keep calling the agent directly**, on in-memory stores, as the guide builds them. Never evaluate through `$cloud->workflow()`: every item would be announced to the platform as a real run.
+- **Set `IQ_TRACING` in the environment of the workers too**, and restart them (`php artisan queue:restart`): a worker reads its config once. With `config:cache`, cache again.
+- **Evaluators keep calling the agent directly**, on in-memory stores, as the guide builds them. Never evaluate through `$iq->workflow()`: every item would be announced to the platform as a real run.
 
 ## Testing
 
-Bind the SDK's `FakePlatform` as `neuron-cloud.http` and give the application its signing key, before `NeuronCloud` is first resolved:
+Bind the SDK's `FakePlatform` as `iq.http` and give the application its signing key, before `IQ` is first resolved:
 
 ```php
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Testing\FakePlatform;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Testing\FakePlatform;
 
 $platform = new FakePlatform();
-$this->app->instance('neuron-cloud.http', $platform);
-config(['neuron-cloud.api_key' => 'test-key', 'neuron-cloud.signing_key' => $platform->signingKey]);
+$this->app->instance('iq.http', $platform);
+config(['iq.api_key' => 'test-key', 'iq.signing_key' => $platform->signingKey]);
 
-$cloud = $this->app->make(NeuronCloud::class);
-$cloud->workflow('order-fulfilment', 'order:123')->start(new OrderPlaced('123'))->dispatch();
+$iq = $this->app->make(IQ::class);
+$iq->workflow('order-fulfilment', 'order:123')->start(new OrderPlaced('123'))->dispatch();
 
 $platform->assertReported('order:123', Outcome::Suspended);   // the sync queue ran the segment in place
-$platform->wake($cloud, 'order:123');                         // the platform's wake-up, signed, through the endpoint
+$platform->wake($iq, 'order:123');                         // the platform's wake-up, signed, through the endpoint
 ```
 
 - **With the `sync` queue of `phpunit.xml`**, a dispatched segment runs in place, before `dispatch()` returns, and `InvocationSettled` fires with its real report. A wake the fake platform sends runs in place the same way.
 - **To look at what was queued**, `Queue::fake()` and `Queue::assertPushed(RunInvocation::class)`; `$job->invocation()` is the message.
 - **The agent is faked as in the guide**: `setAiProvider(new FakeAIProvider(...))` on the container's agent, then `$this->app->instance(SupportAgent::class, ...)`. The definitions build the agent from the container, so they get the fake.
-- **With `neuron-cloud.tracing.enabled` on**, each segment sends its trace to the fake, named after its definition: `$platform->assertTraced('invoke_workflow order-fulfilment')`, or `invoke_agent support-agent` for an agent.
+- **With `iq.tracing.enabled` on**, each segment sends its trace to the fake, named after its definition: `$platform->assertTraced('invoke_workflow order-fulfilment')`, or `invoke_agent support-agent` for an agent.
 - **`Http::fake()` sees nothing of this**: the SDK and the providers use Neuron's HTTP client.
 
 ## Pitfalls
 
-- A turn started with `$agent->for($threadId)->chat()` in an application that registered the agent → not announced: no retry, no timer, and it replaces a failed run the SDK would have kept. Use `$cloud->workflow()`.
+- A turn started with `$agent->for($threadId)->chat()` in an application that registered the agent → not announced: no retry, no timer, and it replaces a failed run the SDK would have kept. Use `$iq->workflow()`.
 - A job of your own around a turn, or `$tries` on it → the turn runs twice. Use `->dispatch()`.
 - `PersistenceInterface` as a `singleton`, or bound without the `select 1` → a worker hands a closed PDO to every segment after the database dropped the connection.
-- `QUEUE_CONNECTION=sync` outside tests → `neuron-cloud:sync` refuses it; nothing would survive the request.
+- `QUEUE_CONNECTION=sync` outside tests → `iq:sync` refuses it; nothing would survive the request.
 - `retry_after` at Laravel's 90 with `timeout` 300 → a second worker takes a job that still runs. The sync refuses it: set `DB_QUEUE_RETRY_AFTER=360`.
-- One worker on the default queue only → nothing runs: the package uses `neuron-cloud-php` and `neuron-cloud-observe`.
-- A global middleware, a rate limiter or a WAF rule on `/neuron-cloud` → the platform's messages are answered by something else. Exempt the route.
+- One worker on the default queue only → nothing runs: the package uses `iq-php` and `iq-observe`.
+- A global middleware, a rate limiter or a WAF rule on `/iq` → the platform's messages are answered by something else. Exempt the route.
 - `APP_URL=http://…` or a URL the platform cannot reach → the sync fails. Use the public `https` address, or a tunnel in development.
-- `neuron-cloud:sync` before `queue:restart` → workers on old code abort the first messages of the new version. Restart first.
+- `iq:sync` before `queue:restart` → workers on old code abort the first messages of the new version. Restart first.
 - An agent with no `channel()` hook → a queued turn, a platform retry or a recovered turn streams nowhere.
-- `afterResolving(NeuronCloud::class, …)` to register a definition → a throw there leaves the singleton half configured for the life of a worker. Use `extend()`.
-- `NEURON_CLOUD_TRACING=true` in the web environment only → requests are traced and queued segments are not.
-- Evaluating through `$cloud->workflow()` → the platform lists every dataset item as a run.
-- `Http::fake()` to fake the platform → the real one is called. Bind `FakePlatform` as `neuron-cloud.http`.
+- `afterResolving(IQ::class, …)` to register a definition → a throw there leaves the singleton half configured for the life of a worker. Use `extend()`.
+- `IQ_TRACING=true` in the web environment only → requests are traced and queued segments are not.
+- Evaluating through `$iq->workflow()` → the platform lists every dataset item as a run.
+- `Http::fake()` to fake the platform → the real one is called. Bind `FakePlatform` as `iq.http`.

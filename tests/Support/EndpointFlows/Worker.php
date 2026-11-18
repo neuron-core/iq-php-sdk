@@ -2,15 +2,15 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Support\EndpointFlows;
 
 use Closure;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Testing\FakePlatform;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Testing\FakePlatform;
 use PHPUnit\Framework\Assert;
 
 use function fclose;
@@ -53,7 +53,7 @@ final class Worker
     protected bool $ended = false;
 
     /**
-     * @param array<string, mixed> $settings what Shop::bootstrap() builds the NeuronCloud of the worker from
+     * @param array<string, mixed> $settings what Shop::bootstrap() builds the IQ of the worker from
      */
     public function __construct(array $settings, Invocation $message, protected FakePlatform $platform)
     {

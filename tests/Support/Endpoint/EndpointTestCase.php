@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Endpoint;
+namespace NeuronCore\IQ\Tests\Support\Endpoint;
 
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Runtime\Signature;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Runtime\Signature;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
 
 use function json_decode;
 use function time;
@@ -23,7 +23,7 @@ use const JSON_THROW_ON_ERROR;
  * handle(), and the fake queue holds what the endpoint handed over. Every
  * message the endpoint took and every answer it gave must respect the protocol.
  */
-abstract class EndpointTestCase extends CloudTestCase
+abstract class EndpointTestCase extends IQTestCase
 {
     protected const DEFINITION = 'order-fulfilment';
 
@@ -45,7 +45,7 @@ abstract class EndpointTestCase extends CloudTestCase
      */
     protected function deliver(array $message, ?int $timestamp = null): HttpResponse
     {
-        return $this->bench->platform->deliver($this->bench->cloud, $message, $timestamp);
+        return $this->bench->platform->deliver($this->bench->iq, $message, $timestamp);
     }
 
     /**
@@ -68,7 +68,7 @@ abstract class EndpointTestCase extends CloudTestCase
     {
         $persistence = $this->bench->persistence;
 
-        $this->bench->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
+        $this->bench->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
             $persistence(),
             static fn () => throw new StoreUnavailable(self::STORE_FAILURE),
         ));
@@ -131,11 +131,11 @@ abstract class EndpointTestCase extends CloudTestCase
     /**
      * A worker deals with everything that waits in the queue.
      *
-     * @return array<int, Report|CloudException> what every invoke() returned or threw, in order
+     * @return array<int, Report|IQException> what every invoke() returned or threw, in order
      */
     protected function work(): array
     {
-        return $this->bench->dispatcher->runAll($this->bench->cloud);
+        return $this->bench->dispatcher->runAll($this->bench->iq);
     }
 
     /**

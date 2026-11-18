@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Simulator;
+namespace NeuronCore\IQ\Tests\Support\Simulator;
 
 use function array_filter;
 use function explode;
@@ -25,7 +25,7 @@ use const PHP_URL_PATH;
 use const PHP_URL_QUERY;
 
 /**
- * Neuron Cloud, small: the platform's side of protocol 1 as appendices A and
+ * IQ, small: the platform's side of protocol 1 as appendices A and
  * B of the design write it, built from that text alone. It shares no class
  * with the SDK, so when the two agree, two implementations agree with the
  * document. One request at a time, on PHP's built-in server.

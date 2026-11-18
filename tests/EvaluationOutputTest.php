@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests;
+namespace NeuronCore\IQ\Tests;
 
 use DateTimeImmutable;
 use NeuronAI\Evaluation\Contracts\EvaluationOutputInterface;
@@ -16,13 +16,13 @@ use NeuronAI\Evaluation\Usage\ModelUsage;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Providers\Anthropic\Anthropic;
 use NeuronAI\Providers\Gemini\Gemini;
-use NeuronCore\Cloud\Evaluation\CloudOutput;
-use NeuronCore\Cloud\Evaluation\RunContext;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\GreetingEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Evaluation\ProfileEvaluator;
-use NeuronCore\Cloud\Tests\Stub\Units\ScriptedHttpClient;
-use NeuronCore\Cloud\Tests\Support\Units\LocalPlatform;
+use NeuronCore\IQ\Evaluation\IQOutput;
+use NeuronCore\IQ\Evaluation\RunContext;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\Evaluation\GreetingEvaluator;
+use NeuronCore\IQ\Tests\Stub\Evaluation\ProfileEvaluator;
+use NeuronCore\IQ\Tests\Stub\Units\ScriptedHttpClient;
+use NeuronCore\IQ\Tests\Support\Units\LocalPlatform;
 use PHPUnit\Framework\Attributes\RequiresPhpExtension;
 use PHPUnit\Framework\TestCase;
 
@@ -74,18 +74,18 @@ class EvaluationOutputTest extends TestCase
 
     public function test_the_service_gives_an_output_neurons_evaluations_accept(): void
     {
-        $output = (new NeuronCloud(self::API_KEY))->evaluationOutput();
+        $output = (new IQ(self::API_KEY))->evaluationOutput();
 
-        self::assertInstanceOf(CloudOutput::class, $output);
+        self::assertInstanceOf(IQOutput::class, $output);
         self::assertInstanceOf(EvaluationOutputInterface::class, $output);
     }
 
     public function test_the_output_posts_to_the_platform_url_of_the_service_with_its_api_key_through_its_http_client(): void
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
-        $cloud = new NeuronCloud(self::API_KEY, platformUrl: 'https://eu.platform.test', httpClient: $http);
+        $iq = new IQ(self::API_KEY, platformUrl: 'https://eu.platform.test', httpClient: $http);
 
-        $cloud->evaluationOutput()->output(self::report());
+        $iq->evaluationOutput()->output(self::report());
 
         [$request] = $http->received();
         self::assertSame(
@@ -98,7 +98,7 @@ class EvaluationOutputTest extends TestCase
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput('ci')->output(self::report());
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput('ci')->output(self::report());
 
         self::assertSame('ci', $http->received()[0]->body['environment'] ?? null);
     }
@@ -107,7 +107,7 @@ class EvaluationOutputTest extends TestCase
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
 
         self::assertCount(1, $http->received());
     }
@@ -132,7 +132,7 @@ class EvaluationOutputTest extends TestCase
         )], ['reads cached outputs']);
         $at = new DateTimeImmutable();
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
             new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, $results, $at, $at)], $at, $at),
         );
 
@@ -153,7 +153,7 @@ class EvaluationOutputTest extends TestCase
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
         $context = new RunContext('github-7-1', 'feature', 'main', 'abc123', 'https://ci.test/7');
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput(context: $context)->output(self::reportOfTwo());
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput(context: $context)->output(self::reportOfTwo());
 
         foreach ($http->received() as $request) {
             self::assertSame(
@@ -171,7 +171,7 @@ class EvaluationOutputTest extends TestCase
         putenv('NEURON_EVALUATION_SUITE_ID=nightly-3');
 
         try {
-            (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
+            (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput()->output(self::report());
         } finally {
             putenv('NEURON_EVALUATION_SUITE_ID');
         }
@@ -183,7 +183,7 @@ class EvaluationOutputTest extends TestCase
     {
         $http = new ScriptedHttpClient(new HttpResponse(200, '{}'));
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput(context: new RunContext())->output(self::reportOfTwo());
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput(context: new RunContext())->output(self::reportOfTwo());
 
         [$first, $second] = $http->received();
         self::assertSame($first->body['suite_id'], $second->body['suite_id']);
@@ -197,7 +197,7 @@ class EvaluationOutputTest extends TestCase
         $cut = substr('caffè', 0, 5);
         $results = new EvaluationResults([new EvaluatorResult(GreetingEvaluator::class, 0, true, ['name' => $cut], $cut, 1.0, 0, 0)]);
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
             new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, $results, $at, $at)], $at, $at),
         );
 
@@ -225,7 +225,7 @@ class EvaluationOutputTest extends TestCase
         );
         $result = (new EvaluatorResult(GreetingEvaluator::class, 0, false, [], null, 1.0, 0, 0))->withReruns([$rerun(true), $rerun(false, 'It threw')]);
 
-        (new NeuronCloud(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
+        (new IQ(self::API_KEY, httpClient: $http))->evaluationOutput()->output(
             new EvaluationReport([new EvaluatorReport(GreetingEvaluator::class, new EvaluationResults([$result]), $at, $at)], $at, $at),
         );
 
@@ -247,12 +247,12 @@ class EvaluationOutputTest extends TestCase
     public function test_neurons_evaluation_command_sends_the_results_of_every_evaluator_through_an_evaluation_php_that_lists_the_output(): void
     {
         $platform = $this->localPlatform = new LocalPlatform();
-        $this->project = sys_get_temp_dir() . '/' . uniqid('neuron-cloud-evaluation-');
+        $this->project = sys_get_temp_dir() . '/' . uniqid('iq-evaluation-');
         mkdir($this->project);
         file_put_contents($this->project . '/evaluation.php', '<?php
-            $cloud = new NeuronCore\Cloud\NeuronCloud(apiKey: ' . var_export(self::API_KEY, true) . ', platformUrl: ' . var_export($platform->url(), true) . ');
+            $iq = new NeuronCore\IQ\IQ(apiKey: ' . var_export(self::API_KEY, true) . ', platformUrl: ' . var_export($platform->url(), true) . ');
 
-            return ["output" => [$cloud->evaluationOutput("ci")]];
+            return ["output" => [$iq->evaluationOutput("ci")]];
         ');
 
         $printed = $this->evaluate(__DIR__ . '/Stub/Evaluation');

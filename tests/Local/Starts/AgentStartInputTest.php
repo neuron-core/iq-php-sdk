@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\Starts;
+namespace NeuronCore\IQ\Tests\Local\Starts;
 
 use NeuronAI\Agent\Agent;
 use NeuronAI\Agent\AgentRunOptions;
@@ -15,15 +15,15 @@ use NeuronAI\Testing\RequestRecord;
 use NeuronAI\Workflow\Events\Event;
 use NeuronAI\Workflow\Events\StartEvent;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\PendingSegment;
-use NeuronCore\Cloud\Tests\Stub\Flows\OrderPlaced;
-use NeuronCore\Cloud\Tests\Stub\Local\BriefingAgent;
-use NeuronCore\Cloud\Tests\Stub\Units\BriefingStartEvent;
-use NeuronCore\Cloud\Tests\Stub\Units\PromptingAgent;
-use NeuronCore\Cloud\Tests\Support\Flows\StartTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\PendingSegment;
+use NeuronCore\IQ\Tests\Stub\Flows\OrderPlaced;
+use NeuronCore\IQ\Tests\Stub\Local\BriefingAgent;
+use NeuronCore\IQ\Tests\Stub\Units\BriefingStartEvent;
+use NeuronCore\IQ\Tests\Stub\Units\PromptingAgent;
+use NeuronCore\IQ\Tests\Support\Flows\StartTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -223,7 +223,7 @@ class AgentStartInputTest extends StartTestCase
         $bench = $this->benchOn($backend);
         $provider = $this->provider = new FakeAIProvider(new AssistantMessage('Done.'));
 
-        $bench->cloud
+        $bench->iq
             ->register('assistant', static fn (): Agent => Agent::make()->setAiProvider($provider))
             ->register('briefing', static fn (): Agent => (new BriefingAgent())->setAiProvider($provider))
             ->register('prompting', static fn (): Agent => (new PromptingAgent())->setAiProvider($provider));
@@ -233,7 +233,7 @@ class AgentStartInputTest extends StartTestCase
 
     protected function thread(string $agent): ManagedWorkflow
     {
-        return $this->bench->cloud->workflow($agent, self::WORKFLOW_ID);
+        return $this->bench->iq->workflow($agent, self::WORKFLOW_ID);
     }
 
     /**

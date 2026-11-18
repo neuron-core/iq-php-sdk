@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runner;
+namespace NeuronCore\IQ\Tests\Runner;
 
 use NeuronAI\Workflow\RefusalReason;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Tests\Stub\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Stub\CompleteNode;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Runner\RunnerTestCase;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Tests\Stub\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Stub\CompleteNode;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Runner\RunnerTestCase;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 /**
@@ -24,10 +24,10 @@ class StartRefusalTest extends RunnerTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
-        $holder = $bench->cloud->invoke($this->start('order'));
+        $bench->iq->register('order', static fn (): WaitingWorkflow => new WaitingWorkflow($executions));
+        $holder = $bench->iq->invoke($this->start('order'));
 
-        $report = $bench->cloud->invoke($this->start('order', fields: ['invocationId' => 'inv_other', 'runId' => '1-another-run']));
+        $report = $bench->iq->invoke($this->start('order', fields: ['invocationId' => 'inv_other', 'runId' => '1-another-run']));
 
         self::assertSame(Outcome::Refused, $report->outcome);
         self::assertSame(RefusalReason::RunInFlight->value, $report->code);
@@ -43,7 +43,7 @@ class StartRefusalTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->rivalRunEndsDuringTheNextIgnitions(1);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Completed, $report->outcome);
         self::assertSame(1, $report->executedAttempt);
@@ -56,7 +56,7 @@ class StartRefusalTest extends RunnerTestCase
         $bench = $this->benchOn($backend);
         $this->rivalRunEndsDuringTheNextIgnitions(2);
 
-        $report = $bench->cloud->invoke($this->start('greeting'));
+        $report = $bench->iq->invoke($this->start('greeting'));
 
         self::assertSame(Outcome::Refused, $report->outcome);
         self::assertSame(RefusalReason::Conflict->value, $report->code);

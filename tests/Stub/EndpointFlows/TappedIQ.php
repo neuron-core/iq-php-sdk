@@ -2,16 +2,16 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\EndpointFlows;
+namespace NeuronCore\IQ\Tests\Stub\EndpointFlows;
 
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\NeuronCloud;
+use NeuronCore\IQ\IQ;
 
 /**
- * A cloud whose endpoint answers as it always does, and remembers every
+ * A service whose endpoint answers as it always does, and remembers every
  * request it was handed: what the platform put on the wire.
  */
-class TappedCloud extends NeuronCloud
+class TappedIQ extends IQ
 {
     /** @var array<int, array{method: string, headers: array<array-key, mixed>, body: string}> */
     protected array $handled = [];

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Evaluation;
+namespace NeuronCore\IQ\Evaluation;
 
 /**
  * What the platform did with the items of a dataset sent to it by
- * {@see \NeuronCore\Cloud\NeuronCloud::uploadDataset()}: whether it created the
+ * {@see \NeuronCore\IQ\IQ::uploadDataset()}: whether it created the
  * dataset, and how many items it added, updated and found unchanged.
  */
 class DatasetUpload

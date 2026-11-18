@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd\FailureTable;
+namespace NeuronCore\IQ\Tests\EndToEnd\FailureTable;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\FailureTableTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\WireLog;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\ShipOrderNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Tests\Support\EndToEnd\FailureTableTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\WireLog;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\ShipOrderNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Verb;
 
 use function count;
 use function json_encode;

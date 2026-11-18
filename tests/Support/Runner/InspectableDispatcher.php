@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Runner;
+namespace NeuronCore\IQ\Tests\Support\Runner;
 
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Testing\FakeDispatcher;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Testing\FakeDispatcher;
 
 /**
  * The fake queue, opened for the SDK's own tests: they read the messages the

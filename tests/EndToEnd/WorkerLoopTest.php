@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\EndToEnd;
+namespace NeuronCore\IQ\Tests\EndToEnd;
 
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Deployment;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\EndToEndTestCase;
-use NeuronCore\Cloud\Tests\Support\EndToEnd\Wait;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\AwaitPaymentNode;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\OrderWorkflow;
-use NeuronCore\Cloud\Tests\Support\ExampleApp\SpoolDispatcher;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Deployment;
+use NeuronCore\IQ\Tests\Support\EndToEnd\EndToEndTestCase;
+use NeuronCore\IQ\Tests\Support\EndToEnd\Wait;
+use NeuronCore\IQ\Tests\Support\ExampleApp\AwaitPaymentNode;
+use NeuronCore\IQ\Tests\Support\ExampleApp\OrderWorkflow;
+use NeuronCore\IQ\Tests\Support\ExampleApp\SpoolDispatcher;
 
 use function count;
 use function substr_count;
@@ -68,7 +68,7 @@ class WorkerLoopTest extends EndToEndTestCase
     {
         $this->theCheckoutLeavesItsTwoNoticesOnTheQueue();
 
-        $this->deployment->shop->startWorker(SpoolDispatcher::NOTICES, ['NEURON_CLOUD_API_KEY' => 'a-key-that-was-revoked']);
+        $this->deployment->shop->startWorker(SpoolDispatcher::NOTICES, ['IQ_API_KEY' => 'a-key-that-was-revoked']);
 
         $this->awaitOnTheList(self::FAILED, 2);
         self::assertSame([], $this->deployment->shop->queue()->waiting(self::LATER));

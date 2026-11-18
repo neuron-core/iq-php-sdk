@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use Closure;
 use NeuronAI\Observability\ObservabilityEvent;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Observability\CloudListener;
+use NeuronCore\IQ\Observability\IQListener;
 
 /**
  * Every segment, snapshot and management call builds its workflow here, so
@@ -20,7 +20,7 @@ final class WorkflowBuilder
 {
     /**
      * @param Closure(): PersistenceInterface $persistence
-     * @param (Closure(Definition): CloudListener)|null $tracer builds the listener that traces one workflow; null: no
+     * @param (Closure(Definition): IQListener)|null $tracer builds the listener that traces one workflow; null: no
      *                                                          segment is traced
      */
     public function __construct(protected Closure $persistence, protected ?Closure $tracer = null)

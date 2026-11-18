@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Evaluation;
+namespace NeuronCore\IQ\Tests\Stub\Evaluation;
 
 use NeuronAI\Evaluation\Assertions\IsValidJson;
 use NeuronAI\Evaluation\BaseEvaluator;

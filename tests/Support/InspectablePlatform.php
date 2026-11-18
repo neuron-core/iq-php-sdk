@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support;
+namespace NeuronCore\IQ\Tests\Support;
 
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Testing\FakePlatform;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Testing\FakePlatform;
 
 use function array_column;
 
@@ -21,9 +21,9 @@ final class InspectablePlatform extends FakePlatform
     /** @var array<int, array{message: array<string, mixed>, answer: HttpResponse}> */
     protected array $delivered = [];
 
-    public function deliver(NeuronCloud $cloud, array $message, ?int $timestamp = null): HttpResponse
+    public function deliver(IQ $iq, array $message, ?int $timestamp = null): HttpResponse
     {
-        $answer = parent::deliver($cloud, $message, $timestamp);
+        $answer = parent::deliver($iq, $message, $timestamp);
         $this->delivered[] = ['message' => $message + ['protocol' => 1], 'answer' => $answer];
 
         return $answer;

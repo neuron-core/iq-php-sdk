@@ -9,11 +9,11 @@ declare(strict_types=1);
  *   /idle          is answered at once
  *   anything else  streams a new run
  *
- * Usage: NEURON_CLOUD_STREAM_FILES=<directory> php -S 127.0.0.1:<port> streaming-endpoint.php
+ * Usage: IQ_STREAM_FILES=<directory> php -S 127.0.0.1:<port> streaming-endpoint.php
  */
 
 use NeuronAI\Chat\Messages\Stream\Chunks\TextChunk;
-use NeuronCore\Cloud\Tests\Support\Streamed\StreamingEndpoint;
+use NeuronCore\IQ\Tests\Support\Streamed\StreamingEndpoint;
 
 require \dirname(__DIR__, 3) . '/vendor/autoload.php';
 
@@ -23,7 +23,7 @@ if (\parse_url((string) $_SERVER['REQUEST_URI'], \PHP_URL_PATH) === StreamingEnd
     return;
 }
 
-$events = StreamingEndpoint::application((string) \getenv('NEURON_CLOUD_STREAM_FILES'))
+$events = StreamingEndpoint::application((string) \getenv('IQ_STREAM_FILES'))
     ->workflow(StreamingEndpoint::DEFINITION, StreamingEndpoint::WORKFLOW_ID)
     ->start()
     ->events();

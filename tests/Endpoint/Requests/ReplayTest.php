@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use DateTimeImmutable;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function array_map;
@@ -59,7 +59,7 @@ class ReplayTest extends RequestTestCase
     {
         $bench = $this->shop($backend);
         $executions = $bench->executions;
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
         $body = self::encode($this->start());
         $headers = $this->signed($body, 'inv_start');
         $this->post($body, $headers);
@@ -103,7 +103,7 @@ class ReplayTest extends RequestTestCase
         $reports = $this->work();
 
         self::assertSame([[Outcome::Suspended, null], [Outcome::Refused, RefusalReason::StaleAttempt->value]], self::outcomesOf($reports));
-        self::assertSame([2, null], array_map(static fn (Report|CloudException $report): ?int => $report instanceof Report ? $report->executedAttempt : null, $reports));
+        self::assertSame([2, null], array_map(static fn (Report|IQException $report): ?int => $report instanceof Report ? $report->executedAttempt : null, $reports));
     }
 
     #[DataProvider('backends')]
@@ -134,7 +134,7 @@ class ReplayTest extends RequestTestCase
     {
         $bench = $this->shop($backend);
         $executions = $bench->executions;
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions, new DateTimeImmutable('-1 minute')));
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions, new DateTimeImmutable('-1 minute')));
         $this->deliver($this->start());
         $this->work();
 
@@ -142,13 +142,13 @@ class ReplayTest extends RequestTestCase
     }
 
     /**
-     * @param array<int, Report|CloudException> $reports
+     * @param array<int, Report|IQException> $reports
      * @return array<int, array{Outcome|null, string|null}> the outcome and the code of each report, in order
      */
     protected static function outcomesOf(array $reports): array
     {
         return array_map(
-            static fn (Report|CloudException $report): array => $report instanceof Report ? [$report->outcome, $report->code] : [null, $report->reason->value],
+            static fn (Report|IQException $report): array => $report instanceof Report ? [$report->outcome, $report->code] : [null, $report->reason->value],
             $reports,
         );
     }

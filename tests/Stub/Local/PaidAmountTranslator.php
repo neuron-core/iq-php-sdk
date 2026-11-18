@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Local;
+namespace NeuronCore\IQ\Tests\Stub\Local;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Workflow\Interrupt\InputTranslatorInterface;

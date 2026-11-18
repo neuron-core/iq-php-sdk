@@ -1,13 +1,13 @@
-# Neuron Cloud protocol 1: the platform's side
+# IQ protocol 1: the platform's side
 
-This document describes protocol 1 of Neuron Cloud for the engineer who builds the platform. It says what the protocol is for, what every message holds, what every answer of the application means, and what the platform does in each situation.
+This document describes protocol 1 of IQ for the engineer who builds the platform. It says what the protocol is for, what every message holds, what every answer of the application means, and what the platform does in each situation.
 
 The platform is built from this document and from the files of `resources/protocol/1/`: one JSON Schema for each message, and the signature vectors. The reference simulator and the tests of the SDK's repository are there to compare behaviour with, and they need PHP to run. Nothing else needs to be read: this document explains the few facts about the application's side that the platform must know.
 
 Three things are the sources of this document, in this order when they differ: the JSON Schemas, the behaviour of the SDK, and the SDK's own specification, `SDK_DESIGN.md`. When this document and a schema disagree, the schema is right and this document has a defect.
 
 - **Protocol:** 1
-- **SDK it was checked against:** `neuron-cloud-php/1.0.0`
+- **SDK it was checked against:** `iq-php/1.0.0`
 - **Date:** 2026-10-10
 - **Status:** the application's side exists and is tested. The platform does not exist yet. Section 11 lists what is not settled.
 
@@ -41,7 +41,7 @@ Every JSON example in this document is a message that the real SDK produced, or 
 
 **The application** is a program that a developer wrote and deployed. It runs workflows: code that can stop in the middle, wait for hours or days, and continue. The application keeps the state of every workflow in its own database, which this document calls **the store**. It executes every step in its own processes. It has its own queue and its own workers. It exposes one signed URL that the platform calls: **the endpoint**. **The SDK** is the library inside the application that speaks this protocol. This document says "the SDK" only for what that library does by itself, and "the application" for everything else on that side. Under the SDK, the application uses a workflow framework, Neuron AI, which admits or refuses every request to execute a run and keeps the records of the run in the store. This document calls it **the engine**, and names it only where a refusal comes from it.
 
-**The platform** is Neuron Cloud, the service this document specifies. It keeps a list of the application's runs and a clock. It tells the application when to continue a run: when a timer is due, when a failed run must be tried again, when a trigger says that a run must start. When the platform is unsure of what it holds, it asks the application.
+**The platform** is IQ, the service this document specifies. It keeps a list of the application's runs and a clock. It tells the application when to continue a run: when a timer is due, when a failed run must be tried again, when a trigger says that a run must start. When the platform is unsure of what it holds, it asks the application.
 
 | | The application | The platform |
 |---|---|---|
@@ -311,7 +311,7 @@ Every message is an HTTP `POST` with a JSON object as its body. Every answer is 
 | Application to platform | `{platformUrl}/v1/sync`, `{platformUrl}/v1/announcements`, `{platformUrl}/v1/reports` | The API key, as a bearer token |
 | Platform to application | The endpoint URL that the last sync published. One URL receives all five messages of the platform, and the requested sync of section 5.11 | A signature made with the signing key |
 
-`{platformUrl}` is `https://cloud.neuron-ai.dev` unless the application is configured with another one. The SDK removes a trailing slash from it and appends the path.
+`{platformUrl}` is `https://app.neuron-iq.dev` unless the application is configured with another one. The SDK removes a trailing slash from it and appends the path.
 
 The two directions are independent. The application never answers an order with its result: the result arrives later, as an announcement and a report on the other direction.
 
@@ -321,7 +321,7 @@ The two directions are independent. The application never answers an order with 
 |---|---|
 | Method | `POST` |
 | `Authorization` | `Bearer <API key>` |
-| `User-Agent` | `neuron-cloud-php/<version>`, today `neuron-cloud-php/1.0.0`. The same string is the field `sdk` of a sync |
+| `User-Agent` | `iq-php/<version>`, today `iq-php/1.0.0`. The same string is the field `sdk` of a sync |
 | `Content-Type` | `application/json`. The SDK's default HTTP client sends it. An application can plug in another HTTP client, so the platform must not depend on any header but `Authorization` |
 | Body | One JSON object. The SDK's default client escapes `/` as `\/` and writes non-ASCII characters as `\u` escapes, so the platform must parse the body as JSON and never compare it as text |
 
@@ -376,7 +376,7 @@ This is the vector "a wake signed by the platform" of `resources/protocol/1/sign
 
 ```text
 signing key      whsec_bmV1cm9uLWNsb3VkLXByb3RvY29sLTEtdmVjdG9ycyEh
-key bytes        33 bytes, the ASCII text  neuron-cloud-protocol-1-vectors!!
+key bytes        33 bytes, the ASCII text  iq-protocol-1-vectors!!
                  in hexadecimal  6e6575726f6e2d636c6f75642d70726f746f636f6c2d312d766563746f72732121
 message ID       inv_01JB7K4T9QW2
 timestamp        1791453603
@@ -543,7 +543,7 @@ No rule of section 7 uses the `leaseSeconds` of a sync: the platform counts the 
 
 <!-- example: sync | schema: sync.json -->
 ```json
-{"protocols": [1], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "https://shop.example.com/neuron-cloud",
+{"protocols": [1], "sdk": "iq-php/1.0.0", "endpoint": "https://shop.example.com/iq",
  "definitions": [{"definition": "order-fulfilment", "version": 2, "leaseSeconds": 600},
                  {"definition": "order-fulfilment", "version": 1, "leaseSeconds": 600},
                  {"definition": "nightly-reconciliation", "version": 1, "leaseSeconds": 900}]}
@@ -1093,7 +1093,7 @@ A `503` of the endpoint has the same kind of body, and carries the header `Retry
 
 <!-- example: requested-sync-answer | schema: sync.json -->
 ```json
-{"protocols": [1], "sdk": "neuron-cloud-php/1.0.0", "endpoint": "https://shop.example.com/neuron-cloud",
+{"protocols": [1], "sdk": "iq-php/1.0.0", "endpoint": "https://shop.example.com/iq",
  "definitions": [{"definition": "order-fulfilment", "version": 2, "leaseSeconds": 600},
                  {"definition": "order-fulfilment", "version": 1, "leaseSeconds": 600},
                  {"definition": "nightly-reconciliation", "version": 1, "leaseSeconds": 900}]}
@@ -1349,7 +1349,7 @@ An answer that the application issued. The platform treats the verbs `answer` an
 {"protocol": 1, "invocationId": "inv_01JB2N4C6Z1D", "verb": "start", "origin": "platform",
  "definition": "order-fulfilment", "workflowId": "order:124", "runId": "2-0192f3a9-11d4-7b6e-8c2a-5d7f9e1b3a40",
  "outcome": "failed", "code": null,
- "errorClass": "NeuronCore\\Cloud\\Tests\\Support\\ExampleApp\\PlannedFailure", "executedAttempt": 1,
+ "errorClass": "NeuronCore\\IQ\\Tests\\Support\\ExampleApp\\PlannedFailure", "executedAttempt": 1,
  "run": {"runId": "2-0192f3a9-11d4-7b6e-8c2a-5d7f9e1b3a40", "definition": "order-fulfilment",
          "status": "failed", "attempt": 1, "leaseExpiresAt": null},
  "claimed": true, "snapshotRead": true, "at": 1791634834}
@@ -1559,7 +1559,7 @@ A store that failed at the claim:
 {"protocol": 1, "invocationId": "inv_01JB2T9D7V3H", "verb": "start", "origin": "platform",
  "definition": "order-fulfilment", "workflowId": "order:127", "runId": "2-0192f3ad-c3f8-7d52-9e0b-4a7c6d8f1e23",
  "outcome": "aborted", "code": "unavailable",
- "errorClass": "NeuronCore\\Cloud\\Tests\\Support\\ExampleApp\\PlannedFailure", "executedAttempt": null,
+ "errorClass": "NeuronCore\\IQ\\Tests\\Support\\ExampleApp\\PlannedFailure", "executedAttempt": null,
  "run": null, "claimed": null, "snapshotRead": true, "at": 1791634834}
 ```
 
@@ -3044,11 +3044,11 @@ The body is an OTLP `ExportTraceServiceRequest` in its JSON encoding, the body a
 {"resourceSpans": [{
   "resource": {"attributes": [
     {"key": "service.name", "value": {"stringValue": "checkout"}},
-    {"key": "telemetry.sdk.name", "value": {"stringValue": "neuron-cloud-php"}},
+    {"key": "telemetry.sdk.name", "value": {"stringValue": "iq-php"}},
     {"key": "telemetry.sdk.language", "value": {"stringValue": "php"}},
     {"key": "telemetry.sdk.version", "value": {"stringValue": "1.0.0"}}]},
   "scopeSpans": [{
-    "scope": {"name": "neuron-core/cloud-sdk", "version": "1.0.0"},
+    "scope": {"name": "neuron-core/iq-php-sdk", "version": "1.0.0"},
     "spans": [
       {"traceId": "8c1f0e6a4b7d2c935a1e0f4d6b8c2a17", "spanId": "3f9a1c2b4d5e6f70", "parentSpanId": "a1b2c3d4e5f60718",
        "flags": 257, "name": "ChargeNode", "kind": 1,
@@ -3206,7 +3206,7 @@ The exit code of `neuron evaluation` fails on any failed item, because nothing o
 
 | | |
 |---|---|
-| Who turns it on | The developer, by running `vendor/bin/neuron-cloud-gate` in the build. **SETTING**, set in the application |
+| Who turns it on | The developer, by running `vendor/bin/iq-gate` in the build. **SETTING**, set in the application |
 | Request | `GET {platformUrl}/v1/evaluations/suites/{suite_id}`, with `Authorization: Bearer <API key>`, the `User-Agent` of section 3.2 and no body. `{suite_id}` is percent-encoded |
 | Answer | A `2xx` whose body is a JSON object with `verdict`: `passed`, `failed` or `incomplete` |
 | A refusal | Any other answer, and no answer within the timeout of section 3.8. `404` means the platform holds no run of the suite. The SDK sends the request once and the step ends with exit code 2, which is neither a pass nor a failure of the evaluators, as it does for `incomplete` |
@@ -3216,7 +3216,7 @@ The exit code of `neuron evaluation` fails on any failed item, because nothing o
  "ci_url": "https://github.com/acme/shop/actions/runs/7812", "verdict": "failed", "evaluators_expected": 1,
  "evaluators": [
    {"name": "App\\Evaluators\\RefundEvaluator", "namespace": "support", "run_id": "eval_6acb600d897908.92076975",
-    "url": "https://cloud.neuron-ai.dev/acme/apps/shop/evaluations/4/runs/91", "status": "regressed",
+    "url": "https://app.neuron-iq.dev/acme/apps/shop/evaluations/4/runs/91", "status": "regressed",
     "total": 2, "passed": 1, "failed": 1, "errored": 0, "new_failures": 1, "confirmed_failures": 1, "fixed": 0,
     "compared": 2, "checks_changed": 0, "edited": 0, "reused_output": 0, "added": 0, "removed": 0, "gap": null,
     "baseline": {"run_id": "eval_6acb5f0c11b2a4.10293847", "branch": "main", "commit": "71ab09c2", "started_at": "2026-10-11T09:00:00.000000Z"}}],
@@ -3241,7 +3241,7 @@ A developer moves a dataset of the application, such as a JSON file, to the plat
 
 | | |
 |---|---|
-| Who turns it on | The developer, by running `vendor/bin/neuron-cloud-dataset` or calling `uploadDataset()`. **SETTING**, set in the application |
+| Who turns it on | The developer, by running `vendor/bin/iq-dataset` or calling `uploadDataset()`. **SETTING**, set in the application |
 | Request | `POST {platformUrl}/v1/datasets/{slug}/items`, with `Authorization: Bearer <API key>`, the `User-Agent` of section 3.2 and a JSON body: `name`, what a dataset the request creates is called, null for its slug, and `items`, a list of at most 1000 items, each an object with an `input` that is not null and, when it has them, an `expected_output` and `metadata`, each any JSON value. `{slug}` is percent-encoded as one segment of the path, and holds lowercase letters, digits and single hyphens. **FIXED BY THE PROTOCOL** |
 | Answer | A `2xx` whose body is a JSON object with the `slug`, `created`, true when the request created the dataset, and how many items were `added`, `updated` and `unchanged` |
 | A refusal | Any other answer, and no answer within the timeout of section 3.8. A `422` carries a `message` that says what the platform refused: an item with a key it does not hold or with no input, more than 1000 items, a slug of another form, or the name of another dataset of the environment. The SDK sends each request once. It sends a longer dataset in several, in order, and stops at the first one refused: the ones before it stay written |
@@ -3300,7 +3300,7 @@ A developer moves a dataset of the application, such as a JSON file, to the plat
 | Outcome | The word of a report that says how one call ended |
 | Owner | An operator who may confirm that the endpoint of an environment moves to another host |
 | Ping | The question "does this endpoint verify my signature?" |
-| Platform | Neuron Cloud: the service that keeps a list of runs and a clock |
+| Platform | IQ: the service that keeps a list of runs and a clock |
 | Question | An `inspect` or a `ping` |
 | Reader | The client, such as a browser, that receives the output of a streamed segment |
 | Reminder | A job on the application's queue that tells a worker "read the store and post the report of this segment" |

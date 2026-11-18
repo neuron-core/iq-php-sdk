@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\StreamedChat;
+namespace NeuronCore\IQ\Tests\Local\StreamedChat;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\RunInFlightException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatEndpoint;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\StreamedChatTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\RefundOrder;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatEndpoint;
+use NeuronCore\IQ\Tests\Support\StreamedChat\StreamedChatTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 
 use function count;
@@ -303,7 +303,7 @@ class RefusedBeforeTheFirstFrameTest extends StreamedChatTestCase
         $response = $this->message(self::QUESTION);
 
         self::assertSame(503, $response->status);
-        self::assertInstanceOf(CloudException::class, $response->refusal);
+        self::assertInstanceOf(IQException::class, $response->refusal);
         self::assertSame(Code::DispatchFailed, $response->refusal->reason);
         self::assertSame([], $response->read());
     }
@@ -331,7 +331,7 @@ class RefusedBeforeTheFirstFrameTest extends StreamedChatTestCase
         $response = $this->approval();
 
         self::assertSame(503, $response->status);
-        self::assertInstanceOf(CloudException::class, $response->refusal);
+        self::assertInstanceOf(IQException::class, $response->refusal);
         self::assertSame(Code::DispatchFailed, $response->refusal->reason);
         self::assertSame([], $response->read());
     }
@@ -378,7 +378,7 @@ class RefusedBeforeTheFirstFrameTest extends StreamedChatTestCase
         $response = $this->approval();
 
         self::assertSame(503, $response->status);
-        self::assertInstanceOf(CloudException::class, $response->refusal);
+        self::assertInstanceOf(IQException::class, $response->refusal);
         self::assertSame(Code::UnknownVersion, $response->refusal->reason);
         self::assertSame([], $response->read());
     }
@@ -422,7 +422,7 @@ class RefusedBeforeTheFirstFrameTest extends StreamedChatTestCase
         $response = $this->message('Are you there?', 'run_2');
 
         self::assertSame(503, $response->status);
-        self::assertInstanceOf(CloudException::class, $response->refusal);
+        self::assertInstanceOf(IQException::class, $response->refusal);
         self::assertSame(Code::UnknownVersion, $response->refusal->reason);
         self::assertSame([], $response->read());
         self::assertSame(WorkflowStatus::Failed, $failed?->status);
@@ -454,9 +454,9 @@ class RefusedBeforeTheFirstFrameTest extends StreamedChatTestCase
      * A process of the same application after a deploy: it has version 2 of
      * the agent, which the process of the bench does not have yet.
      */
-    protected function processOfTheNextRelease(): NeuronCloud
+    protected function processOfTheNextRelease(): IQ
     {
-        return (new NeuronCloud(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $this->bench->platform))
+        return (new IQ(TestBench::API_KEY, null, TestBench::PLATFORM_URL, $this->bench->platform))
             ->setPersistence($this->bench->persistence)
             ->setDispatcher($this->queue)
             ->register(ChatEndpoint::DEFINITION, $this->agentFactory())

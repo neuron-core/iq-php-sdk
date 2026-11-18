@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Processes;
+namespace NeuronCore\IQ\Tests\Support\Processes;
 
 use function fclose;
 use function proc_close;

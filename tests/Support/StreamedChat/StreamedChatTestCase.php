@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\StreamedChat;
+namespace NeuronCore\IQ\Tests\Support\StreamedChat;
 
 use Closure;
 use NeuronAI\Chat\Messages\AssistantMessage;
@@ -13,14 +13,14 @@ use NeuronAI\Testing\FakeAIProvider;
 use NeuronAI\Tools\ToolCall;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\NeuronCloud;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\ChatQueue;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\RefundOrder;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\SupportAgent;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\IQ;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\ChatQueue;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\RefundOrder;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\SupportAgent;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use Throwable;
 
 use function array_filter;
@@ -48,7 +48,7 @@ use const PHP_URL_PATH;
  * leaves in the queue is posted when it ends, and every body the SDK sent must
  * match its schema.
  */
-abstract class StreamedChatTestCase extends CloudTestCase
+abstract class StreamedChatTestCase extends IQTestCase
 {
     protected const THREAD_ID = 'thread-42';
 
@@ -106,7 +106,7 @@ abstract class StreamedChatTestCase extends CloudTestCase
         $this->transcripts = new Transcripts($this->temporaryFile());
         $this->broadcast = new Broadcast();
 
-        $bench->cloud
+        $bench->iq
             ->setDispatcher($this->queue)
             ->register(ChatEndpoint::DEFINITION, $this->agentFactory($refundFailures));
 
@@ -151,9 +151,9 @@ abstract class StreamedChatTestCase extends CloudTestCase
     /**
      * The request that carries a message of the user.
      *
-     * @param NeuronCloud|null $process the process that serves it; null: the one of the bench
+     * @param IQ|null $process the process that serves it; null: the one of the bench
      */
-    protected function message(string $text, string $runId = 'run_1', ?NeuronCloud $process = null): ChatResponse
+    protected function message(string $text, string $runId = 'run_1', ?IQ $process = null): ChatResponse
     {
         return $this->endpoint($process)(['threadId' => self::THREAD_ID, 'runId' => $runId, 'message' => $text]);
     }
@@ -162,21 +162,21 @@ abstract class StreamedChatTestCase extends CloudTestCase
      * The request that carries the decisions of a person on the pending approvals.
      *
      * @param array<string, mixed> $decisions
-     * @param NeuronCloud|null $process the process that serves it; null: the one of the bench
+     * @param IQ|null $process the process that serves it; null: the one of the bench
      */
-    protected function decisions(array $decisions, string $runId = 'run_2', ?NeuronCloud $process = null): ChatResponse
+    protected function decisions(array $decisions, string $runId = 'run_2', ?IQ $process = null): ChatResponse
     {
         return $this->endpoint($process)(['threadId' => self::THREAD_ID, 'runId' => $runId, 'decisions' => $decisions]);
     }
 
-    protected function approval(string $runId = 'run_2', ?NeuronCloud $process = null): ChatResponse
+    protected function approval(string $runId = 'run_2', ?IQ $process = null): ChatResponse
     {
         return $this->decisions([self::CALL_ID => 'approve'], $runId, $process);
     }
 
-    protected function endpoint(?NeuronCloud $process): ChatEndpoint
+    protected function endpoint(?IQ $process): ChatEndpoint
     {
-        return new ChatEndpoint($process ?? $this->bench->cloud, function (Throwable $failure): void {
+        return new ChatEndpoint($process ?? $this->bench->iq, function (Throwable $failure): void {
             $this->reported[] = $failure;
         });
     }
@@ -184,11 +184,11 @@ abstract class StreamedChatTestCase extends CloudTestCase
     /**
      * The fake worker deals with everything that waits in the queue.
      *
-     * @return array<int, Report|CloudException>
+     * @return array<int, Report|IQException>
      */
     protected function work(): array
     {
-        return $this->queue->runAll($this->bench->cloud);
+        return $this->queue->runAll($this->bench->iq);
     }
 
     /**
@@ -258,6 +258,6 @@ abstract class StreamedChatTestCase extends CloudTestCase
 
     protected function temporaryFile(): string
     {
-        return $this->temporaryFiles[] = (string) tempnam(sys_get_temp_dir(), 'neuron-cloud-');
+        return $this->temporaryFiles[] = (string) tempnam(sys_get_temp_dir(), 'iq-');
     }
 }

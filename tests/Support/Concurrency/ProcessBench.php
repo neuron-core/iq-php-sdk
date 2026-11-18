@@ -2,17 +2,17 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Concurrency;
+namespace NeuronCore\IQ\Tests\Support\Concurrency;
 
 use Closure;
 use NeuronAI\Workflow\Persistence\DatabasePersistence;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\WorkflowEngine;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Runtime\Ledger;
-use NeuronCore\Cloud\Tests\Support\ExecutionLog;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Runtime\Ledger;
+use NeuronCore\IQ\Tests\Support\ExecutionLog;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
 use PDO;
 use PHPUnit\Framework\Assert;
 
@@ -68,7 +68,7 @@ final class ProcessBench
 
     public function __construct()
     {
-        $this->directory = sys_get_temp_dir() . '/neuron-cloud-' . bin2hex(random_bytes(8));
+        $this->directory = sys_get_temp_dir() . '/iq-' . bin2hex(random_bytes(8));
         mkdir($this->directory);
 
         touch($this->directory . '/executions');

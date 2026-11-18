@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Observability;
+namespace NeuronCore\IQ\Observability;
 
 use function strrchr;
 use function strstr;

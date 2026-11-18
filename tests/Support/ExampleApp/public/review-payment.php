@@ -9,7 +9,7 @@ declare(strict_types=1);
  * nothing is a 400, and one that waits for something else a 409.
  */
 
-namespace NeuronCore\Cloud\Tests\Support\ExampleApp;
+namespace NeuronCore\IQ\Tests\Support\ExampleApp;
 
 use NeuronAI\Exceptions\InputTranslationException;
 use NeuronAI\Exceptions\WorkflowRefusedException;
@@ -26,7 +26,7 @@ $shop = require __DIR__ . '/../bootstrap.php';
 $review = json_decode((string) file_get_contents('php://input'), true, flags: JSON_THROW_ON_ERROR);
 
 try {
-    $shop->cloud->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $review['orderId']))
+    $shop->iq->workflow(Shop::DEFINITION, OrderWorkflow::workflowIdOf((string) $review['orderId']))
         ->submitInputs(['approved' => (bool) $review['approved'], 'reviewer' => (string) $review['reviewer']])
         ->dispatch();
 

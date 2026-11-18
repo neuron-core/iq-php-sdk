@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use JsonException;
 use NeuronAI\Exceptions\HttpException;
@@ -10,9 +10,9 @@ use NeuronAI\HttpClient\HttpClientInterface;
 use NeuronAI\HttpClient\HttpMethod;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\HttpClient\HttpResponse;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Report;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Report;
 use Throwable;
 
 use function array_is_list;
@@ -80,7 +80,7 @@ final class PlatformClient
 
     /**
      * @param array<string, mixed> $announcement
-     * @throws CloudException report_undelivered, or the reason the platform refused it for good
+     * @throws IQException report_undelivered, or the reason the platform refused it for good
      */
     public function announce(array $announcement): void
     {
@@ -88,7 +88,7 @@ final class PlatformClient
     }
 
     /**
-     * @throws CloudException report_undelivered, or the reason the platform refused it for good
+     * @throws IQException report_undelivered, or the reason the platform refused it for good
      */
     public function report(Report $report): void
     {
@@ -100,7 +100,7 @@ final class PlatformClient
      *
      * @param array<string, mixed> $manifest
      * @return array<string, mixed> the answer: whether anything changed, and the runs still open on each version
-     * @throws CloudException the reason the platform refused the sync for good; report_undelivered, when it gave
+     * @throws IQException the reason the platform refused the sync for good; report_undelivered, when it gave
      *                        no usable answer
      */
     public function sync(array $manifest): array
@@ -118,7 +118,7 @@ final class PlatformClient
             ? ' That is not the answer to a sync: it may have published the list. Run the sync again.'
             : '';
 
-        throw new CloudException(
+        throw new IQException(
             "The platform did not confirm the sync: it answered {$answer->statusCode} to " . self::SYNC
             . " ({$reason->value}).{$advice}",
             $reason,
@@ -130,7 +130,7 @@ final class PlatformClient
      * the segment, so it waits no longer than an announcement does.
      *
      * @param array<string, mixed> $trace
-     * @throws CloudException unauthorized, for a 401 or a 403; report_undelivered, for any other answer that is
+     * @throws IQException unauthorized, for a 401 or a 403; report_undelivered, for any other answer that is
      *                        not a 2xx, when the platform gave none and when the trace cannot be encoded
      */
     public function traces(array $trace): void
@@ -142,7 +142,7 @@ final class PlatformClient
      * What one evaluator found, with the inputs and the outputs it ran on.
      *
      * @param array<string, mixed> $evaluation
-     * @throws CloudException as traces()
+     * @throws IQException as traces()
      */
     public function evaluation(array $evaluation): void
     {
@@ -153,7 +153,7 @@ final class PlatformClient
      * What the platform says about the evaluators of a suite.
      *
      * @return array<string, mixed>
-     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
+     * @throws IQException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
      *                        that carries it; report_undelivered, for any other answer that is not a 2xx with a
      *                        verdict, a 404 for a suite the platform does not know included, and when the platform
      *                        gave none
@@ -170,7 +170,7 @@ final class PlatformClient
 
         $explanation = $answer->statusCode === 404 ? ' It holds no evaluation of this suite.' : '';
 
-        throw new CloudException(
+        throw new IQException(
             "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
             $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
@@ -180,7 +180,7 @@ final class PlatformClient
      * The items of a dataset the platform keeps, in the environment of the API key.
      *
      * @return list<array<array-key, mixed>> each item as the platform holds it
-     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
+     * @throws IQException unauthorized, for a 401 or a 403; invalid_request or unsupported_protocol, for a 4xx
      *                        that carries it; report_undelivered, for any other answer that is not a 2xx with a list
      *                        of items, a 404 for a slug the platform does not know included, and when the platform
      *                        gave none
@@ -202,7 +202,7 @@ final class PlatformClient
             default => '',
         };
 
-        throw new CloudException(
+        throw new IQException(
             "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
             $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
@@ -216,7 +216,7 @@ final class PlatformClient
      * @param list<array<array-key, mixed>> $items at most {@see self::UPLOAD_ITEMS}, each with an input
      * @param string|null $name what a dataset the request creates is called; its slug when null
      * @return array{slug: string, created: bool, added: int, updated: int, unchanged: int}
-     * @throws CloudException unauthorized, for a 401 or a 403; invalid_request, for a 422, whose message says what
+     * @throws IQException unauthorized, for a 401 or a 403; invalid_request, for a 422, whose message says what
      *                        the platform refused, and for a 4xx that carries it; unsupported_protocol, for a 4xx
      *                        that carries it; report_undelivered, for any other answer that is not a 2xx with the
      *                        counts, and when the platform gave none
@@ -236,7 +236,7 @@ final class PlatformClient
             ? ' That is not what a write of a dataset answers.'
             : (is_string($message) && $message !== '' ? " {$message}" : '');
 
-        throw new CloudException(
+        throw new IQException(
             "The platform answered {$answer->statusCode} to {$path}.{$explanation}",
             $answer->statusCode === 422 ? Code::InvalidRequest : $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
@@ -310,7 +310,7 @@ final class PlatformClient
 
     /**
      * @param array<string, mixed> $body
-     * @throws CloudException
+     * @throws IQException
      */
     protected function post(string $path, array $body): void
     {
@@ -321,7 +321,7 @@ final class PlatformClient
             return;
         }
 
-        throw new CloudException(
+        throw new IQException(
             "The platform answered {$answer->statusCode} to {$path} and recorded nothing.",
             $this->reason($answer->statusCode, $fields['code'] ?? null, self::FINAL_CODES),
         );
@@ -331,14 +331,14 @@ final class PlatformClient
      * Post what the platform only takes in: any 2xx answer is enough, and nothing in it is read.
      *
      * @param array<string, mixed> $body
-     * @throws CloudException
+     * @throws IQException
      */
     protected function hand(string $path, array $body, float $timeout): void
     {
         $answer = $this->send(HttpMethod::POST, $path, $body, $timeout);
 
         if (!$answer->isSuccessful()) {
-            throw new CloudException(
+            throw new IQException(
                 "The platform answered {$answer->statusCode} to {$path}.",
                 $this->reason($answer->statusCode, $this->fieldsOf($answer)['code'] ?? null, self::FINAL_CODES),
             );
@@ -348,7 +348,7 @@ final class PlatformClient
     /**
      * @param array<string, mixed>|null $body null for a GET
      * @return HttpResponse the answer of the platform, whatever its status
-     * @throws CloudException report_undelivered, when the platform gave no answer
+     * @throws IQException report_undelivered, when the platform gave no answer
      */
     protected function send(HttpMethod $method, string $path, ?array $body, float $timeout): HttpResponse
     {
@@ -409,8 +409,8 @@ final class PlatformClient
         return Code::ReportUndelivered;
     }
 
-    protected function undelivered(string $path, Throwable $failure): CloudException
+    protected function undelivered(string $path, Throwable $failure): IQException
     {
-        return new CloudException("The platform gave no answer to {$path}.", Code::ReportUndelivered, $failure);
+        return new IQException("The platform gave no answer to {$path}.", Code::ReportUndelivered, $failure);
     }
 }

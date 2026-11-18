@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Runtime;
+namespace NeuronCore\IQ\Runtime;
 
 use NeuronAI\Workflow\Executor\ExecutionRequest;
 use NeuronAI\Workflow\RefusalReason;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowRunSnapshot;
 use NeuronAI\Workflow\WorkflowStatus;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Outcome;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Outcome;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Verb;
 use Throwable;
 
 use function time;
@@ -38,7 +38,7 @@ final class Runner
     }
 
     /**
-     * @throws CloudException when the message was not dealt with: the reason tells the worker what to do
+     * @throws IQException when the message was not dealt with: the reason tells the worker what to do
      */
     public function invoke(Invocation $invocation): Report
     {
@@ -50,7 +50,7 @@ final class Runner
     }
 
     /**
-     * @throws CloudException
+     * @throws IQException
      */
     protected function runSegment(Invocation $invocation): Report
     {
@@ -68,12 +68,12 @@ final class Runner
     /**
      * Neuron reads a missing attempt as "no fence": every copy of the message would then execute.
      *
-     * @throws CloudException invalid_request
+     * @throws IQException invalid_request
      */
     protected function assertFenced(Invocation $invocation): void
     {
         if ($invocation->verb !== Verb::Start && $invocation->attempt === null) {
-            throw new CloudException(
+            throw new IQException(
                 "The {$invocation->verb->value} '{$invocation->invocationId}' carries no attempt: nothing would fence its copies.",
                 Code::InvalidRequest,
             );
@@ -86,7 +86,7 @@ final class Runner
 
         try {
             $definition = $this->registry->pinned($invocation->definition, $invocation->runId);
-        } catch (CloudException $unknown) {
+        } catch (IQException $unknown) {
             // A worker still running old code during a deploy is the usual cause.
             return Settlement::aborted($unknown->reason);
         }
@@ -103,7 +103,7 @@ final class Runner
 
         try {
             $request = $this->request($invocation, $workflow);
-        } catch (CloudException) {
+        } catch (IQException) {
             // Only a start can fail here: its event broke a rule, or cannot be stored with a run.
             return Settlement::rejected(Code::InvalidStart);
         } catch (Throwable $e) {
@@ -134,7 +134,7 @@ final class Runner
      * The fence of a wake, an answer or a signal is the one the invocation
      * carries: it is never read again at job time.
      *
-     * @throws CloudException invalid_start, when the event of a start cannot ignite a run
+     * @throws IQException invalid_start, when the event of a start cannot ignite a run
      * @throws Throwable what a hook of the workflow threw, or what Neuron threw for an input it cannot hold
      */
     protected function request(Invocation $invocation, Workflow $workflow): ExecutionRequest
@@ -171,7 +171,7 @@ final class Runner
             $this->platform->announce($announcement);
 
             return null;
-        } catch (CloudException) {
+        } catch (IQException) {
             // Final or not, the answer changes nothing here: the announcement goes to the queue.
         }
 
@@ -289,7 +289,7 @@ final class Runner
             $this->platform->report($report);
 
             return;
-        } catch (CloudException) {
+        } catch (IQException) {
             // Final or not, the answer changes nothing here: the outcome goes to the queue.
         }
 
@@ -305,7 +305,7 @@ final class Runner
      * one the application issued, so its worker is told. A start that was
      * already claimed is the exception: it cannot run again.
      *
-     * @throws CloudException
+     * @throws IQException
      */
     protected function assertDealtWith(Invocation $invocation, Settlement $settlement): void
     {
@@ -314,7 +314,7 @@ final class Runner
             && $settlement->claimed !== true;
 
         if ($mayRunLater) {
-            throw new CloudException(
+            throw new IQException(
                 "The {$invocation->verb->value} of '{$invocation->definition}' for workflow ID '{$invocation->workflowId}' "
                 . "(run ID '{$invocation->runId}') was aborted before anything ran ({$settlement->code}): "
                 . 'give it to invoke() again later.',
@@ -325,7 +325,7 @@ final class Runner
     }
 
     /**
-     * @throws CloudException report_undelivered, or the reason the platform refused the announcement for good
+     * @throws IQException report_undelivered, or the reason the platform refused the announcement for good
      */
     protected function postAnnouncement(Invocation $invocation): Report
     {
@@ -341,7 +341,7 @@ final class Runner
      * that cannot be read does not hold the report back: the report says so,
      * and the platform asks by itself.
      *
-     * @throws CloudException report_undelivered, or the reason the platform refused the report for good; either
+     * @throws IQException report_undelivered, or the reason the platform refused the report for good; either
      *                        way with the report, because what the store shows does not wait for the platform
      */
     protected function observe(Invocation $invocation): Report
@@ -363,8 +363,8 @@ final class Runner
 
         try {
             $this->platform->report($report);
-        } catch (CloudException $unrecorded) {
-            throw new CloudException($unrecorded->getMessage(), $unrecorded->reason, $unrecorded->getPrevious(), $report);
+        } catch (IQException $unrecorded) {
+            throw new IQException($unrecorded->getMessage(), $unrecorded->reason, $unrecorded->getPrevious(), $report);
         }
 
         return $report;

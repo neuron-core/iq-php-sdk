@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Stub\Units;
+namespace NeuronCore\IQ\Tests\Stub\Units;
 
 use NeuronAI\Workflow\Events\Event;
 

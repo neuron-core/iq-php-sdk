@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Questions;
+namespace NeuronCore\IQ\Tests\Support\Questions;
 
 use ArrayObject;
 use Closure;
@@ -20,20 +20,20 @@ use NeuronAI\Workflow\Interrupt\InterruptRequest;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
 use NeuronAI\Workflow\WorkflowEngine;
-use NeuronCore\Cloud\CloudException;
-use NeuronCore\Cloud\ManagedWorkflow;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\CompletingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\FlakyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Flows\SupportAgent;
-use NeuronCore\Cloud\Tests\Stub\Questions\SleepingWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\BusyWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Stub\WaitingWorkflow;
-use NeuronCore\Cloud\Tests\Support\Endpoint\EndpointTestCase;
-use NeuronCore\Cloud\Tests\Support\Faults\StoredRun;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\IQException;
+use NeuronCore\IQ\ManagedWorkflow;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\CompletingWorkflow;
+use NeuronCore\IQ\Tests\Stub\FlakyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Flows\SupportAgent;
+use NeuronCore\IQ\Tests\Stub\Questions\SleepingWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\BusyWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Stub\WaitingWorkflow;
+use NeuronCore\IQ\Tests\Support\Endpoint\EndpointTestCase;
+use NeuronCore\IQ\Tests\Support\Faults\StoredRun;
+use NeuronCore\IQ\Tests\Support\TestBench;
 
 use function hash;
 use function json_decode;
@@ -63,7 +63,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
     /** A time no test lives to see: the first second of the year 2100. */
     protected const FAR_AHEAD = 4102444800;
 
-    protected const LEDGER_PARTITION_PREFIX = '__neuron_cloud:';
+    protected const LEDGER_PARTITION_PREFIX = '__iq:';
 
     /** Microseconds between two looks at the clock while a lease runs out. */
     protected const TICK = 20_000;
@@ -74,7 +74,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
     /** What an abandon is answered when it finds its run ID in the ledger and no run: it cannot tell why. */
     protected const ENTRY_WAS_THERE = [409, ['code' => 'stale_run', 'run' => null, 'claimed' => true, 'snapshotRead' => true]];
 
-    /** @var array<int, Report|CloudException> what invoke() returned or threw for the start that brought the holder */
+    /** @var array<int, Report|IQException> what invoke() returned or threw for the start that brought the holder */
     protected array $settled = [];
 
     /**
@@ -117,7 +117,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
     {
         $bench = $this->benchOn($backend);
         $executions = $bench->executions;
-        $bench->cloud->register(static::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
+        $bench->iq->register(static::DEFINITION, static fn (): Workflow => new WaitingWorkflow($executions));
 
         return $bench;
     }
@@ -126,16 +126,16 @@ abstract class QuestionsTestCase extends EndpointTestCase
      * The platform sends a start whose worker claims it and then loses the store at Neuron's first write: the
      * run ID is in the ledger and no run was created.
      *
-     * @return Report|CloudException what invoke() returned or threw for the start
+     * @return Report|IQException what invoke() returned or threw for the start
      */
-    protected function startThatWasClaimedAndNeverRan(): Report|CloudException
+    protected function startThatWasClaimedAndNeverRan(): Report|IQException
     {
         $this->deliver($this->start());
         $this->failTheStoreAt(
             static fn (string $operation, string $partition): bool => $operation === 'initializeIfAbsent' && $partition === static::WORKFLOW_ID,
         );
         [$settled] = $this->work();
-        $this->bench->cloud->setPersistence($this->bench->persistence);
+        $this->bench->iq->setPersistence($this->bench->persistence);
 
         return $settled;
     }
@@ -180,7 +180,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
      */
     protected function afterTheFirstSegmentOf(Closure $factory, ?Closure $ask = null): mixed
     {
-        $this->bench->cloud->register(static::DEFINITION, $factory);
+        $this->bench->iq->register(static::DEFINITION, $factory);
         $this->deliver($this->start());
         $this->settled = $this->work();
 
@@ -204,7 +204,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
             $answer = $ask();
         };
 
-        $this->bench->cloud->register(
+        $this->bench->iq->register(
             static::DEFINITION,
             static fn (): Workflow => new BusyWorkflow($executions, $whileExecuting),
             leaseTimeout: $lease,
@@ -230,7 +230,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
         $whileExecuting = static function () use ($ask, &$answer): void {
             $answer = $ask();
         };
-        $this->bench->cloud->register(static::DEFINITION, static fn (): Workflow => new BusyWorkflow($executions, $whileExecuting));
+        $this->bench->iq->register(static::DEFINITION, static fn (): Workflow => new BusyWorkflow($executions, $whileExecuting));
 
         try {
             (new BusyWorkflow($executions, $whileExecuting))
@@ -254,7 +254,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
     protected function afterACompletionRetainedOutsideTheSdk(Closure $ask): mixed
     {
         $executions = $this->bench->executions;
-        $this->bench->cloud->register(static::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
+        $this->bench->iq->register(static::DEFINITION, static fn (): Workflow => new CompletingWorkflow($executions));
 
         (new CompletingWorkflow($executions))
             ->for(static::WORKFLOW_ID)
@@ -294,9 +294,9 @@ abstract class QuestionsTestCase extends EndpointTestCase
             new ToolCallMessage(null, [new ToolCall('refund', self::CALL_ID, ['iban' => self::IBAN])]),
             new AssistantMessage('The order is refunded.'),
         );
-        $this->bench->cloud->register(self::AGENT, static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
+        $this->bench->iq->register(self::AGENT, static fn (): Agent => new SupportAgent($provider, $conversations, $executions));
 
-        $thread = $this->bench->cloud->workflow(self::AGENT, self::THREAD_ID);
+        $thread = $this->bench->iq->workflow(self::AGENT, self::THREAD_ID);
         $thread->start(new UserMessage('Refund order 123.'))->run();
         $this->work();
 
@@ -373,7 +373,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
         $operations = new ArrayObject();
         $persistence = $this->bench->persistence;
 
-        $this->bench->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
+        $this->bench->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
             $persistence(),
             static function (string $operation, string $partition) use ($operations): void {
                 $operations[] = [$operation, $partition];
@@ -408,7 +408,7 @@ abstract class QuestionsTestCase extends EndpointTestCase
     {
         $persistence = $this->bench->persistence;
 
-        $this->bench->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
+        $this->bench->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
             $persistence(),
             static function (string $operation, string $partition) use ($struck): void {
                 if ($struck($operation, $partition)) {

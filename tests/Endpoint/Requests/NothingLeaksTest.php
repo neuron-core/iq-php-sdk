@@ -2,23 +2,23 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Endpoint\Requests;
+namespace NeuronCore\IQ\Tests\Endpoint\Requests;
 
 use Closure;
 use Error;
 use NeuronAI\HttpClient\HttpResponse;
 use NeuronAI\Workflow\Persistence\PersistenceInterface;
 use NeuronAI\Workflow\Workflow;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Report;
-use NeuronCore\Cloud\Tests\Stub\Faults\SecretiveWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Requests\FailingQueue;
-use NeuronCore\Cloud\Tests\Stub\Requests\UnencodableRunWorkflow;
-use NeuronCore\Cloud\Tests\Stub\Runner\InterceptedPersistence;
-use NeuronCore\Cloud\Tests\Stub\Runner\StoreUnavailable;
-use NeuronCore\Cloud\Tests\Support\Faults\Markers;
-use NeuronCore\Cloud\Tests\Support\Requests\RequestTestCase;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Report;
+use NeuronCore\IQ\Tests\Stub\Faults\SecretiveWorkflow;
+use NeuronCore\IQ\Tests\Stub\Requests\FailingQueue;
+use NeuronCore\IQ\Tests\Stub\Requests\UnencodableRunWorkflow;
+use NeuronCore\IQ\Tests\Stub\Runner\InterceptedPersistence;
+use NeuronCore\IQ\Tests\Stub\Runner\StoreUnavailable;
+use NeuronCore\IQ\Tests\Support\Faults\Markers;
+use NeuronCore\IQ\Tests\Support\Requests\RequestTestCase;
+use NeuronCore\IQ\Verb;
 use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 
@@ -69,7 +69,7 @@ class NothingLeaksTest extends RequestTestCase
     public function test_no_answer_about_a_run_holds_what_its_workflow_keeps(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new SecretiveWorkflow());
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new SecretiveWorkflow());
 
         $answers = $this->askAtEveryStageOfTheSecretiveRun();
 
@@ -84,7 +84,7 @@ class NothingLeaksTest extends RequestTestCase
     public function test_an_approval_is_shown_as_the_number_the_type_the_event_name_and_the_deadline_of_its_wait(string $backend): void
     {
         $this->shop($backend);
-        $this->cloud->register(self::DEFINITION, static fn (): Workflow => new SecretiveWorkflow());
+        $this->iq->register(self::DEFINITION, static fn (): Workflow => new SecretiveWorkflow());
         $this->deliver($this->start());
         $this->work();
 
@@ -104,7 +104,7 @@ class NothingLeaksTest extends RequestTestCase
         $failures = [
             'a factory that throws an exception' => [
                 static function (self $test): void {
-                    $test->cloud->register(self::DEFINITION, static function (): never {
+                    $test->iq->register(self::DEFINITION, static function (): never {
                         throw new RuntimeException(self::FAILURE);
                     });
                 },
@@ -112,7 +112,7 @@ class NothingLeaksTest extends RequestTestCase
             ],
             'a factory that throws an Error' => [
                 static function (self $test): void {
-                    $test->cloud->register(self::DEFINITION, static function (): never {
+                    $test->iq->register(self::DEFINITION, static function (): never {
                         throw new Error(self::FAILURE);
                     });
                 },
@@ -120,7 +120,7 @@ class NothingLeaksTest extends RequestTestCase
             ],
             'a persistence factory that throws' => [
                 static function (self $test): void {
-                    $test->cloud->setPersistence(static function (): never {
+                    $test->iq->setPersistence(static function (): never {
                         throw new StoreUnavailable(self::FAILURE);
                     });
                 },
@@ -129,7 +129,7 @@ class NothingLeaksTest extends RequestTestCase
             'a store whose every operation throws' => [
                 static function (self $test): void {
                     $persistence = $test->bench->persistence;
-                    $test->cloud->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
+                    $test->iq->setPersistence(static fn (): PersistenceInterface => new InterceptedPersistence(
                         $persistence(),
                         static fn () => throw new StoreUnavailable(self::FAILURE),
                     ));
@@ -138,13 +138,13 @@ class NothingLeaksTest extends RequestTestCase
             ],
             'a queue that throws' => [
                 static function (self $test): void {
-                    $test->cloud->setDispatcher(new FailingQueue(new RuntimeException(self::FAILURE)));
+                    $test->iq->setDispatcher(new FailingQueue(new RuntimeException(self::FAILURE)));
                 },
                 ['start' => 503, 'wake' => 503, 'inspect' => 200, 'abandon' => 200, 'ping' => 200],
             ],
             'an answer that cannot be encoded' => [
                 static function (self $test): void {
-                    $test->cloud->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
+                    $test->iq->register(self::DEFINITION, static fn (): Workflow => new UnencodableRunWorkflow());
                 },
                 ['start' => 202, 'wake' => 202, 'inspect' => 500, 'abandon' => 500, 'ping' => 200],
             ],
@@ -186,10 +186,10 @@ class NothingLeaksTest extends RequestTestCase
         [$approval] = $this->work();
         $answers = $this->ask();
 
-        $event = $this->cloud->invoke($this->continuation(Verb::Answer, $approval, ['payload' => base64_encode(serialize(['call_1' => ['reject', Markers::ANSWER]]))]));
+        $event = $this->iq->invoke($this->continuation(Verb::Answer, $approval, ['payload' => base64_encode(serialize(['call_1' => ['reject', Markers::ANSWER]]))]));
         $answers = [...$answers, ...$this->ask()];
 
-        $timer = $this->cloud->invoke($this->continuation(Verb::Signal, $event, [
+        $timer = $this->iq->invoke($this->continuation(Verb::Signal, $event, [
             'signal' => SecretiveWorkflow::EVENT,
             'payload' => base64_encode(serialize(['reference' => Markers::SIGNAL])),
         ]));

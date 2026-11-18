@@ -2,18 +2,18 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Local\StreamedChat;
+namespace NeuronCore\IQ\Tests\Local\StreamedChat;
 
 use NeuronAI\Chat\Messages\ToolCallMessage;
 use NeuronAI\HttpClient\HttpRequest;
 use NeuronAI\Tools\ToolCall;
-use NeuronCore\Cloud\Invocation;
-use NeuronCore\Cloud\Tests\Stub\StreamedChat\PaymentProviderDown;
-use NeuronCore\Cloud\Tests\Support\ProtocolSchema;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\ChatResponse;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\Confidential;
-use NeuronCore\Cloud\Tests\Support\StreamedChat\StreamedChatTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
+use NeuronCore\IQ\Invocation;
+use NeuronCore\IQ\Tests\Stub\StreamedChat\PaymentProviderDown;
+use NeuronCore\IQ\Tests\Support\ProtocolSchema;
+use NeuronCore\IQ\Tests\Support\StreamedChat\ChatResponse;
+use NeuronCore\IQ\Tests\Support\StreamedChat\Confidential;
+use NeuronCore\IQ\Tests\Support\StreamedChat\StreamedChatTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Throwable;
 

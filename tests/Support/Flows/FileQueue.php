@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Support\Flows;
+namespace NeuronCore\IQ\Tests\Support\Flows;
 
-use NeuronCore\Cloud\DispatcherInterface;
-use NeuronCore\Cloud\Invocation;
+use NeuronCore\IQ\DispatcherInterface;
+use NeuronCore\IQ\Invocation;
 
 use function array_map;
 use function file;

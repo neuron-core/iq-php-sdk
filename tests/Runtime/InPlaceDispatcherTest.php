@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace NeuronCore\Cloud\Tests\Runtime;
+namespace NeuronCore\IQ\Tests\Runtime;
 
-use NeuronCore\Cloud\Code;
-use NeuronCore\Cloud\Runtime\InPlaceDispatcher;
-use NeuronCore\Cloud\Tests\Support\CloudTestCase;
-use NeuronCore\Cloud\Tests\Support\TestBench;
-use NeuronCore\Cloud\Tests\Support\Units\CatchesCloudExceptions;
-use NeuronCore\Cloud\Tests\Support\Units\Queued;
-use NeuronCore\Cloud\Verb;
+use NeuronCore\IQ\Code;
+use NeuronCore\IQ\Runtime\InPlaceDispatcher;
+use NeuronCore\IQ\Tests\Support\IQTestCase;
+use NeuronCore\IQ\Tests\Support\TestBench;
+use NeuronCore\IQ\Tests\Support\Units\CatchesIQExceptions;
+use NeuronCore\IQ\Tests\Support\Units\Queued;
+use NeuronCore\IQ\Verb;
 
-class InPlaceDispatcherTest extends CloudTestCase
+class InPlaceDispatcherTest extends IQTestCase
 {
-    use CatchesCloudExceptions;
+    use CatchesIQExceptions;
 
     public function test_a_message_it_is_handed_runs_at_once_through_invoke(): void
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
 
-        (new InPlaceDispatcher($bench->cloud))->dispatch(Queued::announcementOf(Queued::start('greeting')));
+        (new InPlaceDispatcher($bench->iq))->dispatch(Queued::announcementOf(Queued::start('greeting')));
 
         $bench->platform->assertAnnounced(Queued::WORKFLOW_ID, Verb::Start);
     }
@@ -29,7 +29,7 @@ class InPlaceDispatcherTest extends CloudTestCase
     {
         $bench = $this->benchOn(TestBench::IN_MEMORY);
         $bench->platform->failNext(1);
-        $dispatcher = new InPlaceDispatcher($bench->cloud);
+        $dispatcher = new InPlaceDispatcher($bench->iq);
 
         $reason = self::reasonThrownBy(static function () use ($dispatcher): void {
             $dispatcher->dispatch(Queued::announcementOf(Queued::start('greeting')));
